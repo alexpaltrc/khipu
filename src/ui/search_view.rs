@@ -20,14 +20,17 @@
 //! The search window: Alt+Space anywhere in Windows, pick an expansion, and it lands where the
 //! cursor was.
 //!
-//! Espanso's own version of this is what it replaces, and the division of labour is the point.
-//! Everything visible here is ours — the type ramp, the accent, the row layout, the way a selected
-//! row is lit — while the insertion itself is handed back to espanso through `match exec`. Putting
-//! text into Word, Teams, a terminal and an Electron app, with the clipboard restored afterwards,
-//! is the hard part of a text expander, and it is already solved.
+//! Espanso's own version of this is what it replaces. It is the library's list, made small: the
+//! same search box, the same rows — trigger in its column, what it writes beside it, quietly — and
+//! the same neutral fill with the accent bar on the chosen one. Nothing else: no title, no hints
+//! underneath. Up, Down, Enter and Esc are what every launcher answers to.
 //!
-//! Keyboard first, because that is how this is used: it opens with the field focused, Up and Down
-//! move, Enter picks, Esc closes. The mouse works too, but nobody reaching for Alt+Space wants it.
+//! Two things move, both briefly, and neither with Windows' animation effects off: the contents
+//! fade in as the window opens, and the chosen row's fill glides to the next one rather than
+//! jumping — the library's own spring, so the two windows move alike.
+//!
+//! Keyboard first, because that is how this is used: it opens with the field focused. The mouse
+//! works too: pointing at a row chooses it, clicking inserts it.
 //!
 //! ## Why it is a window that is always there, hidden
 //!
@@ -48,39 +51,36 @@
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use crate::app::{accent, hairline, secondary_text, text_tertiary};
+use crate::app::{accent, hairline, text_tertiary};
 use crate::i18n::Strings;
+use crate::ui::controls;
 
 /// An upper bound on how many matches are held at once. High enough that no real search ever meets
 /// it, low enough that one keystroke can never turn into thousands of rows.
 const MAX_RESULTS: usize = 200;
 
 /// How many rows the window is tall. Everything past this is reached by scrolling.
-pub const VISIBLE_ROWS: usize = 8;
+const VISIBLE_ROWS: usize = 8;
 
 /// One row's height, and therefore the pitch of the list: rows are drawn with no spacing between
-/// them so that this number alone decides how tall the window has to be.
-pub const ROW_HEIGHT: f32 = 34.0;
+/// them so that this number alone decides how tall the window has to be. The library's dense row:
+/// the dense padding above and below one line of body text.
+const ROW_HEIGHT: f32 = 36.0;
 
 /// Wide enough for a trigger and a useful slice of what it expands to.
-pub const WINDOW_WIDTH: f32 = 560.0;
+const WINDOW_WIDTH: f32 = 560.0;
 
-const PAD: f32 = 12.0;
-const GAP_ABOVE_LIST: f32 = 8.0;
-const GAP_BELOW_LIST: f32 = 6.0;
-const GAP_ABOVE_EMPTY: f32 = 10.0;
+/// Between the window's edge and everything in it, and between the search box and the list.
+const PAD: f32 = 8.0;
+const GAP_ABOVE_LIST: f32 = 6.0;
 
-/// Breathing room at both ends of a row. The right-hand one is what keeps a long preview from
-/// running into the window's border instead of ending somewhere deliberate.
-const ROW_INSET: f32 = 12.0;
+/// The trigger column: as wide as the widest trigger, so none is cut short — but never more than
+/// this share of the row, so the text beside it always has room. The floor is the library's.
+const TRIGGER_MIN: f32 = 92.0;
+const TRIGGER_SHARE: f32 = 0.4;
 
-/// Width reserved for the trigger, so every preview in the list starts on the same vertical line —
-/// the same column rule the main window follows.
-const TRIGGER_COLUMN: f32 = 132.0;
-
-/// Kept clear between the trigger and the preview, so a long trigger ends with an ellipsis rather
-/// than butting up against the text beside it.
-const COLUMN_GAP: f32 = 8.0;
+/// How long the contents take to fade in when the window opens.
+const APPEAR: f32 = 0.12;
 
 pub struct Hit {
     pub trigger: String,
@@ -118,6 +118,32 @@ struct Launcher {
     scale: f32,
     /// What was picked, waiting for the main window's logic to collect it.
     chosen: Option<String>,
+    /// The search box's height as last drawn, which is what the window's height is worked out
+    /// from. Zero until it has been drawn once; [`field_height`] estimates it until then.
+    field_height: f32,
+    /// The trigger column for this opening, measured once from every trigger rather than from the
+    /// matches, so the column does not shift while typing. Zero until measured.
+    trigger_width: f32,
+    /// Where the chosen row's fill is, and how fast it is going: see [`glide_selection`].
+    glide: Glide,
+    /// Set when the list itself changed, so the fill lands on the new first row instead of
+    /// gliding there from a row of a list that is gone.
+    jump: bool,
+    /// When the window first drew after opening, for the fade in.
+    shown_at: Option<f64>,
+    /// The window's native handle, found once: see [`own_hwnd`]. Zero until found.
+    hwnd: isize,
+    /// Whether the compositor is being kept from drawing the window, and how many passes it has
+    /// drawn since it opened: see [`set_cloaked`].
+    cloaked: bool,
+    passes: u32,
+}
+
+/// The chosen row's fill, as an offset from the top of the list.
+#[derive(Default, Clone, Copy)]
+struct Glide {
+    top: f32,
+    speed: f32,
 }
 
 /// The search window, from the main window's side. Cheap to clone: every clone is the same window.
@@ -176,8 +202,11 @@ impl SearchWindow {
         l.needs_focus = true;
         l.had_focus = false;
         l.chosen = None;
+        l.trigger_width = 0.0;
+        l.jump = true;
+        l.shown_at = None;
         l.open = true;
-        let size = window_size(ctx, hits(&l.entries, "").len());
+        let size = window_size(ctx, l.field_height, hits(&l.entries, "").len());
         l.size = size;
 
         // Centred on the screen the person is actually working on, not on the primary one, a
@@ -198,6 +227,11 @@ impl SearchWindow {
                 egui::ViewportCommand::OuterPosition(egui::pos2(x / own_scale, y / own_scale)),
             );
         }
+        if l.hwnd == 0 {
+            l.hwnd = own_hwnd();
+        }
+        l.cloaked = set_cloaked(l.hwnd, true);
+        l.passes = 0;
         ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Focus);
         ctx.request_repaint_of(id);
@@ -234,6 +268,17 @@ impl SearchWindow {
         // right to take the foreground, but only if it actually asks — and a search box that does
         // not have the keyboard is worse than none at all, because the keystrokes land in whatever
         // document was underneath.
+        // One pass has been drawn and presented: from now on there is something to see.
+        if l.cloaked && l.passes > 0 {
+            set_cloaked(l.hwnd, false);
+            l.cloaked = false;
+            l.shown_at = None;
+        }
+        l.passes += 1;
+        if l.cloaked {
+            ctx.request_repaint();
+        }
+
         if std::mem::take(&mut l.needs_focus) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
         }
@@ -299,6 +344,65 @@ fn window_scale(hwnd: windows::Win32::Foundation::HWND) -> f32 {
     }
 }
 
+/// This window's native handle, as an `isize`; zero if it cannot be found.
+///
+/// egui does not hand a child window's handle to the code that draws it, so it is looked for among
+/// this thread's windows — which is where it lives, since eframe makes every window on the one
+/// thread. Ours is the one that carries the app's name and sits above everything; the main window
+/// never does. (Not "the one with no title bar": winit keeps the title bar style bits on a window
+/// without decorations and hides the bar another way.)
+fn own_hwnd() -> isize {
+    use windows::Win32::Foundation::{HWND, LPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumThreadWindows, GetWindowLongPtrW, GetWindowTextW, GWL_EXSTYLE, WS_EX_TOPMOST,
+    };
+    unsafe extern "system" fn visit(hwnd: HWND, found: LPARAM) -> windows::core::BOOL {
+        let ex_style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) } as u32;
+        let mut title = [0u16; 32];
+        let len = unsafe { GetWindowTextW(hwnd, &mut title) }.max(0) as usize;
+        if ex_style & WS_EX_TOPMOST.0 != 0
+            && String::from_utf16_lossy(&title[..len]) == "Espanso Manager"
+        {
+            unsafe { *(found.0 as *mut isize) = hwnd.0 as isize };
+            return false.into();
+        }
+        true.into()
+    }
+    let mut found: isize = 0;
+    unsafe {
+        let _ = EnumThreadWindows(
+            windows::Win32::System::Threading::GetCurrentThreadId(),
+            Some(visit),
+            LPARAM(&mut found as *mut isize as isize),
+        );
+    }
+    found
+}
+
+/// Keeps the compositor from drawing the window, or lets it again. Says whether it took.
+///
+/// Windows puts a window on screen the moment it is shown, before the program behind it has drawn
+/// a thing into it, and for that instant it is a white rectangle — a flash, on a dark screen, in
+/// one opening out of two, measured. So the window is shown cloaked, draws its first frame unseen,
+/// and is uncloaked on the pass after, with that frame already in it; the fade in starts there.
+fn set_cloaked(hwnd: isize, cloaked: bool) -> bool {
+    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CLOAK};
+    if hwnd == 0 {
+        return false;
+    }
+    // A Win32 BOOL, which is an i32.
+    let value = i32::from(cloaked);
+    unsafe {
+        DwmSetWindowAttribute(
+            windows::Win32::Foundation::HWND(hwnd as *mut std::ffi::c_void),
+            DWMWA_CLOAK,
+            (&value as *const i32).cast(),
+            std::mem::size_of::<i32>() as u32,
+        )
+        .is_ok()
+    }
+}
+
 /// The expansions matching the query, best first.
 ///
 /// Matches on the trigger *and* on the replacement text, because half the time you remember what
@@ -322,29 +426,43 @@ fn hits<'a>(entries: &'a [Hit], query: &str) -> Vec<&'a Hit> {
     by_trigger
 }
 
+
 /// How tall and wide the window has to be to show `rows` results without cutting anything off.
 ///
-/// Derived from the constants above and from the fonts actually loaded, rather than guessed. The
-/// guess it replaces was a fixed number that took no account of the spacing egui inserts between
-/// widgets, so on a full list the window came up some seventy points too short and the footer line
-/// underneath the results was sliced off the bottom edge — a line of text that was there, that the
-/// window promised room for, and that could not be read.
-fn window_size(ctx: &egui::Context, rows: usize) -> egui::Vec2 {
-    let style = ctx.style_of(ctx.theme());
-    let line = |text_style: egui::TextStyle| {
-        let font = text_style.resolve(&style);
-        ctx.fonts_mut(|f| f.row_height(&font))
-    };
-    let contents = if rows == 0 {
-        GAP_ABOVE_EMPTY + line(egui::TextStyle::Body)
-    } else {
-        GAP_ABOVE_LIST
-            + rows.min(VISIBLE_ROWS) as f32 * ROW_HEIGHT
-            + GAP_BELOW_LIST
-            + line(egui::TextStyle::Small)
-    };
-    let height = PAD * 2.0 + crate::ui::controls::FIELD_HEIGHT + contents;
+/// Every gap in the window is one of the constants above and nothing else, so what this computes
+/// and what gets drawn cannot drift apart. `field` is the search box's height as last drawn, zero
+/// if it never has been.
+fn window_size(ctx: &egui::Context, field: f32, rows: usize) -> egui::Vec2 {
+    let field = if field > 0.0 { field } else { field_height(ctx) };
+    // No matches still keeps one row, for the line that says so.
+    let list = rows.clamp(1, VISIBLE_ROWS) as f32 * ROW_HEIGHT;
+    let height = PAD * 2.0 + field + GAP_ABOVE_LIST + list;
     egui::vec2(WINDOW_WIDTH, height.ceil())
+}
+
+/// The search box's height before it has ever been drawn: one line of body text inside the box's
+/// margins, which [`controls::search_field`] sets at nine points above and below. Only the first
+/// opening uses it; from then on the box's real height is known.
+fn field_height(ctx: &egui::Context) -> f32 {
+    let font = egui::TextStyle::Body.resolve(&ctx.global_style());
+    ctx.fonts_mut(|f| f.row_height(&font)) + 18.0
+}
+
+/// The trigger column for `entries`: see [`TRIGGER_MIN`].
+fn trigger_width(ui: &egui::Ui, entries: &[Hit]) -> f32 {
+    let font = egui::TextStyle::Monospace.resolve(ui.style());
+    let widest = ui.ctx().fonts_mut(|f| {
+        entries
+            .iter()
+            .map(|hit| {
+                f.layout_no_wrap(hit.trigger.clone(), font.clone(), egui::Color32::PLACEHOLDER)
+                    .size()
+                    .x
+            })
+            .fold(0.0, f32::max)
+    });
+    let room = WINDOW_WIDTH - 2.0 * PAD - 2.0 * controls::ROW_PAD_X;
+    (widest + controls::GAP_WIDE).clamp(TRIGGER_MIN, room * TRIGGER_SHARE)
 }
 
 /// Draws the window's contents and reads its keys.
@@ -353,7 +471,7 @@ fn show(ui: &mut egui::Ui, l: &mut Launcher) -> Outcome {
         return Outcome::Dismiss;
     };
     let is_light = !ui.visuals().dark_mode;
-    let accent_color = accent(ui.visuals());
+    let animate = crate::theme::animations_enabled();
     let mut outcome = Outcome::Stay;
 
     let (up, down, enter, escape) = ui.input(|i| {
@@ -373,11 +491,15 @@ fn show(ui: &mut egui::Ui, l: &mut Launcher) -> Outcome {
     if l.selected >= count {
         l.selected = count.saturating_sub(1);
     }
+    // Going round from one end to the other is a jump, not a glide: sliding the fill across the
+    // whole list would show a journey nobody made.
     if down && count > 0 {
         l.selected = (l.selected + 1) % count;
+        l.jump |= l.selected == 0;
         l.follow = true;
     }
     if up && count > 0 {
+        l.jump |= l.selected == 0;
         l.selected = l.selected.checked_sub(1).unwrap_or(count - 1);
         l.follow = true;
     }
@@ -387,187 +509,219 @@ fn show(ui: &mut egui::Ui, l: &mut Launcher) -> Outcome {
         }
     }
 
+    // The fade in, eased so that it is mostly there at once and settles rather than creeping up.
+    let now = ui.input(|i| i.time);
+    let shown_at = *l.shown_at.get_or_insert(now);
+    let appear = if animate { ((now - shown_at) as f32 / APPEAR).min(1.0) } else { 1.0 };
+    if appear < 1.0 {
+        ui.ctx().request_repaint();
+    }
+
+    // No border and no rounding of our own: Windows 11 rounds this window's corners and draws its
+    // edge and shadow, the same as it does for every other window.
     egui::Frame::default()
         .fill(crate::app::win_background_for(is_light))
-        .stroke(egui::Stroke::new(1.0, crate::app::line_strong(is_light)))
-        .corner_radius(10u8)
         .inner_margin(egui::Margin::same(PAD as i8))
         .show(ui, |ui| {
-            // Every gap in this window is written out below, so that what `window_size` computes
-            // and what actually gets drawn cannot drift apart.
+            ui.set_min_size(ui.available_size());
+            ui.multiply_opacity(1.0 - (1.0 - appear).powi(3));
             ui.spacing_mut().item_spacing.y = 0.0;
 
-            let field = ui.add(
-                crate::ui::controls::text_field(&mut l.query)
-                    .desired_width(ui.available_width())
-                    .hint_text(t.search_window_hint),
+            let field = controls::search_field(
+                ui,
+                egui::Id::new("launcher-search"),
+                &mut l.query,
+                t.search_window_hint,
+                ui.available_width(),
             );
+            l.field_height = field.rect.height();
             // Focused every frame rather than once: the one thing that must never happen is that
             // you hit Alt+Space, start typing, and the letters go nowhere.
             if !field.has_focus() {
                 field.request_focus();
             }
             if field.changed() {
-                // A narrower query means a different list; start it from the top.
+                // A different query is a different list; start it from the top.
                 l.selected = 0;
                 l.follow = true;
+                l.jump = true;
+            }
+            if l.trigger_width == 0.0 {
+                l.trigger_width = trigger_width(ui, &l.entries);
             }
 
             let results = hits(&l.entries, &l.query);
-            // Sized to what it is actually showing, the way every launcher does: the box grows
-            // and shrinks as the query narrows, instead of leaving a slab of empty window under
-            // the last result.
-            let size = window_size(ui.ctx(), results.len());
+            // Sized to what it is showing: the window grows and shrinks as the query narrows,
+            // instead of leaving a slab of empty window under the last result.
+            let size = window_size(ui.ctx(), l.field_height, results.len());
             if size != l.size {
                 l.size = size;
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
             }
 
+            ui.add_space(GAP_ABOVE_LIST);
             if results.is_empty() {
-                ui.add_space(GAP_ABOVE_EMPTY);
-                ui.label(egui::RichText::new(t.search_window_empty).color(text_tertiary(is_light)));
+                let (rect, _) = ui.allocate_exact_size(
+                    egui::vec2(ui.available_width(), ROW_HEIGHT),
+                    egui::Sense::hover(),
+                );
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    t.search_window_empty,
+                    egui::TextStyle::Body.resolve(ui.style()),
+                    text_tertiary(is_light),
+                );
                 return;
             }
 
-            ui.add_space(GAP_ABOVE_LIST);
             let selected = l.selected;
             let follow = std::mem::take(&mut l.follow);
+            let jump = std::mem::take(&mut l.jump);
+            // Pointing chooses, but only a pointer that is moving: rows sliding under a still one
+            // as the list scrolls, or a window opening under it, choose nothing.
+            let pointing = ui.input(|i| i.pointer.is_moving());
+            let drop = controls::baseline_drop(
+                ui,
+                egui::RichText::new("x"),
+                egui::RichText::new("x").monospace(),
+            );
+            let columns = Columns { trigger: l.trigger_width, drop };
+            let glide = &mut l.glide;
+            let mut pointed = None;
             egui::ScrollArea::vertical()
                 .max_height(VISIBLE_ROWS as f32 * ROW_HEIGHT)
                 .auto_shrink([false, true])
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;
+                    let band = glide_selection(ui, glide, selected, jump, animate, is_light);
                     for (i, hit) in results.iter().enumerate() {
-                        if row(ui, hit, i == selected, follow && i == selected, accent_color, is_light)
-                        {
+                        let response = row(ui, hit, i == 0, columns, band, is_light);
+                        if follow && i == selected {
+                            // `None`: scroll the least that brings it into view, which keeps the
+                            // list still when the row is already on screen.
+                            ui.scroll_to_rect(response.rect, None);
+                        }
+                        if pointing && i != selected && response.hovered() {
+                            pointed = Some(i);
+                        }
+                        if response.clicked() {
                             outcome = Outcome::Pick(hit.trigger.clone());
                         }
                     }
                 });
-
-            ui.add_space(GAP_BELOW_LIST);
-            ui.label(
-                egui::RichText::new(t.search_window_footer)
-                    .small()
-                    .color(text_tertiary(is_light)),
-            );
+            if let Some(i) = pointed {
+                l.selected = i;
+                ui.ctx().request_repaint();
+            }
         });
 
     outcome
 }
 
-/// One result. The same shape as a row in the main list — trigger in the accent, preview beside it —
-/// so the two windows are recognisably the same program.
+/// Moves the chosen row's fill one frame towards the chosen row, paints it with the accent bar
+/// beside it, and says where it is. Painted before the rows, so it lies under their text.
 ///
-/// `follow` drags the view to this row: set on the row the arrows just moved to, so walking past
-/// the bottom of the window scrolls instead of losing the highlight off the edge.
+/// Rows all have the one height, so where the chosen row is never has to be measured: it is
+/// `selected` rows down from the top of the list. Kept relative to that top, so a scroll carries
+/// the fill along with its row.
+fn glide_selection(
+    ui: &egui::Ui,
+    glide: &mut Glide,
+    selected: usize,
+    jump: bool,
+    animate: bool,
+    is_light: bool,
+) -> egui::Rect {
+    let target = selected as f32 * ROW_HEIGHT;
+    if jump || !animate {
+        *glide = Glide { top: target, speed: 0.0 };
+    } else {
+        let dt = ui.input(|i| i.stable_dt).clamp(0.0, 1.0 / 20.0);
+        let (x, v) = crate::ui::glide::spring_step(glide.top - target, glide.speed, dt);
+        if x.abs() > 0.1 || v.abs() > 0.5 {
+            *glide = Glide { top: target + x, speed: v };
+            ui.ctx().request_repaint();
+        } else {
+            *glide = Glide { top: target, speed: 0.0 };
+        }
+    }
+    let rect = egui::Rect::from_min_size(
+        egui::pos2(ui.max_rect().left(), ui.cursor().top() + glide.top),
+        egui::vec2(ui.available_width(), ROW_HEIGHT),
+    );
+    ui.painter().rect_filled(
+        rect,
+        controls::RADIUS_CONTROL,
+        crate::app::selection_tint(is_light, accent(ui.visuals())),
+    );
+    controls::accent_bar(ui, rect);
+    rect
+}
+
+/// What every row of one frame shares: the trigger column's width, and how far below centre the
+/// monospace trigger sits to share a baseline with the text beside it.
+#[derive(Clone, Copy)]
+struct Columns {
+    trigger: f32,
+    drop: f32,
+}
+
+/// One result: the library's row — the trigger in its column, what it writes beside it, quietly —
+/// so the two windows are recognisably the same program.
 fn row(
     ui: &mut egui::Ui,
     hit: &Hit,
-    selected: bool,
-    follow: bool,
-    accent_color: egui::Color32,
+    first: bool,
+    columns: Columns,
+    band: egui::Rect,
     is_light: bool,
-) -> bool {
-    let mut clicked = false;
+) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(
         egui::vec2(ui.available_width(), ROW_HEIGHT),
         egui::Sense::click(),
     );
-
-    if follow {
-        // `None` means "scroll the least that brings this into view", which keeps the list still
-        // when the selection is already on screen.
-        ui.scroll_to_rect(rect, None);
+    if !ui.is_rect_visible(rect) {
+        return response;
     }
 
-    if ui.is_rect_visible(rect) {
-        if selected {
-            ui.painter().rect_filled(
-                rect,
-                egui::CornerRadius::same(6),
-                crate::app::selection_tint(is_light, accent_color),
-            );
-            // The same accent bar the main list puts against a selected row.
-            ui.painter().rect_filled(
-                egui::Rect::from_min_size(rect.min, egui::vec2(3.0, rect.height())),
-                egui::CornerRadius::same(2),
-                accent_color,
-            );
-        } else if response.hovered() {
-            ui.painter()
-                .rect_filled(rect, egui::CornerRadius::same(6), crate::app::hover_tint(is_light));
-        }
+    // The rule between two rows stops where the fill is, so the chosen row reads as one shape.
+    let y = rect.top();
+    if !first && !(band.top() - 0.5..=band.bottom() + 0.5).contains(&y) {
+        ui.painter()
+            .hline(rect.x_range(), y, egui::Stroke::new(1.0, hairline(is_light)));
+    }
 
-        let text_left = rect.left() + ROW_INSET;
-        let preview_left = text_left + TRIGGER_COLUMN;
-        let preview_color = if selected {
-            ui.visuals().text_color()
-        } else {
-            secondary_text(is_light)
-        };
-
-        paint_line(
+    let left = rect.left() + controls::ROW_PAD_X;
+    let preview_left = left + columns.trigger;
+    let strong = ui.visuals().strong_text_color();
+    let line = |text: egui::RichText, width: f32| {
+        egui::WidgetText::from(text).into_galley(
             ui,
-            &hit.trigger,
-            egui::TextStyle::Monospace,
-            accent_color,
-            egui::pos2(text_left, rect.center().y),
-            TRIGGER_COLUMN - COLUMN_GAP,
-        );
-        paint_line(
-            ui,
-            &hit.preview,
+            Some(egui::TextWrapMode::Truncate),
+            width.max(1.0),
             egui::TextStyle::Body,
-            preview_color,
-            egui::pos2(preview_left, rect.center().y),
-            rect.right() - ROW_INSET - preview_left,
-        );
-        ui.painter().line_segment(
-            [
-                egui::pos2(rect.left() + 6.0, rect.bottom()),
-                egui::pos2(rect.right() - 6.0, rect.bottom()),
-            ],
-            egui::Stroke::new(1.0, hairline(is_light)),
-        );
-    }
-
-    if response.hovered() {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-    }
-    if response.clicked() {
-        clicked = true;
-    }
-    clicked
-}
-
-/// Paints one line of text that ends at `max_width` with an ellipsis, vertically centred on `at`.
-///
-/// The main window has always done this properly — a `Label` set to truncate, which asks the font
-/// how wide the text really is. This window paints its rows itself and was instead shortening the
-/// preview by *counting characters*, at a count far larger than the room available, and then
-/// hard-clipping whatever was left against the edge of the row. So the text ran all the way to the
-/// window's border and stopped in the middle of a letter, with nothing to say that more had been
-/// cut off. Measuring in pixels is the only way to end a line where you meant to.
-fn paint_line(
-    ui: &egui::Ui,
-    text: &str,
-    style: egui::TextStyle,
-    color: egui::Color32,
-    at: egui::Pos2,
-    max_width: f32,
-) {
-    let mut job = egui::text::LayoutJob::simple(
-        text.to_owned(),
-        style.resolve(ui.style()),
-        color,
-        max_width.max(0.0),
+        )
+    };
+    let trigger = line(
+        egui::RichText::new(&hit.trigger).monospace().color(strong),
+        columns.trigger - controls::GAP_WIDE,
     );
-    // One row, and break wherever the width runs out: a preview is a glance at the text, not a
-    // paragraph, and a word that does not fit should still show the part of it that does.
-    job.wrap.max_rows = 1;
-    job.wrap.break_anywhere = true;
-    let galley = ui.painter().layout_job(job);
-    let top_left = egui::pos2(at.x, at.y - galley.size().y * 0.5);
-    ui.painter().galley(top_left, galley, color);
+    let preview = line(
+        controls::muted(&hit.preview, is_light),
+        rect.right() - controls::ROW_PAD_X - preview_left,
+    );
+    let middle = rect.center().y;
+    let painter = ui.painter();
+    painter.galley(
+        egui::pos2(left, middle - trigger.size().y * 0.5 + columns.drop),
+        trigger,
+        egui::Color32::PLACEHOLDER,
+    );
+    painter.galley(
+        egui::pos2(preview_left, middle - preview.size().y * 0.5),
+        preview,
+        egui::Color32::PLACEHOLDER,
+    );
+    response
 }
