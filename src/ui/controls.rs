@@ -1215,16 +1215,21 @@ pub fn search_field(
     );
     glyphs::paint(ui, icon, Glyph::Search, 14.0, secondary_text(is_light));
     if response.has_focus() {
-        let (fill, _) = accent_fill(ui.visuals());
-        let line = egui::Rect::from_min_max(
-            egui::pos2(rect.left() + 1.0, rect.bottom() - 2.0),
-            egui::pos2(rect.right() - 1.0, rect.bottom()),
-        );
-        ui.painter().rect_filled(
-            line,
-            egui::CornerRadius { nw: 0, ne: 0, sw: RADIUS_CONTROL, se: RADIUS_CONTROL },
-            fill,
-        );
+        field_underline(ui, rect);
     }
     response
+}
+
+/// The thin accent line Windows draws under a field that has the keyboard.
+pub fn field_underline(ui: &egui::Ui, rect: egui::Rect) {
+    let (fill, _) = accent_fill(ui.visuals());
+    let line = egui::Rect::from_min_max(
+        egui::pos2(rect.left() + 1.0, rect.bottom() - 2.0),
+        egui::pos2(rect.right() - 1.0, rect.bottom()),
+    );
+    ui.painter().rect_filled(
+        line,
+        egui::CornerRadius { nw: 0, ne: 0, sw: RADIUS_CONTROL, se: RADIUS_CONTROL },
+        fill,
+    );
 }

@@ -37,8 +37,9 @@
 //! or position remembered from a different machine opening off-screen or too small to use. The
 //! rules come from [`crate::display`]; only the winit plumbing is here.
 //!
-//! **4. `EspansoManagerApp`** — the eframe `App`. It owns the tray, the hotkey and the theme
-//! watch, drains their queues once a frame, and hands the frame to a view.
+//! **4. `EspansoManagerApp`** — the eframe `App`. It owns the tray and the theme watch, drains
+//! their queues and the hotkey's once a frame, and hands the frame to a view. The hotkey itself
+//! is held by `AppState`, because Settings changes it.
 //!
 //! The split that matters in neighbourhood 4: `logic` runs every frame *including while the window
 //! is hidden in the tray*, and eframe forbids drawing anything from it. `ui` runs only when there
@@ -415,9 +416,17 @@ pub struct AppState {
     /// not say" is also an answer, and asking again every time Settings is opened would mean
     /// another four-second wait on exactly the machine that could least afford the first one.
     pub espanso_version_asked: bool,
-    /// The shortcut that actually opens the search window, as a person would say it. Whatever the
-    /// tips screen promises has to be this.
-    pub search_shortcut: &'static str,
+    /// The shortcut that actually opens the search window. Whatever the tips screen promises has to
+    /// be this.
+    pub search_shortcut: crate::hotkey::Shortcut,
+    /// The thread that owns the shortcut. `None` while [`OWN_LAUNCHER`] is off: espanso's own bar
+    /// has the shortcut then, and Settings has nothing to change.
+    pub hotkey: Option<crate::hotkey::HotkeyWatch>,
+    /// While the shortcut box in Settings is listening: the modifiers held at this moment.
+    pub shortcut_capture: Option<u32>,
+    /// The last shortcut asked for that another program already has. Said under the box until a
+    /// shortcut is taken.
+    pub shortcut_taken: Option<crate::hotkey::Shortcut>,
     /// Bumped by every change to the expansions or their folders; see [`AppState::touch_list`].
     list_revision: u64,
     list_cache: Option<Rc<ListCache>>,
@@ -460,6 +469,54 @@ impl AppState {
     pub fn close_settings(&mut self) {
         self.settings_open = false;
         self.settings_note = None;
+        self.shortcut_taken = None;
+        self.cancel_shortcut_capture();
+    }
+
+    /// Starts listening for a new shortcut. Every key goes to the box until one is chosen, Esc is
+    /// pressed, or [`cancel_shortcut_capture`](Self::cancel_shortcut_capture) is called.
+    pub fn begin_shortcut_capture(&mut self) {
+        if let Some(hotkey) = &self.hotkey {
+            hotkey.begin_capture();
+            self.shortcut_capture = Some(0);
+            self.shortcut_taken = None;
+        }
+    }
+
+    pub fn cancel_shortcut_capture(&mut self) {
+        if self.shortcut_capture.take().is_some() {
+            if let Some(hotkey) = &self.hotkey {
+                hotkey.end_capture();
+            }
+        }
+    }
+
+    /// Makes `wanted` the shortcut, if no other program has it. If one does, the shortcut stays
+    /// what it was and Settings says why.
+    pub fn set_launcher_shortcut(&mut self, wanted: crate::hotkey::Shortcut) {
+        self.shortcut_capture = None;
+        let list: &[crate::hotkey::Shortcut] = if wanted == crate::hotkey::DEFAULT {
+            &crate::hotkey::CANDIDATES
+        } else {
+            std::slice::from_ref(&wanted)
+        };
+        let Some(hotkey) = self.hotkey.as_mut() else {
+            return;
+        };
+        let Some(won) = hotkey.claim(list) else {
+            self.shortcut_taken = Some(wanted);
+            return;
+        };
+        self.search_shortcut = won;
+        self.shortcut_taken = None;
+        let stored = (wanted != crate::hotkey::DEFAULT).then(|| wanted.to_config());
+        if self.settings.launcher_shortcut != stored {
+            self.settings.launcher_shortcut = stored;
+            if let Err(e) = self.settings_store.save(&self.settings) {
+                let msg = fill(self.t().launcher_shortcut_save_error, &[("err", &e.to_string())]);
+                self.set_error_banner(msg);
+            }
+        }
     }
 
     /// The scratch file holding the one expansion the first-run screen demonstrates.
@@ -2128,9 +2185,6 @@ pub struct EspansoManagerApp {
     /// Listens for Windows appearance broadcasts. `None` if it could not be started, in which
     /// case `poll_theme` falls back to its timer.
     theme_watch: Option<crate::sysevents::ThemeWatch>,
-    /// Alt+Space, when this app managed to claim it. `None` means something else already owns the
-    /// shortcut, and espanso's own search bar has been left switched on instead.
-    hotkey: Option<crate::hotkey::HotkeyWatch>,
     /// The search window Alt+Space opens. See [`crate::ui::search_view`].
     search: crate::ui::search_view::SearchWindow,
     /// The window that had the keyboard when the search window opened, which is where the
@@ -2293,11 +2347,10 @@ impl EspansoManagerApp {
                 });
             }
         }
-        let hotkey = if OWN_LAUNCHER {
-            crate::hotkey::start(&cc.egui_ctx)
-        } else {
-            None
-        };
+        let hotkey = OWN_LAUNCHER.then(|| {
+            let chosen = ctx.settings.launcher_shortcut.as_deref();
+            crate::hotkey::start(&cc.egui_ctx, chosen.and_then(crate::hotkey::Shortcut::from_config))
+        });
 
         // Shared with Quit, which must not stop espanso under a restart that is still running.
         let reload = {
@@ -2353,16 +2406,19 @@ impl EspansoManagerApp {
             onboarding_expanded: false,
             espanso_version: None,
             espanso_version_asked: false,
-            search_shortcut: "Alt+Space",
+            search_shortcut: hotkey
+                .as_ref()
+                .and_then(|watch| watch.current)
+                .unwrap_or(crate::hotkey::DEFAULT),
+            hotkey,
+            shortcut_capture: None,
+            shortcut_taken: None,
             list_revision: 0,
             list_cache: None,
             list_cache_key: None,
             dialog_owner: DialogOwner::new(window.as_deref()),
         };
         state.drop_orphan_folders();
-        if let Some(watch) = &hotkey {
-            state.search_shortcut = watch.shortcut.label;
-        }
 
         if let Some(warning) = startup_warning {
             state.set_error_banner(warning);
@@ -2399,7 +2455,6 @@ impl EspansoManagerApp {
             window,
             last_theme_check: Instant::now(),
             theme_watch: crate::sysevents::ThemeWatch::start(cc.egui_ctx.clone()),
-            hotkey,
             search: Default::default(),
             search_return_to: 0,
             theme_recheck_until: Instant::now(),
@@ -2462,15 +2517,29 @@ impl EspansoManagerApp {
         }
     }
 
-    /// Opens the search window when Alt+Space is pressed, or closes it if it is already up.
+    /// Opens the search window when its shortcut is pressed, or closes it if it is already up, and
+    /// passes what the shortcut box in Settings hears on to it.
     ///
     /// The window that had the keyboard is remembered here, before ours takes it — that is where
     /// the expansion has to end up, and by the time anything is chosen it is far too late to ask.
     fn poll_hotkey(&mut self, ctx: &egui::Context) {
-        let Some(hotkey) = &self.hotkey else {
+        let Some(hotkey) = &self.state.hotkey else {
             return;
         };
-        if !hotkey.take_pressed() {
+        let mut pressed = false;
+        for event in hotkey.take_events() {
+            match event {
+                crate::hotkey::Event::Pressed => pressed = true,
+                crate::hotkey::Event::Held(mods) => {
+                    if self.state.shortcut_capture.is_some() {
+                        self.state.shortcut_capture = Some(mods);
+                    }
+                }
+                crate::hotkey::Event::Captured(shortcut) => self.state.set_launcher_shortcut(shortcut),
+                crate::hotkey::Event::Cancelled => self.state.shortcut_capture = None,
+            }
+        }
+        if !pressed {
             return;
         }
         if self.search.is_open() {
@@ -2491,7 +2560,7 @@ impl EspansoManagerApp {
     fn show_search_window(&mut self, ctx: &egui::Context) {
         // Without the shortcut nothing can open it, and a window that cannot open is not worth
         // its GL surface.
-        if self.hotkey.is_none() {
+        if self.state.hotkey.is_none() {
             return;
         }
         self.search.keep_alive(ctx);

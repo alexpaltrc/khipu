@@ -73,6 +73,11 @@ pub struct Settings {
     /// older settings file without the field deserialises to — so an existing install shows the
     /// screen once and then never again, and a fresh one shows it on its very first start.
     pub onboarding_done: bool,
+    /// The shortcut that opens the search window, as [`crate::hotkey::Shortcut::to_config`] writes
+    /// it. `None` is the default, Alt+Space — kept as nothing rather than as "Alt+Space" so that
+    /// the default keeps its fallback to Alt+Shift+Space, which a shortcut somebody chose does not
+    /// get. Something unreadable here also starts with the default.
+    pub launcher_shortcut: Option<String>,
 }
 
 impl Default for Settings {
@@ -87,6 +92,7 @@ impl Default for Settings {
             lang: Lang::default(),
             theme_mode: ThemeMode::default(),
             onboarding_done: false,
+            launcher_shortcut: None,
         }
     }
 }

@@ -328,7 +328,8 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
             |ui| shortcut_table(ui, state),
         );
 
-        let search_body = crate::i18n::fill(t.tip_search_body, &[("keys", state.search_shortcut)]);
+        let keys = state.search_shortcut.label(state.settings.lang);
+        let search_body = crate::i18n::fill(t.tip_search_body, &[("keys", &keys)]);
         topic(
             ui,
             false,

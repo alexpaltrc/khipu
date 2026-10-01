@@ -27,6 +27,8 @@ was published.
   update, delete the old `EspansoManager.exe` and put the new file in its place. A computer that
   already started the app with Windows goes on doing so: the first time the new file opens, it
   moves that entry to the new name and the new file.
+- **The tip on searching from any application names the shortcut in the app's language**:
+  «Alt+Espacio» in Spanish, the way Windows writes it, instead of «Alt+Space» in every language.
 - **Espanso is 2.4.1**, the latest, up from 2.4.0. Its one fix is in how a match file is read:
   a value written without quotes inside `[ ]` or `{ }` no longer trips it up.
 

@@ -34,7 +34,7 @@
 //! or with a click on the dimmed window.
 
 use crate::app::{text_tertiary, AppState, TransferDirection};
-use crate::i18n::{fill_count, Lang};
+use crate::i18n::{fill, fill_count, Lang};
 use crate::settings::PREFIX_SUGGESTIONS;
 use crate::theme::ThemeMode;
 use crate::ui::controls::{self, Tone};
@@ -207,6 +207,14 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     }
     ui.add_space(GROUP_GAP);
 
+    // Only while this app owns the shortcut. With espanso's own bar in charge there is nothing of
+    // ours for it to change.
+    if state.hotkey.is_some() {
+        label(ui, t.launcher_shortcut_section);
+        launcher_shortcut(ui, state);
+        ui.add_space(GROUP_GAP);
+    }
+
     label(ui, t.transfer_section);
     // Wrapped so the two buttons stack instead of running off the edge on a narrow window.
     ui.horizontal_wrapped(|ui| {
@@ -288,6 +296,115 @@ fn custom_prefix(ui: &mut egui::Ui, state: &mut AppState) {
             ui.data_mut(|d| d.remove::<String>(buffer_id));
         }
     });
+}
+
+/// The shortcut box is never narrower than this, so it does not jump in width between the prompt,
+/// the keys being held and the shortcut.
+const SHORTCUT_BOX_MIN: f32 = 200.0;
+
+/// Room inside the shortcut box on each side of its words, the same as a text field's.
+const SHORTCUT_BOX_PAD: f32 = 12.0;
+
+/// The shortcut that opens the search window: a box that listens when clicked, as a game's key
+/// settings do, and the button that puts back the default.
+///
+/// While listening, every key goes to the box and nowhere else (see [`crate::hotkey`]): the
+/// modifiers show as they are held, the first other key or extra mouse button ends it, and Esc,
+/// a click anywhere else or leaving the window abandons it.
+fn launcher_shortcut(ui: &mut egui::Ui, state: &mut AppState) {
+    let t = state.t();
+    let lang = state.settings.lang;
+    let is_light = !ui.visuals().dark_mode;
+    let capturing = state.shortcut_capture;
+    let default = crate::hotkey::DEFAULT;
+
+    let mut reset = false;
+    let field = ui
+        .horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = controls::GAP;
+            let field = shortcut_box(ui, state);
+            let tip = fill(t.launcher_shortcut_reset_tip, &[("keys", &default.label(lang))]);
+            // Greyed rather than gone when there is nothing to put back, like every action here.
+            let enabled = state.search_shortcut != default;
+            reset = controls::icon_button(ui, Glyph::Undo, &tip, enabled).clicked();
+            field
+        })
+        .inner;
+
+    if capturing.is_some() {
+        let elsewhere = ui.input(|i| i.pointer.any_pressed()) && !field.hovered();
+        let left = !ui.input(|i| i.focused);
+        if elsewhere || left {
+            state.cancel_shortcut_capture();
+        }
+    } else if field.clicked() {
+        state.begin_shortcut_capture();
+    }
+    if reset {
+        state.set_launcher_shortcut(default);
+    }
+
+    if let Some(taken) = state.shortcut_taken {
+        ui.add_space(controls::GAP);
+        let text = fill(t.launcher_shortcut_taken, &[("keys", &taken.label(lang))]);
+        ui.add(egui::Label::new(egui::RichText::new(text).color(crate::app::danger(is_light))).wrap());
+    }
+}
+
+/// The box itself, drawn as a text field is: the same fill, border and accent line while it has
+/// the keyboard — which, while it listens, it has more completely than any field.
+fn shortcut_box(ui: &mut egui::Ui, state: &AppState) -> egui::Response {
+    let t = state.t();
+    let lang = state.settings.lang;
+    let is_light = !ui.visuals().dark_mode;
+    let capturing = state.shortcut_capture;
+    let ink = ui.visuals().text_color();
+    let (text, color) = match capturing {
+        Some(0) => (t.launcher_shortcut_prompt.to_string(), text_tertiary(is_light)),
+        Some(held) => (format!("{}…", crate::hotkey::mods_text(held, lang)), ink),
+        None => (state.search_shortcut.label(lang), ink),
+    };
+
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let measure = |s: String| {
+        ui.fonts_mut(|f| f.layout_no_wrap(s, font.clone(), egui::Color32::PLACEHOLDER).size().x)
+    };
+    let natural = measure(state.search_shortcut.label(lang)).max(measure(t.launcher_shortcut_prompt.into()));
+    let room = (ui.available_width() - controls::FIELD_HEIGHT - controls::GAP).max(SHORTCUT_BOX_MIN);
+    let width = (natural + 2.0 * SHORTCUT_BOX_PAD).clamp(SHORTCUT_BOX_MIN, room);
+    let (rect, response) =
+        ui.allocate_exact_size(egui::vec2(width, controls::FIELD_HEIGHT), egui::Sense::click());
+
+    if ui.is_rect_visible(rect) {
+        let visuals = ui.visuals();
+        let stroke = if capturing.is_some() {
+            visuals.selection.stroke
+        } else {
+            ui.style().interact(&response).bg_stroke
+        };
+        let radius = f32::from(controls::RADIUS_CONTROL);
+        ui.painter()
+            .rect(rect, radius, visuals.text_edit_bg_color(), stroke, egui::StrokeKind::Inside);
+        let galley = egui::WidgetText::from(egui::RichText::new(text).color(color)).into_galley(
+            ui,
+            Some(egui::TextWrapMode::Truncate),
+            width - 2.0 * SHORTCUT_BOX_PAD,
+            egui::TextStyle::Body,
+        );
+        let at = egui::pos2(rect.left() + SHORTCUT_BOX_PAD, rect.center().y - galley.size().y * 0.5);
+        ui.painter().galley(at, galley, color);
+        if capturing.is_some() {
+            controls::field_underline(ui, rect);
+        }
+    }
+    if capturing.is_none() && response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, true, state.search_shortcut.label(lang))
+    });
+    controls::focus_ring(ui, &response, f32::from(controls::RADIUS_CONTROL));
+    response
 }
 
 /// How much of a folder name a line shows. Folder names come from the user and nothing stops one
