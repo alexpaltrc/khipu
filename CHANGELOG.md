@@ -30,6 +30,12 @@ was published.
 - **Espanso is 2.4.1**, the latest, up from 2.4.0. Its one fix is in how a match file is read:
   a value written without quotes inside `[ ]` or `{ }` no longer trips it up.
 
+### Fixed
+
+- **The search box is as wide as it was meant to be.** It came out 44 points narrower than the
+  room set aside for it, which left it and the folder picker beside it off-centre under the
+  title.
+
 ## 0.0.3 — 2026-09-30
 
 ### Changed

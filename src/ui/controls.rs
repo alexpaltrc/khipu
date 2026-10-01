@@ -1204,7 +1204,9 @@ pub fn search_field(
         .hint_text(egui::RichText::new(hint).color(text_tertiary(is_light)))
         .margin(margin)
         .vertical_align(egui::Align::Center)
-        .desired_width(width - f32::from(margin.left) - f32::from(margin.right));
+        // The whole box, margins included: that is what egui 0.36 takes this to mean. Taking the
+        // margins off here as well left every search box 44 points short of the width it was given.
+        .desired_width(width);
     let response = ui.add(edit);
     let rect = response.rect;
     let icon = egui::Rect::from_min_size(

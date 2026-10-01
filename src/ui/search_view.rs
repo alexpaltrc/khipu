@@ -41,11 +41,12 @@
 //! logic *can* send. From then on it draws itself, in its own pass, from [`Launcher`] — which is
 //! why everything it shows is a copy taken when it opens, and nothing reaches into `AppState`.
 //!
-//! ## Why the list scrolls instead of stopping at eight
+//! ## Why the list scrolls instead of stopping at five
 //!
-//! The window is a glance, not a page, so it is a fixed eight rows tall. That used to be done by
-//! throwing away every result past the eighth, which quietly hid expansions from a search that had
-//! genuinely found them. Now every match is kept and the list scrolls through the window — with the
+//! The window is a glance, not a page, so it is at most five rows tall: a launcher the size of a
+//! page stops being one. Keeping it that short used to mean throwing away every result past the
+//! last row, which quietly hid expansions from a search that had genuinely found them. Now every
+//! match is kept and the list scrolls through the window — with the
 //! arrows, with the wheel, and with the selection dragging the view along behind it, which is how
 //! espanso's own bar behaves.
 
@@ -60,15 +61,16 @@ use crate::ui::controls;
 const MAX_RESULTS: usize = 200;
 
 /// How many rows the window is tall. Everything past this is reached by scrolling.
-const VISIBLE_ROWS: usize = 8;
+const VISIBLE_ROWS: usize = 5;
 
 /// One row's height, and therefore the pitch of the list: rows are drawn with no spacing between
 /// them so that this number alone decides how tall the window has to be. The library's dense row:
 /// the dense padding above and below one line of body text.
 const ROW_HEIGHT: f32 = 36.0;
 
-/// Wide enough for a trigger and a useful slice of what it expands to.
-const WINDOW_WIDTH: f32 = 560.0;
+/// Wide enough for a trigger and a useful slice of what it expands to, and no wider: the slice is
+/// there to tell two expansions apart, not to read them.
+const WINDOW_WIDTH: f32 = 480.0;
 
 /// Between the window's edge and everything in it, and between the search box and the list.
 const PAD: f32 = 8.0;
