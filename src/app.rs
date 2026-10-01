@@ -43,8 +43,8 @@
 //! The split that matters in neighbourhood 4: `logic` runs every frame *including while the window
 //! is hidden in the tray*, and eframe forbids drawing anything from it. `ui` runs only when there
 //! is a window. Work that must happen whether or not anybody is looking goes in `logic`; anything
-//! that draws goes in `ui`. `OWN_LAUNCHER` sits on the wrong side of that line today and is
-//! switched off, which is the only reason it is harmless — see `LAUNCHER-BACKUP.txt`.
+//! that draws goes in `ui`. The search window looks like the exception and is not: logic only keeps
+//! it alive and sends it commands, and it draws itself in its own pass — see `ui::search_view`.
 
 use crate::autostart;
 use crate::espanso_ctl::EspansoCtl;
@@ -81,11 +81,10 @@ pub type DragPayload = Vec<String>;
 /// registered, so the window cannot open and cannot get in espanso's way. `LAUNCHER-BACKUP.txt`
 /// beside the source says what was built and what was never solved.
 ///
-/// It is no longer the entire switch for turning it back *on*, though. `show_search_window` is
-/// called from `logic`, and eframe 0.36.1 forbids drawing there — and runs no egui pass at all
-/// while the window is hidden, which is precisely the state Alt+Space exists to work from. Nothing
-/// is wrong today, because with this off `self.hotkey` is `None` and the window can never open.
-/// Whoever flips this has to move that call out of `logic` first.
+/// Opening from the tray, which is where Alt+Space is nearly always pressed, works since 0.0.4: see
+/// `ui::search_view` for how. Still off, because the insertion is the part that is not solved —
+/// and in this Notepad (11.2607) espanso's own `match exec` types every character of `:zed` as
+/// the last one, "L", with nothing of ours involved, measured.
 const OWN_LAUNCHER: bool = false;
 
 /// Far more characters than any row can display, so the width-aware trim the label does afterwards
@@ -403,26 +402,6 @@ pub struct AppState {
     /// fired in it yet.
     pub onboarding_probe: String,
     pub onboarding_expanded: bool,
-    /// The search window: whether it is up, what has been typed into it, which result is lit, and
-    /// the window that had the keyboard before it opened — which is where the expansion has to go
-    /// back to.
-    pub search_open: bool,
-    pub search_query: String,
-    pub search_selected: usize,
-    pub search_return_to: isize,
-    /// Set when the window opens, cleared once the keyboard has been asked for. Without this the
-    /// window appears but the typing goes to whatever was behind it — which is worse than not
-    /// opening at all, because it puts stray characters in the user's document.
-    pub search_needs_focus: bool,
-    /// Set once the window has actually held the keyboard. Losing it after that means the person
-    /// clicked somewhere else, which is a dismissal — but the frames *before* it arrives are not.
-    pub search_had_focus: bool,
-    /// An expansion that has been picked and is waiting for the search window to be *gone* before
-    /// the keyboard is handed back. See [`App::show_search_window`].
-    pub search_handoff: Option<String>,
-    /// Asks the list to scroll the lit row back into view on the next frame. Set by the arrows and
-    /// by a change to the query, so the selection can never walk off the edge of the window.
-    pub search_follow: bool,
     /// Espanso's own version. Shown in Settings, never acted on.
     ///
     /// Read the first time that screen is opened rather than at startup. Asking for it means
@@ -532,13 +511,6 @@ impl AppState {
                 MatchEntry::Advanced(_) => None,
             })
             .collect()
-    }
-
-    pub fn close_search(&mut self) {
-        self.search_open = false;
-        self.search_query.clear();
-        self.search_selected = 0;
-        self.search_follow = false;
     }
 
     /// Asks espanso its version, once, on the way into the screen that shows it.
@@ -2149,6 +2121,11 @@ pub struct EspansoManagerApp {
     /// Alt+Space, when this app managed to claim it. `None` means something else already owns the
     /// shortcut, and espanso's own search bar has been left switched on instead.
     hotkey: Option<crate::hotkey::HotkeyWatch>,
+    /// The search window Alt+Space opens. See [`crate::ui::search_view`].
+    search: crate::ui::search_view::SearchWindow,
+    /// The window that had the keyboard when the search window opened, which is where the
+    /// expansion has to go back to.
+    search_return_to: isize,
     /// While `now` is before this, the appearance is re-read every frame: Windows announces a
     /// change slightly before all the values behind it have settled.
     theme_recheck_until: Instant,
@@ -2364,14 +2341,6 @@ impl EspansoManagerApp {
             pending_theme_refresh: false,
             onboarding_probe: String::new(),
             onboarding_expanded: false,
-            search_open: false,
-            search_query: String::new(),
-            search_selected: 0,
-            search_return_to: 0,
-            search_needs_focus: false,
-            search_had_focus: false,
-            search_handoff: None,
-            search_follow: false,
             espanso_version: None,
             espanso_version_asked: false,
             search_shortcut: "Alt+Space",
@@ -2421,6 +2390,8 @@ impl EspansoManagerApp {
             last_theme_check: Instant::now(),
             theme_watch: crate::sysevents::ThemeWatch::start(cc.egui_ctx.clone()),
             hotkey,
+            search: Default::default(),
+            search_return_to: 0,
             theme_recheck_until: Instant::now(),
             is_light,
             last_accent: read_system_accent(is_light),
@@ -2485,116 +2456,42 @@ impl EspansoManagerApp {
     ///
     /// The window that had the keyboard is remembered here, before ours takes it — that is where
     /// the expansion has to end up, and by the time anything is chosen it is far too late to ask.
-    fn poll_hotkey(&mut self) {
+    fn poll_hotkey(&mut self, ctx: &egui::Context) {
         let Some(hotkey) = &self.hotkey else {
             return;
         };
         if !hotkey.take_pressed() {
             return;
         }
-        if self.state.search_open {
-            self.state.close_search();
+        if self.search.is_open() {
+            self.search.close(ctx);
             return;
         }
-        self.state.search_return_to = unsafe {
-            windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow().0 as isize
-        };
-        self.state.search_query.clear();
-        self.state.search_selected = 0;
-        self.state.search_open = true;
-        self.state.search_needs_focus = true;
-        self.state.search_had_focus = false;
-        self.state.search_follow = true;
+        let over = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+        self.search_return_to = over.0 as isize;
+        self.search.open(ctx, self.state.list_all(), self.state.t(), over);
     }
 
-    /// Draws the search window, and performs the expansion once one is picked.
+    /// Keeps the search window alive, and performs the expansion once one is picked.
     ///
-    /// The order at the end matters: the window goes away, the keyboard goes back to where it came
-    /// from, and only then is espanso asked to type. Espanso injects into whatever has focus at the
-    /// moment it runs, so handing the focus back first is the whole trick.
+    /// The order matters: the window goes away, the keyboard goes back to where it came from, and
+    /// only then is espanso asked to type. Espanso injects into whatever has focus at the moment it
+    /// runs, so handing the focus back first is the whole trick. The window hides itself in its
+    /// own pass, the one that saw the pick, so by the time this collects it it is already gone.
     fn show_search_window(&mut self, ctx: &egui::Context) {
-        if !self.state.search_open {
-            self.hand_over_expansion();
+        // Without the shortcut nothing can open it, and a window that cannot open is not worth
+        // its GL surface.
+        if self.hotkey.is_none() {
             return;
         }
-        // Sized to what it is actually showing, the way every launcher does: the box grows and
-        // shrinks as the query narrows, instead of leaving a slab of empty window under the last
-        // result. Measured from the real font metrics rather than guessed — the guess used to come
-        // up short and slice the footer line off the bottom edge.
-        let rows = crate::ui::search_view::hits(&self.state, &self.state.search_query).len();
-        let size = crate::ui::search_view::window_size(ctx, rows);
-        let mut builder = egui::ViewportBuilder::default()
-            .with_title("Espanso Manager")
-            .with_inner_size(size)
-            .with_decorations(false)
-            .with_resizable(false)
-            .with_always_on_top()
-            .with_active(true)
-            .with_taskbar(false);
-        // Centred on the screen the person is actually working on, not on the primary one.
-        let previous = windows::Win32::Foundation::HWND(self.state.search_return_to as *mut _);
-        let area = crate::display::work_area_of_window(previous, 1.0)
-            .or_else(|| crate::display::work_area(1.0));
-        if let Some(area) = area {
-            builder = builder.with_position(egui::pos2(
-                area.left + (area.width - size.x) * 0.5,
-                area.top + (area.height - size.y) * 0.35,
-            ));
-        }
-
-        let mut chosen = None;
-        let state = &mut self.state;
-        ctx.show_viewport_immediate(
-            egui::ViewportId::from_hash_of("espanso_manager_search"),
-            builder,
-            |ctx, _class| {
-                // Asked for explicitly rather than left to the window manager. A hotkey press gives
-                // this process the right to take the foreground, but only if it actually asks —
-                // and a search box that does not have the keyboard is worse than none at all,
-                // because the keystrokes land in whatever document was underneath.
-                if state.search_needs_focus {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                    state.search_needs_focus = false;
-                }
-
-                // Clicking anywhere else dismisses it, the way every launcher on every platform
-                // behaves — including espanso's own. Gated on having held the keyboard first,
-                // because the frame between asking for focus and getting it also reports "not
-                // focused", and closing there would make the window flash and vanish.
-                let focused = ctx.input(|i| i.viewport().focused.unwrap_or(true));
-                if focused {
-                    state.search_had_focus = true;
-                } else if state.search_had_focus {
-                    state.close_search();
-                }
-                egui::CentralPanel::default()
-                    .frame(egui::Frame::NONE)
-                    .show(ctx, |ui| {
-                        chosen = crate::ui::search_view::show(ui, state);
-                    });
-                if ctx.input(|i| i.viewport().close_requested()) {
-                    state.close_search();
-                }
-            },
-        );
-
-        if let Some(trigger) = chosen {
-            // Nothing is handed back on this frame. The window is only *asked* to close here; egui
-            // does not destroy it until the frame has finished drawing, and asking for the
-            // keyboard back while it is still alive makes the focus flicker away and straight
-            // back again. Deferring by one frame removes that flicker rather than waiting it out,
-            // which is worth about a fifth of a second of the delay you could feel.
-            self.state.close_search();
-            self.state.search_handoff = Some(trigger);
-            ctx.request_repaint();
+        self.search.keep_alive(ctx);
+        if let Some(trigger) = self.search.take_chosen() {
+            self.hand_over_expansion(trigger);
         }
     }
 
     /// Gives the keyboard back to the window the search was opened over, and asks espanso to
     /// expand there.
-    ///
-    /// Runs on the frame *after* the search window closed, so by now it is genuinely gone and the
-    /// focus can settle in one move.
     ///
     /// The trigger is typed out first, and it has to be. `RequestMatchExpansion` — the message
     /// behind `espanso match exec`, and the only expansion entry point espanso offers to anything
@@ -2617,12 +2514,8 @@ impl EspansoManagerApp {
     /// there the focus check passes while nothing is typed at all — so an expansion request would
     /// have espanso backspace over as many characters of the user's own document as the trigger is
     /// long. Nothing happening is the better failure.
-    fn hand_over_expansion(&mut self) {
-        let Some(trigger) = self.state.search_handoff.take() else {
-            return;
-        };
-
-        let target = self.state.search_return_to;
+    fn hand_over_expansion(&mut self, trigger: String) {
+        let target = self.search_return_to;
         let previous = windows::Win32::Foundation::HWND(target as *mut _);
         if !previous.is_invalid() {
             crate::display::bring_to_front(previous);
@@ -2911,7 +2804,7 @@ impl eframe::App for EspansoManagerApp {
 
         self.drain_tray_events();
         self.drain_menu_events(ctx);
-        self.poll_hotkey();
+        self.poll_hotkey(ctx);
         self.show_search_window(ctx);
 
         self.state.collect_reload();

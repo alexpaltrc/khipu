@@ -29,6 +29,15 @@
 //! Keyboard first, because that is how this is used: it opens with the field focused, Up and Down
 //! move, Enter picks, Esc closes. The mouse works too, but nobody reaching for Alt+Space wants it.
 //!
+//! ## Why it is a window that is always there, hidden
+//!
+//! Alt+Space has to work from the tray, with the main window hidden — that is nearly the only way
+//! it is ever pressed. And with its window hidden, eframe 0.36.1 runs no egui pass for the main
+//! window at all, only `App::logic`, which cannot create a window. So this one is created once, on
+//! the very first frame, hidden, and is never let go of; opening it is a viewport command, which
+//! logic *can* send. From then on it draws itself, in its own pass, from [`Launcher`] — which is
+//! why everything it shows is a copy taken when it opens, and nothing reaches into `AppState`.
+//!
 //! ## Why the list scrolls instead of stopping at eight
 //!
 //! The window is a glance, not a page, so it is a fixed eight rows tall. That used to be done by
@@ -37,7 +46,10 @@
 //! arrows, with the wheel, and with the selection dragging the view along behind it, which is how
 //! espanso's own bar behaves.
 
-use crate::app::{accent, hairline, secondary_text, text_tertiary, AppState};
+use std::sync::{Arc, Mutex, MutexGuard};
+
+use crate::app::{accent, hairline, secondary_text, text_tertiary};
+use crate::i18n::Strings;
 
 /// An upper bound on how many matches are held at once. High enough that no real search ever meets
 /// it, low enough that one keystroke can never turn into thousands of rows.
@@ -75,26 +87,233 @@ pub struct Hit {
     pub preview: String,
 }
 
+fn viewport_id() -> egui::ViewportId {
+    egui::ViewportId::from_hash_of("espanso_manager_search")
+}
+
+/// Everything the search window shows and everything it has decided, shared between the main
+/// window's logic, which opens it and acts on the pick, and the window's own pass, which draws it.
+#[derive(Default)]
+struct Launcher {
+    open: bool,
+    query: String,
+    selected: usize,
+    /// Asks the list to scroll the lit row back into view on the next frame. Set by the arrows and
+    /// by a change to the query, so the selection can never walk off the edge of the window.
+    follow: bool,
+    /// Set when the window opens, cleared once the keyboard has been asked for. Without this the
+    /// window appears but the typing goes to whatever was behind it — which is worse than not
+    /// opening at all, because it puts stray characters in the user's document.
+    needs_focus: bool,
+    /// Set once the window has actually held the keyboard. Losing it after that means the person
+    /// clicked somewhere else, which is a dismissal — but the frames *before* it arrives are not.
+    had_focus: bool,
+    /// A copy of the expansions taken when the window opened.
+    entries: Vec<Hit>,
+    t: Option<&'static Strings>,
+    /// The size last asked of the window, so it is only asked again when it changes.
+    size: egui::Vec2,
+    /// The window's own scale the last time it drew, which is what egui turns a position in points
+    /// into pixels with. Zero until it has drawn once.
+    scale: f32,
+    /// What was picked, waiting for the main window's logic to collect it.
+    chosen: Option<String>,
+}
+
+/// The search window, from the main window's side. Cheap to clone: every clone is the same window.
+#[derive(Clone, Default)]
+pub struct SearchWindow(Arc<Mutex<Launcher>>);
+
+impl SearchWindow {
+    fn lock(&self) -> MutexGuard<'_, Launcher> {
+        // Everything here runs on the UI thread, so a poisoned lock can only mean a panic that has
+        // already ended the program; the data behind it is still the best there is.
+        self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Keeps the window in existence. Called on every pass of the main window, from `logic`:
+    /// egui forgets a child window that one of its parent's passes does not mention.
+    ///
+    /// The builder never changes, on purpose. eframe compares it with the last one and turns any
+    /// difference into a command, so a builder that said "hidden" while the window was showing
+    /// would hide it again on the next pass. Showing, hiding, moving and resizing are all commands
+    /// instead, sent when they are meant.
+    pub fn keep_alive(&self, ctx: &egui::Context) {
+        let builder = egui::ViewportBuilder::default()
+            .with_title("Espanso Manager")
+            .with_inner_size(egui::vec2(WINDOW_WIDTH, 120.0))
+            .with_decorations(false)
+            .with_resizable(false)
+            .with_always_on_top()
+            .with_taskbar(false)
+            .with_active(false)
+            .with_visible(false);
+        let me = self.clone();
+        ctx.show_viewport_deferred(viewport_id(), builder, move |ui, _class| me.draw(ui));
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.lock().open
+    }
+
+    /// Puts the window up over `over`, the window that had the keyboard, with `entries` to search.
+    pub fn open(
+        &self,
+        ctx: &egui::Context,
+        entries: Vec<(String, String)>,
+        t: &'static Strings,
+        over: windows::Win32::Foundation::HWND,
+    ) {
+        let mut l = self.lock();
+        l.entries = entries
+            .into_iter()
+            .map(|(trigger, preview)| Hit { trigger, preview })
+            .collect();
+        l.t = Some(t);
+        l.query.clear();
+        l.selected = 0;
+        l.follow = true;
+        l.needs_focus = true;
+        l.had_focus = false;
+        l.chosen = None;
+        l.open = true;
+        let size = window_size(ctx, hits(&l.entries, "").len());
+        l.size = size;
+
+        // Centred on the screen the person is actually working on, not on the primary one, a
+        // little above the middle the way every launcher sits. Worked out in pixels and only then
+        // turned into points, because egui converts with the scale of the screen this window is on
+        // *now*, which need not be the one it is about to go to.
+        let target_scale = window_scale(over);
+        let own_scale = if l.scale > 0.0 { l.scale } else { crate::display::system_scale() };
+        let area = crate::display::work_area_of_window(over, 1.0)
+            .or_else(|| crate::display::work_area(1.0));
+        let id = viewport_id();
+        ctx.send_viewport_cmd_to(id, egui::ViewportCommand::InnerSize(size));
+        if let Some(area) = area {
+            let x = area.left + (area.width - size.x * target_scale) * 0.5;
+            let y = area.top + (area.height - size.y * target_scale) * 0.35;
+            ctx.send_viewport_cmd_to(
+                id,
+                egui::ViewportCommand::OuterPosition(egui::pos2(x / own_scale, y / own_scale)),
+            );
+        }
+        ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Focus);
+        ctx.request_repaint_of(id);
+    }
+
+    /// Takes the window down without picking anything.
+    pub fn close(&self, ctx: &egui::Context) {
+        let mut l = self.lock();
+        if l.open {
+            l.open = false;
+            l.query.clear();
+            ctx.send_viewport_cmd_to(viewport_id(), egui::ViewportCommand::Visible(false));
+        }
+    }
+
+    /// The trigger picked since the last time this was asked, if any. The window is already hidden
+    /// by the time it shows up here.
+    pub fn take_chosen(&self) -> Option<String> {
+        self.lock().chosen.take()
+    }
+
+    /// The window's own pass.
+    fn draw(&self, ui: &mut egui::Ui) {
+        let ctx = ui.ctx().clone();
+        let mut l = self.lock();
+        if !l.open {
+            return;
+        }
+        if let Some(scale) = ctx.input(|i| i.viewport().native_pixels_per_point) {
+            l.scale = scale;
+        }
+
+        // Asked for again from inside, as well as by `open`. A hotkey press gives this process the
+        // right to take the foreground, but only if it actually asks — and a search box that does
+        // not have the keyboard is worse than none at all, because the keystrokes land in whatever
+        // document was underneath.
+        if std::mem::take(&mut l.needs_focus) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
+
+        // Clicking anywhere else dismisses it, the way every launcher on every platform behaves —
+        // including espanso's own. Gated on having held the keyboard first, because the frame
+        // between asking for focus and getting it also reports "not focused", and closing there
+        // would make the window flash and vanish.
+        let focused = ctx.input(|i| i.viewport().focused.unwrap_or(true));
+        let mut outcome = if focused {
+            l.had_focus = true;
+            Outcome::Stay
+        } else if l.had_focus {
+            Outcome::Dismiss
+        } else {
+            Outcome::Stay
+        };
+        if ctx.input(|i| i.viewport().close_requested()) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            outcome = Outcome::Dismiss;
+        }
+        if matches!(outcome, Outcome::Stay) {
+            outcome = egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| show(ui, &mut l))
+                .inner;
+        }
+
+        match outcome {
+            Outcome::Stay => {}
+            Outcome::Dismiss | Outcome::Pick(_) => {
+                l.open = false;
+                l.query.clear();
+                if let Outcome::Pick(trigger) = outcome {
+                    l.chosen = Some(trigger);
+                }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                // The main window may well be asleep in the tray; this is what wakes its logic to
+                // collect the pick.
+                ctx.request_repaint_of(egui::ViewportId::ROOT);
+            }
+        }
+    }
+}
+
+enum Outcome {
+    Stay,
+    Dismiss,
+    Pick(String),
+}
+
+/// The scale of the screen `hwnd` is on: 1.0 at 100 %, 1.5 at 150 %.
+fn window_scale(hwnd: windows::Win32::Foundation::HWND) -> f32 {
+    let dpi = if hwnd.is_invalid() {
+        0
+    } else {
+        unsafe { windows::Win32::UI::HiDpi::GetDpiForWindow(hwnd) }
+    };
+    if dpi == 0 {
+        crate::display::system_scale()
+    } else {
+        dpi as f32 / 96.0
+    }
+}
+
 /// The expansions matching the query, best first.
 ///
 /// Matches on the trigger *and* on the replacement text, because half the time you remember what
 /// the expansion says rather than what you named it. A trigger match sorts first: if you typed
 /// something that looks like a trigger, that is almost certainly what you meant.
-pub fn hits(state: &AppState, query: &str) -> Vec<Hit> {
+fn hits<'a>(entries: &'a [Hit], query: &str) -> Vec<&'a Hit> {
     let needle = query.trim().to_lowercase();
-    let list = state.list_all();
     let mut by_trigger = Vec::new();
     let mut by_text = Vec::new();
 
-    for (trigger, preview) in list {
-        if needle.is_empty() {
-            by_trigger.push(Hit { trigger, preview });
-            continue;
-        }
-        if trigger.to_lowercase().contains(&needle) {
-            by_trigger.push(Hit { trigger, preview });
-        } else if preview.to_lowercase().contains(&needle) {
-            by_text.push(Hit { trigger, preview });
+    for hit in entries {
+        if needle.is_empty() || hit.trigger.to_lowercase().contains(&needle) {
+            by_trigger.push(hit);
+        } else if hit.preview.to_lowercase().contains(&needle) {
+            by_text.push(hit);
         }
     }
 
@@ -110,7 +329,7 @@ pub fn hits(state: &AppState, query: &str) -> Vec<Hit> {
 /// widgets, so on a full list the window came up some seventy points too short and the footer line
 /// underneath the results was sliced off the bottom edge — a line of text that was there, that the
 /// window promised room for, and that could not be read.
-pub fn window_size(ctx: &egui::Context, rows: usize) -> egui::Vec2 {
+fn window_size(ctx: &egui::Context, rows: usize) -> egui::Vec2 {
     let style = ctx.style_of(ctx.theme());
     let line = |text_style: egui::TextStyle| {
         let font = text_style.resolve(&style);
@@ -128,18 +347,14 @@ pub fn window_size(ctx: &egui::Context, rows: usize) -> egui::Vec2 {
     egui::vec2(WINDOW_WIDTH, height.ceil())
 }
 
-/// Draws the window. Returns the trigger to expand, if the user picked one.
-pub fn show(ui: &mut egui::Ui, state: &mut AppState) -> Option<String> {
-    let t = state.t();
+/// Draws the window's contents and reads its keys.
+fn show(ui: &mut egui::Ui, l: &mut Launcher) -> Outcome {
+    let Some(t) = l.t else {
+        return Outcome::Dismiss;
+    };
     let is_light = !ui.visuals().dark_mode;
     let accent_color = accent(ui.visuals());
-    let mut chosen = None;
-
-    let results = hits(state, &state.search_query);
-    // Keep the highlight inside the list as it shrinks under a longer query.
-    if state.search_selected >= results.len() {
-        state.search_selected = results.len().saturating_sub(1);
-    }
+    let mut outcome = Outcome::Stay;
 
     let (up, down, enter, escape) = ui.input(|i| {
         (
@@ -150,20 +365,25 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) -> Option<String> {
         )
     });
     if escape {
-        state.close_search();
-        return None;
+        return Outcome::Dismiss;
     }
-    if down && !results.is_empty() {
-        state.search_selected = (state.search_selected + 1) % results.len();
-        state.search_follow = true;
+
+    let count = hits(&l.entries, &l.query).len();
+    // Keep the highlight inside the list as it shrinks under a longer query.
+    if l.selected >= count {
+        l.selected = count.saturating_sub(1);
     }
-    if up && !results.is_empty() {
-        state.search_selected = state.search_selected.checked_sub(1).unwrap_or(results.len() - 1);
-        state.search_follow = true;
+    if down && count > 0 {
+        l.selected = (l.selected + 1) % count;
+        l.follow = true;
+    }
+    if up && count > 0 {
+        l.selected = l.selected.checked_sub(1).unwrap_or(count - 1);
+        l.follow = true;
     }
     if enter {
-        if let Some(hit) = results.get(state.search_selected) {
-            chosen = Some(hit.trigger.clone());
+        if let Some(hit) = hits(&l.entries, &l.query).get(l.selected) {
+            return Outcome::Pick(hit.trigger.clone());
         }
     }
 
@@ -178,20 +398,29 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) -> Option<String> {
             ui.spacing_mut().item_spacing.y = 0.0;
 
             let field = ui.add(
-                crate::ui::controls::text_field(&mut state.search_query)
+                crate::ui::controls::text_field(&mut l.query)
                     .desired_width(ui.available_width())
                     .hint_text(t.search_window_hint),
             );
-            // Focused every frame rather than once: this window is created fresh each time it
-            // opens, and the one thing that must never happen is that you hit Alt+Space, start
-            // typing, and the letters go nowhere.
+            // Focused every frame rather than once: the one thing that must never happen is that
+            // you hit Alt+Space, start typing, and the letters go nowhere.
             if !field.has_focus() {
                 field.request_focus();
             }
             if field.changed() {
                 // A narrower query means a different list; start it from the top.
-                state.search_selected = 0;
-                state.search_follow = true;
+                l.selected = 0;
+                l.follow = true;
+            }
+
+            let results = hits(&l.entries, &l.query);
+            // Sized to what it is actually showing, the way every launcher does: the box grows
+            // and shrinks as the query narrows, instead of leaving a slab of empty window under
+            // the last result.
+            let size = window_size(ui.ctx(), results.len());
+            if size != l.size {
+                l.size = size;
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
             }
 
             if results.is_empty() {
@@ -201,8 +430,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) -> Option<String> {
             }
 
             ui.add_space(GAP_ABOVE_LIST);
-            let selected = state.search_selected;
-            let follow = std::mem::take(&mut state.search_follow);
+            let selected = l.selected;
+            let follow = std::mem::take(&mut l.follow);
             egui::ScrollArea::vertical()
                 .max_height(VISIBLE_ROWS as f32 * ROW_HEIGHT)
                 .auto_shrink([false, true])
@@ -211,7 +440,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) -> Option<String> {
                     for (i, hit) in results.iter().enumerate() {
                         if row(ui, hit, i == selected, follow && i == selected, accent_color, is_light)
                         {
-                            chosen = Some(hit.trigger.clone());
+                            outcome = Outcome::Pick(hit.trigger.clone());
                         }
                     }
                 });
@@ -224,7 +453,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) -> Option<String> {
             );
         });
 
-    chosen
+    outcome
 }
 
 /// One result. The same shape as a row in the main list — trigger in the accent, preview beside it —

@@ -14,14 +14,11 @@ Una sola línea. En src/app.rs:
 
     const OWN_LAUNCHER: bool = false;   ->   true
 
-PERO YA NO BASTA CON ESA LÍNEA. `show_search_window` se llama desde `logic`, y eframe 0.36.1
-prohíbe dibujar ahí: "You may NOT show any ui or do any painting during the call to `Self::logic`",
-y añade que con la ventana oculta no ejecuta ningún paso de egui en absoluto (epi.rs:153-162).
-Oculto en la bandeja es justamente el estado desde el que Alt+Espacio tiene que funcionar. Hoy no
-rompe nada porque con la constante en false `self.hotkey` es None y la ventana no puede abrirse
-nunca; en cuanto se encienda, hay que sacar `show_search_window` de `logic` antes de probar nada,
-o la ventana simplemente no aparecerá desde la bandeja y el motivo no se parecerá en nada a la
-causa.
+Desde 0.0.4 (2026-09-30) el buscador sí abre desde la bandeja, que era lo que impedía encenderlo:
+es una ventana que se crea escondida en el primer fotograma y que el atajo muestra con una orden.
+Medido sobre el binario real, con la ventana principal en la bandeja: abre centrado en la
+pantalla del Bloc de notas, se queda con el teclado, se encoge al filtrar, y se cierra con Esc,
+con el mismo atajo y con un clic fuera. Lo que falta es la inserción (ver abajo).
 
 Eso vuelve a hacer dos cosas al arrancar la aplicación:
 
@@ -85,3 +82,18 @@ el banco de pruebas y una persona escribiendo es justo lo que nunca logré atrap
 
 Si esto se retoma, ese es el punto de partida: el traspaso del teclado entre nuestra ventana y la
 ventana de abajo. No la expansión, que tarda 17 ms, ni el atajo, que funciona.
+
+LO QUE SE MIDIÓ EL 2026-09-30
+----------------------------
+
+  - El `match exec` de espanso, lanzado solo, sin nada nuestro de por medio, escribe en el Bloc
+    de notas 11.2607 cada carácter de `:zed` (90) como el último, "L". El mismo fallo sale por
+    nuestro buscador, así que no es del traspaso del teclado.
+  - Ese Bloc de notas también pierde caracteres si se le manda texto Unicode de golpe con
+    SendInput: de 90 llegaron 17. Teclear el reemplazo nosotros tampoco sirve tal cual.
+  - Un Alt soltado a la vez que la barra (más rápido que una persona, solo con gestos
+    sintéticos) deja al Bloc de notas en modo de letras de acceso, y desde ahí cada letra es un
+    atajo: la "e" abre su Configuración. Con tiempos humanos, break_alt_chord() lo evita.
+
+El plan: que nuestro buscador pegue el reemplazo él mismo con el portapapeles (guardándolo y
+restaurándolo después), sin pedirle nada a espanso.
