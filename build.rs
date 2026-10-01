@@ -35,7 +35,7 @@
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=assets/EspansoManager.ico");
+    println!("cargo:rerun-if-changed=assets/Espanso Manager.ico");
 
     // The crate is Windows-only, but a build script still runs wherever cargo runs.
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
@@ -43,14 +43,14 @@ fn main() {
     }
 
     let mut res = winresource::WindowsResource::new();
-    res.set_icon("assets/EspansoManager.ico");
+    res.set_icon("assets/Espanso Manager.ico");
 
     // Set explicitly rather than left to default: winresource would otherwise take the crate
     // name, `espanso_manager`, which is not what this program is called anywhere a user looks.
     res.set("ProductName", "Espanso Manager");
     res.set("FileDescription", "Espanso Manager");
-    res.set("InternalName", "EspansoManager");
-    res.set("OriginalFilename", "EspansoManager.exe");
+    res.set("InternalName", "Espanso Manager");
+    res.set("OriginalFilename", "Espanso Manager.exe");
     res.set("Comments", "Desktop manager for espanso text expansions. Portable.");
 
     // Alex Palacios has no company, and inventing one would put a false statement in the single

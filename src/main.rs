@@ -98,7 +98,7 @@ enum InstanceGuard {
 /// double-clicks the exe), which would otherwise create two tray icons. We deliberately don't try
 /// to "wake up" the other instance's window — just tell the user where it already is.
 fn acquire_single_instance_guard(t: &'static i18n::Strings) -> InstanceGuard {
-    let name = wide(if EXPERIMENTAL { "Local\\EspansoManager-Studio-SingleInstance-20260909" } else { "Local\\EspansoManager-SingleInstance-9f3d2b7a" });
+    let name = wide(if EXPERIMENTAL { "Local\\Espanso Manager-Studio-SingleInstance-20260909" } else { "Local\\Espanso Manager-SingleInstance-9f3d2b7a" });
     // Reading the thread's last error straight afterwards is sound: on the success path nothing
     // in between touches it. `CreateMutexW` builds its error lazily, with
     // `.ok_or_else(Error::from_thread)`, so ERROR_ALREADY_EXISTS is still there to be read.
@@ -150,7 +150,7 @@ const RESOURCES_DIR: &str = "Program Files";
 /// Two layouts have to work at once. The tidy one ships everything except the executable inside
 /// [`RESOURCES_DIR`], so unzipping produces exactly one thing to double-click. The old one — the
 /// one already on other people's machines — has the executable sitting among nineteen DLLs, and
-/// the documented way to update it is "replace only `EspansoManager.exe`". That instruction has to
+/// the documented way to update it is "replace only `Espanso Manager.exe`". That instruction has to
 /// keep being true: a new binary dropped into an old folder finds no subfolder, falls through to
 /// the executable's own directory, and carries on exactly as before.
 ///
@@ -228,6 +228,12 @@ fn main() {
     };
 
     let start_hidden = std::env::args().any(|a| a == "--tray");
+
+    // Before the settings switch first reads it, so that an entry written before the name had a
+    // space shows as what it is: this copy starting at login.
+    if !EXPERIMENTAL {
+        autostart::adopt_legacy(&exe_path);
+    }
 
     let espansod_path = base_dir.join("espansod.exe");
     let ctl = EspansoCtl::new(espansod_path);
@@ -393,7 +399,7 @@ fn main() {
     };
 
     let _ = eframe::run_native(
-        "EspansoManager",
+        "Espanso Manager",
         native_options,
         Box::new(move |cc| Ok(Box::new(EspansoManagerApp::new(cc, startup_ctx)))),
     );

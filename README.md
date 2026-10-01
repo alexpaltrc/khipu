@@ -17,7 +17,7 @@
 
 ### [⬇️ Download for Windows](https://github.com/alexpaltrc/espanso-manager/releases/download/v0.0.3/EspansoManager-Portable-0.0.3.zip)
 
-<sub>10 MB · espanso is in the box · nothing gets installed · unzip and open `EspansoManager.exe`</sub>
+<sub>10 MB · espanso is in the box · nothing gets installed · unzip and open `Espanso Manager.exe`</sub>
 
 <sub>Not signed yet, so the first run shows *"Windows protected your PC"* → **More info** → **Run anyway**.</sub>
 
@@ -126,7 +126,7 @@ This repository is the **source only** — under 1 MB. It deliberately does not 
 
 | Not here | Why |
 |---|---|
-| 🏗️ `EspansoManager.exe`, the distribution ZIP | Build outputs. They live in [Releases](https://github.com/alexpaltrc/espanso-manager/releases), which is where build outputs belong. |
+| 🏗️ `Espanso Manager.exe`, the distribution ZIP | Build outputs. They live in [Releases](https://github.com/alexpaltrc/espanso-manager/releases), which is where build outputs belong. |
 | 🧩 `espansod.exe`, `msvcp140*.dll`, … | Not our code. |
 | 🔒 `.espanso/`, `.espanso-manager/`, `.espanso-runtime/` | The user's real expansions and settings. |
 | 🗑️ `target/` | 1.3 GB build cache; regenerates in ~3 minutes. |
@@ -147,7 +147,8 @@ Requires a stable Rust toolchain (built with 1.98, edition 2021) on Windows.
 cargo build --release
 ```
 
-The binary lands at `target/release/EspansoManager.exe`. In a distribution folder it stands
+The binary lands at `target/release/EspansoManager.exe`, because Cargo does not allow a space
+in it, and is renamed `Espanso Manager.exe` when it is copied out. In a distribution folder it stands
 alone at the top level, with `espansod.exe`, the DLLs and the `.espanso*` folders one level
 down in `Program Files`, so that unzipping leaves exactly one thing to double-click.
 `resolve_base_dir` in `main.rs` finds that subfolder — and still falls back to the

@@ -23,8 +23,10 @@ was published.
   in Settings.
 - **The name is written Espanso Manager, with a space**, everywhere it is shown: the window
   title, the welcome, the messages, the start-up switch and the program's description in the Task
-  Manager. The file is still `EspansoManager.exe`, and the start-with-Windows entry keeps its old
-  name, so a computer that already starts the app goes on doing so.
+  Manager, and also the file itself, `Espanso Manager.exe`, the ZIP and the folder inside it. To
+  update, delete the old `EspansoManager.exe` and put the new file in its place. A computer that
+  already started the app with Windows goes on doing so: the first time the new file opens, it
+  moves that entry to the new name and the new file.
 
 ## 0.0.3 — 2026-09-30
 

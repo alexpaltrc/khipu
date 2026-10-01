@@ -35,7 +35,7 @@
 //! detected by looking at the Run value alone.
 
 use std::path::Path;
-use winreg::enums::{HKEY_CURRENT_USER, KEY_SET_VALUE};
+use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE};
 use winreg::RegKey;
 
 const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
@@ -43,7 +43,9 @@ const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 /// an entry has been switched off. They do not delete the Run value when they do it.
 const APPROVED_KEY: &str =
     "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
-const VALUE_NAME: &str = "EspansoManager";
+const VALUE_NAME: &str = "Espanso Manager";
+/// The name until 0.0.4, when the app started being written with a space. See [`adopt_legacy`].
+const LEGACY_VALUE_NAME: &str = "EspansoManager";
 
 /// The executable named by a Run command, as written by us (`"C:\...\x.exe" --tray`) or by hand
 /// (`C:\...\x.exe --tray`).
@@ -121,6 +123,34 @@ pub fn set_enabled(enabled: bool, exe_path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Moves an entry left under [`LEGACY_VALUE_NAME`] to the current name.
+///
+/// The executable it names is gone — it was renamed in the same change as the value — so the
+/// folder is what still says the entry was this copy's. One naming another folder belongs to
+/// another copy, which may well still be there, and is left alone. An entry Windows had been told
+/// to skip is not carried over as one that runs: it is dropped, which is what off already meant.
+pub fn adopt_legacy(exe_path: &Path) {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let Ok(run) = hkcu.open_subkey_with_flags(RUN_KEY, KEY_READ | KEY_SET_VALUE) else { return };
+    let Ok(command) = run.get_value::<String, _>(LEGACY_VALUE_NAME) else { return };
+    let here = match (Path::new(registered_exe(&command)).parent(), exe_path.parent()) {
+        (Some(theirs), Some(ours)) => same_exe(theirs, ours),
+        _ => false,
+    };
+    if !here {
+        return;
+    }
+    let veto = hkcu.open_subkey_with_flags(APPROVED_KEY, KEY_READ | KEY_SET_VALUE).ok();
+    let record = veto.as_ref().and_then(|key| key.get_raw_value(LEGACY_VALUE_NAME).ok());
+    if approved(record.as_ref().map(|value| &value.bytes[..])) {
+        let _ = set_enabled(true, exe_path);
+    }
+    let _ = run.delete_value(LEGACY_VALUE_NAME);
+    if let Some(veto) = veto {
+        let _ = veto.delete_value(LEGACY_VALUE_NAME);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -128,10 +158,13 @@ mod tests {
     /// Both spellings of a Run command, plus the ones that name nothing at all.
     #[test]
     fn reads_the_executable_out_of_a_run_command() {
-        assert_eq!(registered_exe("\"C:\\Espanso\\EspansoManager.exe\" --tray"), "C:\\Espanso\\EspansoManager.exe");
-        assert_eq!(registered_exe("\"C:\\Mis Cosas\\EspansoManager.exe\" --tray"), "C:\\Mis Cosas\\EspansoManager.exe");
-        assert_eq!(registered_exe("C:\\Espanso\\EspansoManager.exe --tray"), "C:\\Espanso\\EspansoManager.exe");
-        assert_eq!(registered_exe("  C:\\Espanso\\EspansoManager.exe  "), "C:\\Espanso\\EspansoManager.exe");
+        assert_eq!(registered_exe("\"C:\\Espanso\\Espanso Manager.exe\" --tray"), "C:\\Espanso\\Espanso Manager.exe");
+        assert_eq!(registered_exe("\"C:\\Mis Cosas\\Espanso Manager.exe\" --tray"), "C:\\Mis Cosas\\Espanso Manager.exe");
+        assert_eq!(registered_exe("C:\\Espanso\\espansod.exe --tray"), "C:\\Espanso\\espansod.exe");
+        assert_eq!(registered_exe("  C:\\Espanso\\espansod.exe  "), "C:\\Espanso\\espansod.exe");
+        // Our own name, written by hand without quotes, is the guess that goes wrong: the switch
+        // reads off until it is pressed, as the doc above says, and pressing it writes the quotes.
+        assert_eq!(registered_exe("C:\\Espanso\\Espanso Manager.exe --tray"), "C:\\Espanso\\Espanso");
         assert_eq!(registered_exe(""), "");
         assert_eq!(registered_exe("\""), "");
     }
@@ -140,9 +173,9 @@ mod tests {
     /// what it is — and pressing it then writes the path that works.
     #[test]
     fn a_command_pointing_somewhere_else_is_not_enabled() {
-        let ours = Path::new("C:\\Espanso\\EspansoManager.exe");
-        assert!(same_exe(Path::new("c:\\espanso\\espansomanager.exe"), ours));
-        assert!(!same_exe(Path::new("D:\\Viejo\\EspansoManager.exe"), ours));
+        let ours = Path::new("C:\\Espanso\\Espanso Manager.exe");
+        assert!(same_exe(Path::new("c:\\espanso\\espanso manager.exe"), ours));
+        assert!(!same_exe(Path::new("D:\\Viejo\\Espanso Manager.exe"), ours));
         assert!(!same_exe(Path::new(""), ours));
     }
 

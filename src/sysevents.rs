@@ -137,7 +137,7 @@ fn wide(s: &str) -> Vec<u16> {
 
 unsafe fn create_listener_window() -> Option<HWND> {
     let hinstance = GetModuleHandleW(None).ok()?;
-    let class_name = wide("EspansoManagerAppearanceWatch");
+    let class_name = wide("Espanso Manager Appearance Watch");
 
     let class = WNDCLASSW {
         lpfnWndProc: Some(wndproc),

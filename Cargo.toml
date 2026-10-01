@@ -18,6 +18,8 @@ repository = "https://github.com/alexpaltrc/espanso-manager"
 # how it was asked for.
 
 [[bin]]
+# Cargo refuses a space here ("invalid character ' ' in crate name"), so the build writes
+# `target/release/EspansoManager.exe` and the copy that ships is named `Espanso Manager.exe`.
 name = "EspansoManager"
 path = "src/main.rs"
 
