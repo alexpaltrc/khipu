@@ -27,6 +27,8 @@ was published.
   update, delete the old `EspansoManager.exe` and put the new file in its place. A computer that
   already started the app with Windows goes on doing so: the first time the new file opens, it
   moves that entry to the new name and the new file.
+- **Espanso is 2.4.1**, the latest, up from 2.4.0. Its one fix is in how a match file is read:
+  a value written without quotes inside `[ ]` or `{ }` no longer trips it up.
 
 ## 0.0.3 — 2026-09-30
 

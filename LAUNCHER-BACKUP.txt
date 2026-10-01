@@ -97,3 +97,25 @@ LO QUE SE MIDIÓ EL 2026-09-30
 
 El plan: que nuestro buscador pegue el reemplazo él mismo con el portapapeles (guardándolo y
 restaurándolo después), sin pedirle nada a espanso.
+
+LO QUE SE HIZO Y SE MIDIÓ EL 2026-10-01
+---------------------------------------
+
+Ese plan está hecho: src/paste.rs. Pega como Win+V: pone el texto en el portapapeles, manda
+Ctrl+V y devuelve el portapapeles tal como estaba, con todos sus formatos (una imagen copiada
+sobrevive). El texto se ofrece con "delayed rendering", así que Windows avisa en el momento en que
+el destino lo lee, y en ese momento se restaura: no hay espera adivinada. Se marca con los
+formatos que Windows define para dejarlo fuera del historial de Win+V y de la nube.
+
+Solo se pega lo que la app sabe escribir exacto (SimpleMatch::literal_text): texto sin variables y
+nuestras cuatro fechas. Todo lo demás sigue por el camino viejo, el de `match exec`.
+
+  - Con espanso 2.4.1 el fallo de la "L" sigue igual: no era cosa de la versión.
+  - Bloc de notas, Edge y Windows Terminal: `:zed` (90 caracteres) llega entero y exacto; en Edge
+    también un texto de 1263 caracteres en 37 líneas, con su sangría. El portapapeles vuelve a
+    los 2–5 ms de ofrecerse, con su contenido original (texto con ñ y €, y una imagen 300×200 con
+    los mismos píxeles).
+  - Sin medir: el historial de Win+V, que está apagado en este equipo y encenderlo es cambiar un
+    ajuste del sistema; Teams, VS Code, monitores con escalas distintas.
+
+OWN_LAUNCHER sigue apagado solo porque la ventana aún no lleva el diseño de la app.

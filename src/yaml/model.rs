@@ -83,6 +83,38 @@ impl SimpleMatch {
             None
         }
     }
+
+    /// The text espanso would insert for this match, when it can be known for certain without
+    /// asking espanso: plain text, or one date we format letter for letter the way espanso does.
+    ///
+    /// `None` for everything else, which the launcher hands to espanso instead: other kinds of
+    /// `vars`, a `{{...}}` that could name a global var, the `$|$` cursor mark, a date code, time
+    /// zone, language or parameter that [`crate::datefmt`] does not reproduce.
+    pub fn literal_text(&self) -> Option<String> {
+        if self.vars.is_empty() {
+            let plain = !self.replace.contains("{{") && !self.replace.contains("$|$");
+            return plain.then(|| self.replace.clone());
+        }
+        let var = self.as_date_var()?;
+        let format = var.param_str("format")?;
+        let tz = var.param_str("tz");
+        let locale = var.param_str("locale");
+        let known_params = var.params.keys().all(|key| {
+            matches!(key.as_str(), Some("format" | "tz" | "locale"))
+        });
+        let known_locale = locale.is_none_or(|tag| {
+            crate::datefmt::locale_tag(crate::datefmt::lang_from_locale_tag(Some(tag))) == tag
+        });
+        if !known_params
+            || !known_locale
+            || !tz.is_none_or(|tz| tz.eq_ignore_ascii_case("UTC"))
+            || !crate::datefmt::understands(format)
+        {
+            return None;
+        }
+        let date = crate::datefmt::sample(format, tz, crate::datefmt::lang_from_locale_tag(locale));
+        Some(self.replace.replacen(&format!("{{{{{}}}}}", var.name), &date, 1))
+    }
 }
 
 /// One entry of `matches:`. Anything the GUI doesn't fully understand (plural `triggers:`,
@@ -280,6 +312,44 @@ impl MatchFile {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn literal(yaml: &str) -> Option<String> {
+        let mf = MatchFile::from_str(yaml).expect("loads");
+        match &mf.entries[0] {
+            MatchEntry::Simple(m) => m.literal_text(),
+            MatchEntry::Advanced(_) => panic!("{yaml:?} should be simple"),
+        }
+    }
+
+    /// What the launcher pastes itself, and what it has to leave to espanso because only espanso
+    /// knows what it would come out as.
+    #[test]
+    fn the_launcher_pastes_only_what_it_can_write_exactly() {
+        assert_eq!(
+            literal("matches:\n  - trigger: \":sig\"\n    replace: |-\n      Saludos,\n      Alex\n"),
+            Some("Saludos,\nAlex".to_string())
+        );
+        // A global var, and the cursor mark.
+        assert_eq!(literal("matches:\n  - trigger: \":g\"\n    replace: \"{{nombre}}\"\n"), None);
+        assert_eq!(literal("matches:\n  - trigger: \":c\"\n    replace: \"<b>$|$</b>\"\n"), None);
+
+        let date = |params: &str| {
+            literal(&format!(
+                "matches:\n  - trigger: \":d\"\n    replace: \"{{{{d}}}}\"\n    vars:\n      - name: d\n        type: date\n        params:\n{params}"
+            ))
+        };
+        let iso = date("          format: \"%Y-%m-%d\"\n").expect("our preset");
+        assert_eq!(iso.len(), 10);
+        assert_eq!(&iso[4..5], "-");
+        assert!(date("          format: \"%B %-d, %Y\"\n          locale: es-ES\n").is_some());
+        assert!(date("          format: \"%Y\"\n          tz: UTC\n").is_some());
+        // A code we do not model, a zone we do not model, a language we do not have, a parameter
+        // we do not know.
+        assert_eq!(date("          format: \"%j\"\n"), None);
+        assert_eq!(date("          format: \"%Y\"\n          tz: Europe/Madrid\n"), None);
+        assert_eq!(date("          format: \"%B\"\n          locale: fr-FR\n"), None);
+        assert_eq!(date("          format: \"%Y\"\n          offset: 86400\n"), None);
+    }
 
     #[test]
     fn the_whole_text_keeps_its_lines_and_only_the_preview_flattens_them() {

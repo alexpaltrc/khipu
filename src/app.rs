@@ -82,9 +82,10 @@ pub type DragPayload = Vec<String>;
 /// beside the source says what was built and what was never solved.
 ///
 /// Opening from the tray, which is where Alt+Space is nearly always pressed, works since 0.0.4: see
-/// `ui::search_view` for how. Still off, because the insertion is the part that is not solved —
-/// and in this Notepad (11.2607) espanso's own `match exec` types every character of `:zed` as
-/// the last one, "L", with nothing of ours involved, measured.
+/// `ui::search_view` for how. So does the insertion of every text the app can write exactly: it is
+/// pasted, see `paste` — measured whole in Notepad, Edge and Windows Terminal, where espanso's own
+/// `match exec` types every character of `:zed` as the last one, "L". Still off, because the
+/// window does not yet look like the rest of the app.
 const OWN_LAUNCHER: bool = false;
 
 /// Far more characters than any row can display, so the width-aware trim the label does afterwards
@@ -511,6 +512,15 @@ impl AppState {
                 MatchEntry::Advanced(_) => None,
             })
             .collect()
+    }
+
+    /// What the launcher can paste for `trigger` by itself. See
+    /// [`crate::yaml::model::SimpleMatch::literal_text`].
+    pub fn literal_text(&self, trigger: &str) -> Option<String> {
+        self.match_file.entries.iter().find_map(|entry| match entry {
+            MatchEntry::Simple(m) if m.trigger == trigger => m.literal_text(),
+            _ => None,
+        })
     }
 
     /// Asks espanso its version, once, on the way into the screen that shows it.
@@ -2522,6 +2532,7 @@ impl EspansoManagerApp {
         }
 
         let ctl = self.state.ctl.clone();
+        let literal = self.state.literal_text(&trigger);
         std::thread::spawn(move || {
             let focused = target != 0
                 && crate::display::wait_until_foreground(
@@ -2529,6 +2540,22 @@ impl EspansoManagerApp {
                     Duration::from_millis(40),
                     Duration::from_millis(600),
                 );
+            // Pasted whenever the text is known: typing it is what Notepad garbles. Only what
+            // espanso alone can produce — scripts, forms, global vars — still goes through espanso.
+            if let Some(text) = literal {
+                if focused {
+                    let mut pid = 0;
+                    let window = windows::Win32::Foundation::HWND(target as *mut _);
+                    unsafe {
+                        windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(
+                            window,
+                            Some(&mut pid),
+                        )
+                    };
+                    crate::paste::paste(&text, pid);
+                }
+                return;
+            }
             if focused && !crate::display::type_text(&trigger) {
                 return;
             }

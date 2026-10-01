@@ -17,8 +17,8 @@
  * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//! A miniature date formatter, used *only* to show the user a live example of what a date
-//! expansion will produce.
+//! A miniature date formatter, used to show the user a live example of what a date expansion will
+//! produce — and, for a format it fully [`understands`], to write the date the launcher pastes.
 //!
 //! Espanso does the real formatting at typing time (chrono, with the locale tables it embeds); this
 //! module exists so the edit form and the list can show "August 29, 2026" instead of the
@@ -94,6 +94,25 @@ pub fn needs_locale(format: &str) -> bool {
         }
     }
     false
+}
+
+/// True if [`format`] knows every code in `format`, and so writes exactly what espanso would. The
+/// launcher pastes a date itself only then; anything else it leaves to espanso.
+pub fn understands(format: &str) -> bool {
+    let mut chars = format.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '%' {
+            continue;
+        }
+        if matches!(chars.peek(), Some('-' | '_' | '0')) {
+            chars.next();
+        }
+        let known = "YymdeHIMSBbhAapPFT%";
+        if !chars.next().is_some_and(|spec| known.contains(spec)) {
+            return false;
+        }
+    }
+    true
 }
 
 const MONTHS_EN: [&str; 12] = [
