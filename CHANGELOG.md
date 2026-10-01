@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to EspansoManager. Dates are the day the work was finished, not the day it
+All notable changes to Espanso Manager. Dates are the day the work was finished, not the day it
 was published.
 
 ## Unreleased (0.0.4-dev)
@@ -12,14 +12,19 @@ was published.
   greeting, `:fecha` into today's date, `:firma` into a signature at the foot of an email, typed
   out and replaced one after the other; then trying `:espanso` for real in a box; then whether to
   start with Windows, with the pointer acting out how to bring the icon out from behind the
-  tray's little arrow. Under each step, one small note: that it is free and private, that it
-  barely uses memory or processor while it waits, that expansions can be paused from the tray,
-  and that starting with Windows can be changed later in Settings. Next and Back stay in the same
-  place on every step, with dots for where you are, and each step slides in. With Windows'
-  animation effects off, nothing moves: the examples and the tray are shown still.
+  tray's little arrow. Under each step, one small note: that it is free, private and needs neither
+  an installation nor the internet, that it is light enough for the computer not to notice it,
+  that expansions can be paused from the tray, and that starting with Windows can be changed later
+  in Settings. Next and Back stay in the same place on every step, with dots for where you are,
+  and each step slides in. With Windows' animation effects off, nothing moves: the examples and
+  the tray are shown still.
 - **The first run speaks Windows' language** — Spanish, Filipino or Hindi when Windows is in one
   of them, English otherwise. It used to be English for everyone until the language was changed
   in Settings.
+- **The name is written Espanso Manager, with a space**, everywhere it is shown: the window
+  title, the welcome, the messages, the start-up switch and the program's description in the Task
+  Manager. The file is still `EspansoManager.exe`, and the start-with-Windows entry keeps its old
+  name, so a computer that already starts the app goes on doing so.
 
 ## 0.0.3 — 2026-09-30
 

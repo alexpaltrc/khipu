@@ -1,25 +1,25 @@
 /*
- * This file is part of EspansoManager.
+ * This file is part of Espanso Manager.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * EspansoManager is free software: you can redistribute it and/or modify
+ * Espanso Manager is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * EspansoManager is distributed in the hope that it will be useful,
+ * Espanso Manager is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with EspansoManager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! The shape of `base.yml`, and the promise printed at the top of it.
 //!
-//! That banner says EspansoManager preserves any match it cannot show in its interface, and this
+//! That banner says Espanso Manager preserves any match it cannot show in its interface, and this
 //! module is where that is kept or broken. Two mechanisms hold it:
 //!
 //! - `MatchEntry::Advanced` carries anything the form cannot represent — shell commands, regex
@@ -270,8 +270,8 @@ impl MatchFile {
         Ok(format!(
             // Kept in English regardless of interface language: this is a comment inside a shared
             // config file that a colleague or a support engineer may open on any machine.
-            "# Managed by EspansoManager — you can still edit this file by hand;\n\
-             # EspansoManager preserves any match it cannot show in its interface.\n\
+            "# Managed by Espanso Manager — you can still edit this file by hand;\n\
+             # Espanso Manager preserves any match it cannot show in its interface.\n\
              # https://espanso.org/docs/\n\n{body}"
         ))
     }

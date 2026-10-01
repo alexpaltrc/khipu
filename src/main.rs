@@ -1,20 +1,20 @@
 /*
- * This file is part of EspansoManager.
+ * This file is part of Espanso Manager.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * EspansoManager is free software: you can redistribute it and/or modify
+ * Espanso Manager is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * EspansoManager is distributed in the hope that it will be useful,
+ * Espanso Manager is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with EspansoManager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -108,7 +108,7 @@ fn acquire_single_instance_guard(t: &'static i18n::Strings) -> InstanceGuard {
     };
     if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
         rfd::MessageDialog::new()
-            .set_title("EspansoManager")
+            .set_title("Espanso Manager")
             .set_description(t.already_running)
             .set_level(rfd::MessageLevel::Info)
             .show();
@@ -262,7 +262,7 @@ fn main() {
         Err(e) => {
             let message = e.friendly_message(t);
             rfd::MessageDialog::new()
-                .set_title("EspansoManager")
+                .set_title("Espanso Manager")
                 .set_description(message.as_str())
                 .set_level(rfd::MessageLevel::Error)
                 .show();
@@ -309,7 +309,7 @@ fn main() {
                 ));
             }
             rfd::MessageDialog::new()
-                .set_title("EspansoManager")
+                .set_title("Espanso Manager")
                 .set_description(message)
                 .set_level(rfd::MessageLevel::Error)
                 .show();
@@ -351,7 +351,7 @@ fn main() {
     };
 
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title(if EXPERIMENTAL { "Espanso Manager · Vista de prueba" } else { "EspansoManager" })
+        .with_title(if EXPERIMENTAL { "Espanso Manager · Vista de prueba" } else { "Espanso Manager" })
         .with_inner_size(fit(display::DEFAULT_SIZE))
         // Not passed through `fit`. This is the floor, and clamping a floor to the screen is how
         // a small primary monitor ends up licensing a window too small to use on a large one.

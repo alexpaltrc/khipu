@@ -1,20 +1,20 @@
 /*
- * This file is part of EspansoManager.
+ * This file is part of Espanso Manager.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * EspansoManager is free software: you can redistribute it and/or modify
+ * Espanso Manager is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * EspansoManager is distributed in the hope that it will be useful,
+ * Espanso Manager is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with EspansoManager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! The first-run screen: four short steps, one idea each, that never appear again.
@@ -372,7 +372,7 @@ fn welcome(ui: &mut egui::Ui, state: &AppState, enter: &Enter) {
     });
     ui.add_space(controls::GAP_STACK + controls::GAP);
     enter.reveal(ui, 1, |ui| {
-        ui.add(egui::Label::new(controls::semibold("EspansoManager").size(30.0)).wrap());
+        ui.add(egui::Label::new(controls::semibold("Espanso Manager").size(30.0)).wrap());
     });
     ui.add_space(controls::GAP_TIGHT);
     enter.reveal(ui, 2, |ui| {
@@ -524,13 +524,16 @@ fn typing_demo(ui: &mut egui::Ui, examples: &[Example; 3], clock: f64, frames: &
     let inner = width - 2.0 * SURFACE_PAD;
     let typesetter = ui.painter().clone();
 
-    let layout = |before: &str, typed: &str, result: Option<(&str, f32, f32)>| {
+    // The trigger is not laid out in the same job as the page around it: a row that mixes the two
+    // faces lines them up by their bottoms, and Cascadia's baseline is not Segoe's, so the trigger
+    // sat higher than the words beside it and the text it became. It is drawn on its own, moved
+    // down onto the body's baseline.
+    let layout = |before: &str, result: Option<(&str, f32, f32)>| {
         let mut job = egui::text::LayoutJob::default();
         job.wrap.max_width = inner;
         job.append(before, 0.0, egui::TextFormat::simple(body.clone(), quiet));
-        match result {
-            None => job.append(typed, 0.0, egui::TextFormat::simple(mono.clone(), accent)),
-            Some((text, shown, lit)) => job.append(
+        if let Some((text, shown, lit)) = result {
+            job.append(
                 text,
                 0.0,
                 egui::TextFormat {
@@ -539,15 +542,19 @@ fn typing_demo(ui: &mut egui::Ui, examples: &[Example; 3], clock: f64, frames: &
                     background: crate::app::mix(card, accent, (if is_light { 0.16 } else { 0.28 }) * lit),
                     ..Default::default()
                 },
-            ),
+            );
         }
         typesetter.layout_job(job)
     };
+    let typed_line = |typed: String| typesetter.layout_no_wrap(typed, mono.clone(), accent);
+    // How far the trigger's own top sits above the body row it is typed into.
+    let drop = controls::baseline(&typesetter.layout_no_wrap("A".into(), body.clone(), ink))
+        - controls::baseline(&typed_line("A".into()));
 
     // The page is as tall as the tallest example once it has become text, so it never resizes.
     let tallest = examples
         .iter()
-        .map(|e| layout(e.before, "", Some((&e.result, 1.0, 0.0))).size().y)
+        .map(|e| layout(e.before, Some((&e.result, 1.0, 0.0))).size().y)
         .fold(0.0_f32, f32::max);
     let (rect, _) = ui.allocate_exact_size(vec2(width, tallest + 2.0 * SURFACE_PAD), egui::Sense::hover());
     let painter = ui.painter();
@@ -572,23 +579,29 @@ fn typing_demo(ui: &mut egui::Ui, examples: &[Example; 3], clock: f64, frames: &
     let turns_at = typed_by + BEAT;
     let leaving = SCENE - FADE_OUT;
 
-    let galley = if s < turns_at {
-        let n = if s < TYPE_FROM { 0 } else { (((s - TYPE_FROM) / PER_KEY) as usize + 1).min(keys) };
-        let typed: String = example.trigger.chars().take(n).collect();
-        layout(example.before, &typed, None)
-    } else {
-        let shown = ease_out(span(s, turns_at, turns_at + 0.22));
-        let lit = 1.0 - ease_in_out(span(s, turns_at + 0.5, turns_at + 1.5));
-        layout(example.before, "", Some((&example.result, shown, lit)))
-    };
-
     let mut painter = painter.with_clip_rect(rect);
     let scene_in = ease_out(span(s, 0.0, 0.3));
     let scene_out = 1.0 - ease_out(span(s, leaving, SCENE));
     painter.set_opacity(scene_in.min(scene_out));
     let origin = rect.min + vec2(SURFACE_PAD, SURFACE_PAD);
-    let caret = galley.pos_from_cursor(galley.end()).translate(origin.to_vec2());
-    painter.galley(origin, galley, ink);
+
+    let caret = if s < turns_at {
+        let n = if s < TYPE_FROM { 0 } else { (((s - TYPE_FROM) / PER_KEY) as usize + 1).min(keys) };
+        let page = layout(example.before, None);
+        let end = page.pos_from_cursor(page.end()).translate(origin.to_vec2());
+        let trigger = typed_line(example.trigger.chars().take(n).collect());
+        let after = end.left() + trigger.size().x;
+        painter.galley(origin, page, ink);
+        painter.galley(pos2(end.left(), end.top() + drop), trigger, ink);
+        Rect::from_x_y_ranges(after..=after, end.y_range())
+    } else {
+        let shown = ease_out(span(s, turns_at, turns_at + 0.22));
+        let lit = 1.0 - ease_in_out(span(s, turns_at + 0.5, turns_at + 1.5));
+        let page = layout(example.before, Some((&example.result, shown, lit)));
+        let caret = page.pos_from_cursor(page.end()).translate(origin.to_vec2());
+        painter.galley(origin, page, ink);
+        caret
+    };
 
     // The caret: solid while keys are going down, blinking while the page waits.
     let typing = (TYPE_FROM..typed_by).contains(&s);
@@ -632,8 +645,12 @@ fn still_examples(ui: &mut egui::Ui, examples: &[Example; 3]) {
                     vec2(key_width, ui.text_style_height(&egui::TextStyle::Body)),
                     egui::Sense::hover(),
                 );
+                // On the baseline of the words beside it, not at the top of the row: Cascadia's
+                // baseline sits higher in its box than Segoe's, so top-aligned it floated.
                 let line = controls::widget_line(ui, controls::code(example.trigger, ui.visuals()), egui::TextStyle::Body);
-                ui.painter().galley(slot.left_top(), line, Color32::PLACEHOLDER);
+                let words = controls::widget_line(ui, egui::RichText::new("A"), egui::TextStyle::Body);
+                let drop = controls::baseline(&words) - controls::baseline(&line);
+                ui.painter().galley(slot.left_top() + vec2(0.0, drop), line, Color32::PLACEHOLDER);
                 ui.label(controls::muted("→", is_light));
                 ui.add(egui::Label::new(example.result.as_str()).wrap());
             });

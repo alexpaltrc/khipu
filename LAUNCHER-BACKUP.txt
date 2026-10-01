@@ -1,4 +1,4 @@
-EspansoManager — nuestro buscador propio (Alt + Barra espaciadora)
+Espanso Manager — nuestro buscador propio (Alt + Barra espaciadora)
 ==================================================================
 
 Estado: APAGADO a propósito, desde el 1 de septiembre de 2026.

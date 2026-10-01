@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⌨️ EspansoManager
+# ⌨️ Espanso Manager
 
 **A small desktop window for your text expansions — [espanso](https://espanso.org) included.**
 
@@ -43,7 +43,7 @@ appears. That is espanso, and it works everywhere you type — email, chat, a do
 browser.
 
 The only awkward part is setting those up: normally it means opening a configuration file
-and editing it by hand. EspansoManager is the window that does that for you. You write the
+and editing it by hand. Espanso Manager is the window that does that for you. You write the
 short thing, you write the long thing, and it is ready.
 
 **espanso itself is inside the download**, already set up and started for you. There is no
@@ -112,7 +112,7 @@ None of this would exist without two things:
 
 ## 🚫 What this is not
 
-This is **not a fork of espanso** and contains none of its code. EspansoManager is a
+This is **not a fork of espanso** and contains none of its code. Espanso Manager is a
 separate program that talks to espanso from the outside, by launching `espansod.exe` as a
 child process and reading what it prints (`src/espanso_ctl.rs`). The two are shipped in the
 same folder; they are not the same work. Sharing espanso's GPL-3.0 licence is a choice made out
@@ -191,7 +191,7 @@ speaker.
 
 ## 📄 License
 
-EspansoManager was created by **Alex Palacios** and is licensed under the
+Espanso Manager was created by **Alex Palacios** and is licensed under the
 [GPL-3.0 license](LICENSE) — the same licence [espanso](https://espanso.org) uses, matched on
 purpose rather than by obligation.
 

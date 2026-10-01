@@ -1,20 +1,20 @@
 /*
- * This file is part of EspansoManager.
+ * This file is part of Espanso Manager.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * EspansoManager is free software: you can redistribute it and/or modify
+ * Espanso Manager is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * EspansoManager is distributed in the hope that it will be useful,
+ * Espanso Manager is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with EspansoManager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! Small, surgical edits to `.espanso/config/default.yml` — espanso's file, not ours.
@@ -34,20 +34,20 @@
 
 use std::path::Path;
 
-/// Espanso settings that EspansoManager turns off on its behalf, with the note left in the file
+/// Espanso settings that Espanso Manager turns off on its behalf, with the note left in the file
 /// explaining why — the config is meant to be readable, so a change made by us shouldn't look
 /// anonymous to whoever opens it next.
 const MANAGED: [(&str, &str, &str); 2] = [
     (
         "show_icon",
         "false",
-        "# Disabled by EspansoManager: avoids a second Espanso icon in the system tray, since \
-         EspansoManager already shows one.",
+        "# Disabled by Espanso Manager: avoids a second Espanso icon in the system tray, since \
+         Espanso Manager already shows one.",
     ),
     (
         "show_notifications",
         "false",
-        "# Disabled by EspansoManager: the app reports what happened in its own window, so the \
+        "# Disabled by Espanso Manager: the app reports what happened in its own window, so the \
          Windows toasts would only repeat it.",
     ),
 ];
@@ -73,7 +73,7 @@ pub fn restore_espanso_icon(config_path: &Path) -> std::io::Result<bool> {
         &[(
             "show_icon",
             "true",
-            "# Restored by EspansoManager: it could not show its own tray icon, so Espanso keeps \
+            "# Restored by Espanso Manager: it could not show its own tray icon, so Espanso keeps \
              its one.",
         )],
     )
@@ -91,7 +91,7 @@ pub fn set_search_shortcut(config_path: &Path, value: &str) -> std::io::Result<b
         &[(
             "search_shortcut",
             value,
-            "# Set by EspansoManager: OFF while the app provides its own search window on the same \
+            "# Set by Espanso Manager: OFF while the app provides its own search window on the same \
              shortcut,\n# and espanso's default when that shortcut could not be claimed.",
         )],
     )

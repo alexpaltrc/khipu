@@ -1,20 +1,20 @@
 /*
- * This file is part of EspansoManager.
+ * This file is part of Espanso Manager.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * EspansoManager is free software: you can redistribute it and/or modify
+ * Espanso Manager is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * EspansoManager is distributed in the hope that it will be useful,
+ * Espanso Manager is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with EspansoManager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! Carrying expansions between machines: writing them out to a file, and reading somebody else's
@@ -210,7 +210,7 @@ pub fn write(path: &Path, export: &Export) -> Result<(), TransferError> {
     let text = format!(
         // English on purpose: this file is made to be sent to someone else, whose copy of the app
         // may well be running in another language.
-        "# Expansions exported from EspansoManager.\n\
+        "# Expansions exported from Espanso Manager.\n\
          # Import them from Settings -> Export and import. They are added to whatever is\n\
          # already there; nothing you have is replaced.\n\n{body}"
     );

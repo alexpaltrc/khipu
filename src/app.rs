@@ -1,20 +1,20 @@
 /*
- * This file is part of EspansoManager.
+ * This file is part of Espanso Manager.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * EspansoManager is free software: you can redistribute it and/or modify
+ * Espanso Manager is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * EspansoManager is distributed in the hope that it will be useful,
+ * Espanso Manager is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with EspansoManager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! The application itself: its state, its Windows 11 palette, and the eframe loop that drives both.
@@ -501,7 +501,7 @@ impl AppState {
     pub fn begin_onboarding(&mut self) {
         let path = self.onboarding_match_path();
         let body = format!(
-            "# Temporary — created by EspansoManager for its first-run screen and deleted as soon\n\
+            "# Temporary — created by Espanso Manager for its first-run screen and deleted as soon\n\
              # as that screen is finished with. Nothing here is yours; edit base.yml instead.\n\
              matches:\n- trigger: '{}'\n  replace: {}\n",
             crate::ui::onboarding_view::PROBE_TRIGGER,
@@ -2524,7 +2524,7 @@ impl EspansoManagerApp {
         let rows = crate::ui::search_view::hits(&self.state, &self.state.search_query).len();
         let size = crate::ui::search_view::window_size(ctx, rows);
         let mut builder = egui::ViewportBuilder::default()
-            .with_title("EspansoManager")
+            .with_title("Espanso Manager")
             .with_inner_size(size)
             .with_decorations(false)
             .with_resizable(false)
