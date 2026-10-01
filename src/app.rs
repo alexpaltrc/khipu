@@ -2392,7 +2392,14 @@ impl EspansoManagerApp {
         // First run gets the one screen that stands in for espanso's three-window wizard. Every
         // other run clears whatever an interrupted first run may have left behind, so its trial
         // expansion can never quietly become a permanent match nobody can see.
-        if state.settings.onboarding_done {
+        // The preview build can be shown the first run again, in any saved language and theme, by
+        // a file beside the exe — a real first run can only ever speak Windows' language.
+        let replay = cfg!(feature = "preview")
+            && std::env::current_exe()
+                .ok()
+                .and_then(|exe| Some(exe.parent()?.join("preview-onboarding")))
+                .is_some_and(|flag| flag.exists());
+        if state.settings.onboarding_done && !replay {
             state.clear_onboarding_match();
         } else {
             state.begin_onboarding();

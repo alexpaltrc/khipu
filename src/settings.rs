@@ -216,8 +216,9 @@ impl SettingsStore {
     /// is not.
     pub fn load(&self) -> (Settings, Option<SettingsIssue>) {
         if !self.path.exists() {
-            // No file at all is the genuinely new folder, and the only one that gets a first run.
-            return (Settings::default(), None);
+            // No file at all is the genuinely new folder, and the only one that gets a first run —
+            // spoken in Windows' own language, since there is no choice of the user's yet.
+            return (Settings { lang: Lang::of_windows(), ..Settings::default() }, None);
         }
 
         let (mut settings, issue) = match std::fs::read_to_string(&self.path) {

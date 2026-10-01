@@ -41,6 +41,26 @@ pub enum Lang {
 impl Lang {
     pub const ALL: [Lang; 4] = [Lang::En, Lang::Es, Lang::Fil, Lang::Hi];
 
+    /// The language Windows itself is shown in, when it is one of these; English otherwise.
+    ///
+    /// Only for a first run, where there is no choice of the user's to read yet: the welcome is
+    /// the one screen that cannot ask which language to speak before speaking.
+    pub fn of_windows() -> Lang {
+        // SAFETY: takes nothing, returns a LANGID by value.
+        let id = unsafe { windows::Win32::Globalization::GetUserDefaultUILanguage() };
+        Self::from_langid(id)
+    }
+
+    /// The primary language is the low ten bits of a LANGID; the region above it does not matter.
+    fn from_langid(id: u16) -> Lang {
+        match id & 0x3ff {
+            0x0a => Lang::Es,
+            0x64 => Lang::Fil,
+            0x39 => Lang::Hi,
+            _ => Lang::En,
+        }
+    }
+
     /// The language's own name for itself — what a speaker of it expects to see in a picker.
     pub fn native_name(self) -> &'static str {
         match self {
@@ -175,16 +195,20 @@ pub struct Strings {
     pub tips_button_tip: &'static str,
     pub tip_search_title: &'static str,
     pub tip_search_body: &'static str,
-    pub onboarding_title: &'static str,
-    pub onboarding_intro: &'static str,
+    pub onboarding_version: &'static str,
+    pub onboarding_welcome_tip: &'static str,
+    pub onboarding_what_title: &'static str,
+    pub onboarding_what_body: &'static str,
+    pub onboarding_what_tip: &'static str,
     pub onboarding_try_title: &'static str,
     pub onboarding_try_body: &'static str,
     pub onboarding_try_placeholder: &'static str,
     pub onboarding_try_ok: &'static str,
+    pub onboarding_try_tip: &'static str,
     pub onboarding_autostart_title: &'static str,
     pub onboarding_autostart_note: &'static str,
-    pub onboarding_where_title: &'static str,
     pub onboarding_where_body: &'static str,
+    pub onboarding_next: &'static str,
     pub onboarding_start: &'static str,
     pub search_window_hint: &'static str,
     pub search_window_empty: &'static str,
@@ -388,16 +412,20 @@ pub static EN: Strings = Strings {
     tips_button_tip: "Tips",
     tip_search_title: "Find an expansion without leaving what you are doing",
     tip_search_body: "Press {keys} anywhere in Windows and a search box appears. Type part of a trigger or part of its text, pick one, and it is inserted where your cursor was.",
-    onboarding_title: "Welcome",
-    onboarding_intro: "You type a short trigger and it turns into the full text you saved. It works in any program: email, chat, a document, the browser.",
-    onboarding_try_title: "See it work",
-    onboarding_try_body: "Type  :espanso  in the box below — the whole thing, without spaces.",
+    onboarding_version: "Version {version}",
+    onboarding_welcome_tip: "Free forever, with unlimited expansions, and private: everything stays on this computer.",
+    onboarding_what_title: "What is an expansion?",
+    onboarding_what_body: "You type a short trigger and it turns into the full text you saved — in any program: email, chat, a document, the browser.",
+    onboarding_what_tip: "It is light: while it waits in the tray, it uses next to no memory or processor.",
+    onboarding_try_title: "Try it yourself",
+    onboarding_try_body: "Type {trigger} in the box below — the whole thing, without spaces.",
     onboarding_try_placeholder: "Try it here",
     onboarding_try_ok: "That is all there is to it. It behaves the same way in every other program.",
+    onboarding_try_tip: "You can pause expansions at any time, from the app or by right-clicking the tray icon.",
     onboarding_autostart_title: "Start with Windows",
-    onboarding_autostart_note: "You can change this whenever you like, in Settings.",
-    onboarding_where_title: "Where it lives",
-    onboarding_where_body: "In the system tray, next to the clock — one click brings the window back. Windows hides new icons behind the small arrow, so drag this one onto the taskbar to keep it in sight.",
+    onboarding_autostart_note: "You can change this at any time in {settings}.",
+    onboarding_where_body: "It waits in the system tray, next to the clock. Windows hides new icons behind the small arrow: drag this one onto the taskbar to keep it in sight.",
+    onboarding_next: "Next",
     onboarding_start: "Get started",
     search_window_hint: "Search your expansions",
     search_window_empty: "Nothing matches that.",
@@ -581,16 +609,20 @@ pub static ES: Strings = Strings {
     tips_button_tip: "Consejos",
     tip_search_title: "Busca una expansión sin salir de lo que estás haciendo",
     tip_search_body: "Presiona {keys} en cualquier parte de Windows y aparece un buscador. Escribe parte del activador o parte de su texto, elige una, y se inserta donde estaba tu cursor.",
-    onboarding_title: "Te damos la bienvenida",
-    onboarding_intro: "Escribes un atajo corto y se convierte en el texto completo que guardaste. Funciona en cualquier programa: correo, chat, un documento, el navegador.",
-    onboarding_try_title: "Míralo funcionar",
-    onboarding_try_body: "Escribe  :espanso  en la caja de abajo — completo y sin espacios.",
+    onboarding_version: "Versión {version}",
+    onboarding_welcome_tip: "Gratis para siempre, con expansiones ilimitadas y privada: todo se queda en tu equipo.",
+    onboarding_what_title: "¿Qué es una expansión?",
+    onboarding_what_body: "Escribes un atajo corto y se convierte en el texto completo que guardaste, en cualquier programa: correo, chat, un documento, el navegador.",
+    onboarding_what_tip: "Es ligera: mientras espera en la bandeja, casi no usa memoria ni procesador.",
+    onboarding_try_title: "Pruébalo tú",
+    onboarding_try_body: "Escribe {trigger} en la caja de abajo — completo y sin espacios.",
     onboarding_try_placeholder: "Pruébalo aquí",
     onboarding_try_ok: "Eso es todo. Se comporta igual en cualquier otro programa.",
+    onboarding_try_tip: "Puedes pausar las expansiones en cualquier momento, desde la app o con clic derecho en el icono de la bandeja.",
     onboarding_autostart_title: "Iniciar con Windows",
-    onboarding_autostart_note: "Puedes cambiarlo cuando quieras, en Ajustes.",
-    onboarding_where_title: "Dónde vive",
-    onboarding_where_body: "En la bandeja del sistema, junto al reloj — un clic y la ventana vuelve. Windows esconde los iconos nuevos detrás de la flechita, así que arrastra este a la barra de tareas para tenerlo siempre a la vista.",
+    onboarding_autostart_note: "Puedes cambiarlo en cualquier momento desde {settings}.",
+    onboarding_where_body: "Espera en la bandeja del sistema, junto al reloj. Windows esconde los iconos nuevos detrás de la flechita: arrastra este a la barra de tareas para tenerlo siempre a la vista.",
+    onboarding_next: "Siguiente",
     onboarding_start: "Empezar",
     search_window_hint: "Busca entre tus expansiones",
     search_window_empty: "Nada coincide.",
@@ -774,16 +806,20 @@ pub static FIL: Strings = Strings {
     tips_button_tip: "Mga tip",
     tip_search_title: "Maghanap ng expansion nang hindi umaalis sa ginagawa mo",
     tip_search_body: "Pindutin ang {keys} kahit saan sa Windows at lilitaw ang isang search box. I-type ang bahagi ng trigger o ng teksto nito, pumili, at ipapasok ito kung nasaan ang cursor mo.",
-    onboarding_title: "Maligayang pagdating",
-    onboarding_intro: "Nagta-type ka ng maikling trigger at nagiging buong teksto ito na na-save mo. Gumagana sa kahit anong programa: email, chat, dokumento, browser.",
-    onboarding_try_title: "Tingnan mo kung paano gumagana",
-    onboarding_try_body: "I-type ang  :espanso  sa kahon sa ibaba — buo at walang espasyo.",
+    onboarding_version: "Bersyon {version}",
+    onboarding_welcome_tip: "Libre magpakailanman, walang limitasyon sa expansion, at pribado: nananatili ang lahat sa computer na ito.",
+    onboarding_what_title: "Ano ang expansion?",
+    onboarding_what_body: "Nagta-type ka ng maikling trigger at nagiging buong teksto ito na na-save mo — sa kahit anong programa: email, chat, dokumento, browser.",
+    onboarding_what_tip: "Magaan ito: habang naghihintay sa tray, halos walang memory o processor na ginagamit.",
+    onboarding_try_title: "Subukan mo",
+    onboarding_try_body: "I-type ang {trigger} sa kahon sa ibaba — buo at walang espasyo.",
     onboarding_try_placeholder: "Subukan dito",
     onboarding_try_ok: "Ganoon lang iyon. Ganito rin ang gagawin nito sa iba pang programa.",
+    onboarding_try_tip: "Mapapause mo ang mga expansion kahit kailan, mula sa app o sa pag-right-click sa tray icon.",
     onboarding_autostart_title: "Simulan kasama ng Windows",
-    onboarding_autostart_note: "Mababago mo ito kahit kailan, sa Mga setting.",
-    onboarding_where_title: "Saan ito nakatira",
-    onboarding_where_body: "Sa system tray, katabi ng orasan — isang click at babalik ang window. Itinatago ng Windows ang mga bagong icon sa likod ng maliit na arrow, kaya i-drag ito sa taskbar para laging nakikita.",
+    onboarding_autostart_note: "Mababago mo ito kahit kailan sa {settings}.",
+    onboarding_where_body: "Naghihintay ito sa system tray, katabi ng orasan. Itinatago ng Windows ang mga bagong icon sa likod ng maliit na arrow: i-drag ito sa taskbar para laging nakikita.",
+    onboarding_next: "Susunod",
     onboarding_start: "Magsimula",
     search_window_hint: "Maghanap sa mga expansion mo",
     search_window_empty: "Walang tumutugma.",
@@ -967,16 +1003,20 @@ pub static HI: Strings = Strings {
     tips_button_tip: "सुझाव",
     tip_search_title: "जो कर रहे हैं उसे छोड़े बिना कोई एक्सपैंशन ढूँढें",
     tip_search_body: "Windows में कहीं भी {keys} दबाएँ और एक खोज बॉक्स आ जाएगा। ट्रिगर का या उसके टेक्स्ट का कुछ हिस्सा लिखें, एक चुनें, और वह वहीं जुड़ जाएगा जहाँ आपका कर्सर था।",
-    onboarding_title: "आपका स्वागत है",
-    onboarding_intro: "आप एक छोटा ट्रिगर लिखते हैं और वह आपके सहेजे हुए पूरे टेक्स्ट में बदल जाता है। यह किसी भी प्रोग्राम में काम करता है: ईमेल, चैट, दस्तावेज़, ब्राउज़र।",
-    onboarding_try_title: "इसे काम करते देखें",
-    onboarding_try_body: "नीचे के बॉक्स में  :espanso  लिखें — पूरा, बिना जगह छोड़े।",
+    onboarding_version: "संस्करण {version}",
+    onboarding_welcome_tip: "हमेशा मुफ़्त, असीमित विस्तार, और निजी: सब कुछ इसी कंप्यूटर पर रहता है।",
+    onboarding_what_title: "विस्तार क्या है?",
+    onboarding_what_body: "आप एक छोटा ट्रिगर लिखते हैं और वह आपके सहेजे हुए पूरे टेक्स्ट में बदल जाता है — किसी भी प्रोग्राम में: ईमेल, चैट, दस्तावेज़, ब्राउज़र।",
+    onboarding_what_tip: "यह हल्का है: ट्रे में प्रतीक्षा करते हुए यह लगभग कोई मेमोरी या प्रोसेसर नहीं लेता।",
+    onboarding_try_title: "ख़ुद आज़माएँ",
+    onboarding_try_body: "नीचे के बॉक्स में {trigger} लिखें — पूरा, बिना जगह छोड़े।",
     onboarding_try_placeholder: "यहाँ आज़माएँ",
     onboarding_try_ok: "बस इतना ही। हर दूसरे प्रोग्राम में भी यह ऐसे ही काम करेगा।",
+    onboarding_try_tip: "आप विस्तार कभी भी रोक सकते हैं, ऐप से या ट्रे आइकन पर राइट-क्लिक करके।",
     onboarding_autostart_title: "Windows के साथ शुरू करें",
-    onboarding_autostart_note: "इसे आप जब चाहें सेटिंग्स में बदल सकते हैं।",
-    onboarding_where_title: "यह कहाँ रहता है",
-    onboarding_where_body: "सिस्टम ट्रे में, घड़ी के पास — एक क्लिक और विंडो वापस आ जाती है। Windows नए आइकन को छोटे तीर के पीछे छिपा देता है, इसलिए इसे टास्कबार पर खींच लाएँ ताकि हमेशा दिखता रहे।",
+    onboarding_autostart_note: "इसे आप कभी भी {settings} में बदल सकते हैं।",
+    onboarding_where_body: "यह सिस्टम ट्रे में, घड़ी के पास प्रतीक्षा करता है। Windows नए आइकन को छोटे तीर के पीछे छिपा देता है: इसे टास्कबार पर खींच लाएँ ताकि हमेशा दिखता रहे।",
+    onboarding_next: "आगे",
     onboarding_start: "शुरू करें",
     search_window_hint: "अपने एक्सपैंशन खोजें",
     search_window_empty: "कुछ भी मेल नहीं खाता।",
@@ -1162,6 +1202,16 @@ mod tests {
     /// This very file, read at compile time. Only in the test build, so the release binary does
     /// not carry a copy of its own source.
     const SOURCE: &str = include_str!("i18n.rs");
+
+    #[test]
+    fn windows_language_is_read_by_its_primary_part() {
+        assert_eq!(Lang::from_langid(0x080a), Lang::Es, "Spanish (Mexico)");
+        assert_eq!(Lang::from_langid(0x0c0a), Lang::Es, "Spanish (Spain)");
+        assert_eq!(Lang::from_langid(0x0464), Lang::Fil);
+        assert_eq!(Lang::from_langid(0x0439), Lang::Hi);
+        assert_eq!(Lang::from_langid(0x0409), Lang::En);
+        assert_eq!(Lang::from_langid(0x040c), Lang::En, "French falls back to English");
+    }
 
     #[test]
     fn a_substituted_value_is_never_scanned_again() {
