@@ -74,20 +74,17 @@ pub type DragPayload = Vec<String>;
 
 /// Whether this app provides its own Alt+Space search window.
 ///
-/// Off. Espanso's own search bar is the one in use, and it is the better one: it picks a match by
-/// identity and so never sends the backspaces that made ours eat the words in front of the cursor
-/// — a door espanso keeps to itself and does not open to anything outside it.
+/// On since 0.0.4. Espanso's own bar picks a match by identity and so never sends backspaces, a
+/// door it keeps to itself; ours went without one, eating the words in front of the cursor, until
+/// it learnt to paste what it can write exactly (see `paste`) — measured whole in Notepad, Edge
+/// and Windows Terminal, where espanso's own `match exec` types every character of `:zed` as the
+/// last one, "L". It opens from the tray, which is where the shortcut is nearly always pressed:
+/// see `ui::search_view` for how.
 ///
-/// Ours is still here, whole, and this constant is the entire switch. Off, nothing of ours is
-/// registered, so the window cannot open and cannot get in espanso's way. `LAUNCHER-BACKUP.txt`
-/// beside the source says what was built and what was never solved.
-///
-/// Opening from the tray, which is where Alt+Space is nearly always pressed, works since 0.0.4: see
-/// `ui::search_view` for how. So does the insertion of every text the app can write exactly: it is
-/// pasted, see `paste` — measured whole in Notepad, Edge and Windows Terminal, where espanso's own
-/// `match exec` types every character of `:zed` as the last one, "L". Still off, because the
-/// window does not yet look like the rest of the app.
-const OWN_LAUNCHER: bool = false;
+/// This constant is still the entire switch. Off, nothing of ours is registered, espanso gets its
+/// shortcut and its bar back, and our window cannot open. `LAUNCHER-BACKUP.txt` beside the source
+/// says what was built and what was never solved.
+const OWN_LAUNCHER: bool = true;
 
 /// Far more characters than any row can display, so the width-aware trim the label does afterwards
 /// still has plenty to work with.

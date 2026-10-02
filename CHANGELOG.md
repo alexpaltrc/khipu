@@ -5,6 +5,21 @@ was published.
 
 ## Unreleased (0.0.4-dev)
 
+### Added
+
+- **A launcher of its own for expansions, on Alt+Space, from any application.** It opens over
+  whatever is in front, even with the app tucked away in the tray, as a small bar with the
+  library's list under it: type to narrow the list, arrows and Enter to pick, Esc or a click
+  elsewhere to close. The expansion lands where the cursor was, and words in front of it are no
+  longer eaten. Text without variables and the four dates are pasted whole, and the clipboard is
+  left as it was; anything else is still typed out by espanso. Espanso's own search bar is
+  switched off, since only one of the two can have the shortcut.
+- **The launcher's shortcut is chosen in Settings.** Click the box and press it, the way a game
+  takes a key: a key with Ctrl, Alt or Win, an F key or another key that stands alone, or the
+  middle or side buttons of the mouse. Esc or a click elsewhere leaves the old one in place, a
+  shortcut another program already holds is turned down with a line saying so, and a button
+  beside it goes back to Alt+Space.
+
 ### Changed
 
 - **The first run is a new welcome, four short steps instead of one long page.** The app's mark,

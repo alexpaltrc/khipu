@@ -1,24 +1,23 @@
 Espanso Manager — nuestro buscador propio (Alt + Barra espaciadora)
 ==================================================================
 
-Estado: APAGADO a propósito, desde el 1 de septiembre de 2026.
+Estado: ENCENDIDO desde 0.0.4 (2026-10-01). Estuvo apagado del 1 de septiembre al 1 de octubre
+de 2026, con espanso dueño de Alt + Barra espaciadora y de su propio buscador. Este archivo
+describe qué construimos, dónde vive, y cómo apagarlo si hiciera falta.
 
-Espanso volvió a quedarse con Alt + Barra espaciadora y con su propio buscador, que es el que
-se está usando. Este archivo describe qué construimos, dónde vive, y cómo encenderlo de nuevo.
 
-
-CÓMO ENCENDERLO OTRA VEZ
-------------------------
+CÓMO SE ENCIENDE Y SE APAGA
+---------------------------
 
 Una sola línea. En src/app.rs:
 
-    const OWN_LAUNCHER: bool = false;   ->   true
+    const OWN_LAUNCHER: bool = true;    (false lo apaga)
 
 Desde 0.0.4 (2026-09-30) el buscador sí abre desde la bandeja, que era lo que impedía encenderlo:
 es una ventana que se crea escondida en el primer fotograma y que el atajo muestra con una orden.
 Medido sobre el binario real, con la ventana principal en la bandeja: abre centrado en la
 pantalla del Bloc de notas, se queda con el teclado, se encoge al filtrar, y se cierra con Esc,
-con el mismo atajo y con un clic fuera. Lo que falta es la inserción (ver abajo).
+con el mismo atajo y con un clic fuera. La inserción se resolvió después (ver abajo).
 
 Eso vuelve a hacer dos cosas al arrancar la aplicación:
 
@@ -118,4 +117,5 @@ nuestras cuatro fechas. Todo lo demás sigue por el camino viejo, el de `match e
   - Sin medir: el historial de Win+V, que está apagado en este equipo y encenderlo es cambiar un
     ajuste del sistema; Teams, VS Code, monitores con escalas distintas.
 
-OWN_LAUNCHER sigue apagado solo porque la ventana aún no lleva el diseño de la app.
+El 2026-10-01 la ventana ya lleva el diseño de la app y el atajo se elige en Ajustes, y
+OWN_LAUNCHER se encendió.
