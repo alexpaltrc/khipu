@@ -2876,6 +2876,20 @@ pub fn infobar(ui: &mut egui::Ui, banner: &Banner, t: &Strings) -> (bool, bool) 
 }
 
 impl eframe::App for EspansoManagerApp {
+    /// The main window's focus comes from Windows on every frame, not from the last notice winit
+    /// passed on: one lost notice used to leave every text box without its caret and highlight
+    /// until the window was hidden and opened again. See [`crate::display::has_keyboard_focus`].
+    /// The launcher's viewport keeps winit's answer: it is a window of its own, with its own focus.
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        if raw_input.viewport_id != egui::ViewportId::ROOT {
+            return;
+        }
+        let hwnd = self.window.as_deref().and_then(hwnd_of);
+        if let Some(focused) = hwnd.and_then(crate::display::has_keyboard_focus) {
+            raw_input.focused = focused;
+        }
+    }
+
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.window.as_ref().and_then(|w| w.is_visible()).unwrap_or(true) {
             self.pacer.wait_for_compositor();

@@ -49,6 +49,11 @@ was published.
 
 ### Fixed
 
+- **A text box clicked in the app always shows that it is selected.** Now and then the boxes
+  took the typing but showed neither their highlight nor the blinking line, and clicking again did
+  not bring them back; hiding the window to the tray and opening it again did. The app took its
+  own word for whether the window had the keyboard, and one notice from Windows lost along the way
+  left it sure that it had not. It now asks Windows on every frame.
 - **The search box is as wide as it was meant to be.** It came out 44 points narrower than the
   room set aside for it, which left it and the folder picker beside it off-centre under the
   title.

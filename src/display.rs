@@ -360,3 +360,29 @@ pub fn restore_keyboard_focus(hwnd: windows::Win32::Foundation::HWND) -> bool {
         GetFocus() == hwnd
     }
 }
+
+/// Whether Windows is sending the keyboard to `hwnd` right now: it is the foreground window and
+/// its thread's focus is on it.
+///
+/// egui does not ask this. It keeps the answer winit last reported, and winit reports only when
+/// its own pair of flags changes — one set by activation, one by `WM_SETFOCUS` — so a single
+/// notice lost between the two leaves egui sure the window is unfocused for as long as it stays
+/// active. While egui thinks so, a clicked text box takes the typing but paints neither its caret
+/// nor its highlight, and clicking cannot end it, because a click on the active window activates
+/// nothing. Asking Windows every frame instead makes the answer true by construction.
+///
+/// `None` when the question cannot be put, so the caller keeps what it had rather than guessing.
+pub fn has_keyboard_focus(hwnd: windows::Win32::Foundation::HWND) -> Option<bool> {
+    use windows::Win32::System::Threading::GetCurrentThreadId;
+    use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetGUIThreadInfo, GUITHREADINFO};
+
+    if hwnd.is_invalid() {
+        return None;
+    }
+    let mut info = GUITHREADINFO {
+        cbSize: std::mem::size_of::<GUITHREADINFO>() as u32,
+        ..Default::default()
+    };
+    unsafe { GetGUIThreadInfo(GetCurrentThreadId(), &mut info) }.ok()?;
+    Some(unsafe { GetForegroundWindow() } == hwnd && info.hwndFocus == hwnd)
+}
