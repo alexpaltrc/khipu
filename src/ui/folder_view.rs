@@ -166,10 +166,10 @@ fn name_section(ui: &mut egui::Ui, state: &mut AppState, is_light: bool) {
         ui.label(controls::muted(
             studio::text(
                 state,
-                "Cambiar el nombre no toca los atajos ni el texto de sus expansiones.",
-                "Renaming changes neither the shortcuts nor the text of its expansions.",
-                "Ang pagpapalit ng pangalan ay hindi nakakaapekto sa mga shortcut o teksto.",
-                "नाम बदलने से शॉर्टकट या टेक्स्ट नहीं बदलते।",
+                "Cambiar el nombre no toca los activadores ni el texto de sus expansiones.",
+                "Renaming changes neither the triggers nor the text of its expansions.",
+                "Ang pagpapalit ng pangalan ay hindi nakakaapekto sa mga trigger o teksto.",
+                "नाम बदलने से ट्रिगर या टेक्स्ट नहीं बदलते।",
             ),
             is_light,
         ));
@@ -223,10 +223,10 @@ fn prefix_section(
         ui.set_width(ui.available_width());
         ui.label(controls::h3(studio::text(
             state,
-            "Prefijo de sus atajos",
-            "Prefix of its shortcuts",
-            "Prefix ng mga shortcut nito",
-            "इसके शॉर्टकट का उपसर्ग",
+            "Prefijo de sus activadores",
+            "Prefix of its triggers",
+            "Prefix ng mga trigger nito",
+            "इसके ट्रिगर का उपसर्ग",
         )));
         ui.add_space(controls::GAP);
 

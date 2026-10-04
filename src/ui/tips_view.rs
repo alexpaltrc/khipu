@@ -95,9 +95,13 @@ fn para(ui: &mut egui::Ui, body: &str) {
 }
 
 /// A named part inside a topic that holds more than one answer.
-fn part(ui: &mut egui::Ui, title: &str, body: &str) {
-    ui.add_space(controls::GAP_ROW);
-    ui.add(egui::Label::new(controls::field_label(title)).wrap());
+///
+/// The name is in Semibold, the way Windows' own Settings heads a group: set in the reading weight it
+/// read as one more sentence, and nobody could tell where one answer ended and the next began. The
+/// wider gap above does the rest — a heading belongs to what follows it, not to what came before.
+fn part(ui: &mut egui::Ui, first: bool, title: &str, body: &str) {
+    ui.add_space(if first { controls::GAP_TIGHT } else { controls::GAP_SECTION });
+    ui.add(egui::Label::new(controls::h3(title)).wrap());
     ui.add_space(controls::GAP_TIGHT);
     para(ui, body);
 }
@@ -141,10 +145,10 @@ fn lead(ui: &mut egui::Ui, state: &mut AppState) {
     );
     let body = text(
         state,
-        "Eliges un atajo corto, escribes el texto una sola vez y, a partir de ahí, Espanso lo completa por ti en cualquier programa.",
-        "You pick a short shortcut, write the text once, and from then on Espanso completes it for you in any program.",
-        "Pumili ka ng maikling shortcut, isulat ang teksto nang minsanan, at mula noon ay kukumpletuhin ito ng Espanso para sa iyo sa kahit anong programa.",
-        "एक छोटा शॉर्टकट चुनें, टेक्स्ट एक बार लिखें, और उसके बाद Espanso उसे किसी भी प्रोग्राम में आपके लिए पूरा कर देगा।",
+        "Eliges un activador corto, escribes el texto una sola vez y, a partir de ahí, Espanso lo completa por ti en cualquier programa.",
+        "You pick a short trigger, write the text once, and from then on Espanso completes it for you in any program.",
+        "Pumili ka ng maikling trigger, isulat ang teksto nang minsanan, at mula noon ay kukumpletuhin ito ng Espanso para sa iyo sa kahit anong programa.",
+        "एक छोटा ट्रिगर चुनें, टेक्स्ट एक बार लिखें, और उसके बाद Espanso उसे किसी भी प्रोग्राम में आपके लिए पूरा कर देगा।",
     );
     let trigger = text(state, ":hola", ":hi", ":kumusta", ":namaste");
     let result = text(
@@ -194,9 +198,11 @@ fn lead(ui: &mut egui::Ui, state: &mut AppState) {
     }
 }
 
-/// Everything else, one heading per task, in the order the plan lists them.
+/// Everything else, one heading per task: the everyday ones first, the occasional ones after, and
+/// the table of keys last, as the reference it is.
 fn tasks(ui: &mut egui::Ui, state: &AppState) {
     let t = state.t();
+    let keys = state.search_shortcut.label(state.settings.lang);
     ui.vertical(|ui| {
         topic(
             ui,
@@ -205,12 +211,36 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
             |ui| {
                 para(ui, text(
                     state,
-                    "Busca por el atajo o por el texto que inserta; Ctrl+F lleva el cursor al buscador. Abre una fila para leer el texto completo: Editar y Eliminar están dentro de ese detalle, no en cada fila.",
-                    "Search by the shortcut or by the text it inserts; Ctrl+F puts the cursor in the search box. Open a row to read the whole text: Edit and Delete live inside that detail, not on every row.",
-                    "Maghanap gamit ang shortcut o ang tekstong ipinapasok nito; dinadala ng Ctrl+F ang cursor sa paghahanap. Buksan ang isang row para mabasa ang buong teksto: nasa loob ng detalye ang I-edit at Tanggalin, hindi sa bawat row.",
-                    "शॉर्टकट से या उसके डाले जाने वाले टेक्स्ट से खोजें; Ctrl+F कर्सर को खोज बॉक्स में ले जाता है। पूरा टेक्स्ट पढ़ने के लिए पंक्ति खोलें: संपादित करें और हटाएँ उसी विवरण के अंदर हैं, हर पंक्ति पर नहीं।",
+                    "Busca por el activador o por el texto que inserta; Ctrl+F lleva el cursor al buscador. Abre una fila para leer el texto completo: Editar y Eliminar están dentro de ese detalle, no en cada fila.",
+                    "Search by the trigger or by the text it inserts; Ctrl+F puts the cursor in the search box. Open a row to read the whole text: Edit and Delete live inside that detail, not on every row.",
+                    "Maghanap gamit ang trigger o ang tekstong ipinapasok nito; dinadala ng Ctrl+F ang cursor sa paghahanap. Buksan ang isang row para mabasa ang buong teksto: nasa loob ng detalye ang I-edit at Tanggalin, hindi sa bawat row.",
+                    "ट्रिगर से या उसके डाले जाने वाले टेक्स्ट से खोजें; Ctrl+F कर्सर को खोज बॉक्स में ले जाता है। पूरा टेक्स्ट पढ़ने के लिए पंक्ति खोलें: संपादित करें और हटाएँ उसी विवरण के अंदर हैं, हर पंक्ति पर नहीं।",
                 ));
             },
+        );
+
+        // Second, because after making and finding expansions it is what they are used through.
+        let mut search_body = crate::i18n::fill(t.tip_search_body, &[("keys", &keys)]);
+        // Only while the combination is ours: with espanso's own bar in charge, Settings has no box
+        // to change it in, and the guide must not send anyone looking for one.
+        if state.hotkey.is_some() {
+            search_body.push(' ');
+            search_body.push_str(&crate::i18n::fill(
+                text(
+                    state,
+                    "La combinación se cambia en {settings}.",
+                    "You change the combination in {settings}.",
+                    "Napapalitan ang kombinasyon sa {settings}.",
+                    "संयोजन {settings} में बदला जाता है।",
+                ),
+                &[("settings", t.settings_title)],
+            ));
+        }
+        topic(
+            ui,
+            false,
+            text(state, "Buscar desde cualquier aplicación", "Search from any application", "Maghanap mula sa kahit anong app", "किसी भी ऐप से खोजें"),
+            |ui| para(ui, &search_body),
         );
 
         let folders_body = crate::i18n::fill(
@@ -248,6 +278,38 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
             },
         );
 
+        // A use of the app rather than a part of it, and the one people who keep lists ask for: a
+        // shared start to every trigger turns a folder into something you can look things up in.
+        // Letters, not the folder's prefix — a prefix is symbols only, and the search box treats a
+        // run of letters inside a trigger like any other.
+        let example = format!("{}dddparacetamol", state.settings.prefix);
+        let list_body = crate::i18n::fill(
+            text(
+                state,
+                "Para lo que consultas a menudo —medicamentos, clientes, direcciones—, empieza todos sus activadores con las mismas letras: ddd y el nombre, como en {example}. Escribe ddd en el buscador de la biblioteca o en el de {keys} y aparecen todos; sigue con las primeras letras del nombre y queda solo el que buscas.",
+                "For things you look up often — medicines, clients, addresses — start all their triggers with the same letters: ddd and the name, as in {example}. Type ddd in the library's search box or in the {keys} one and they all appear; go on with the first letters of the name and only the one you want is left.",
+                "Para sa mga madalas mong hanapin — gamot, kliyente, address — simulan ang lahat ng trigger nila sa parehong mga letra: ddd at ang pangalan, gaya ng {example}. I-type ang ddd sa paghahanap ng aklatan o sa {keys} at lalabas silang lahat; ituloy ang unang mga letra ng pangalan at matitira na lang ang hinahanap mo.",
+                "जो चीज़ें आप अक्सर देखते हैं — दवाइयाँ, ग्राहक, पते — उनके सभी ट्रिगर एक जैसे अक्षरों से शुरू करें: ddd और फिर नाम, जैसे {example}। लाइब्रेरी की खोज में या {keys} वाली खोज में ddd लिखें और सभी दिख जाएँगे; नाम के शुरुआती अक्षर लिखते जाएँ और केवल वही बचेगा जो आप चाहते हैं।",
+            ),
+            &[("example", &example), ("keys", &keys)],
+        );
+        topic(
+            ui,
+            false,
+            text(state, "Armar una lista de consulta", "Build a lookup list", "Gumawa ng listahang madaling hanapin", "खोजने लायक सूची बनाएँ"),
+            |ui| {
+                para(ui, &list_body);
+                ui.add_space(controls::GAP);
+                para(ui, text(
+                    state,
+                    "Si además los guardas en una carpeta propia, el selector de carpetas te los muestra todos juntos.",
+                    "If you also keep them in a folder of their own, the folder picker shows them all together.",
+                    "Kung ilalagay mo rin sila sa sariling folder, ipapakita silang lahat nang magkakasama ng pagpipilian ng folder.",
+                    "अगर आप उन्हें अपने अलग फ़ोल्डर में भी रखें, तो फ़ोल्डर चयनकर्ता उन्हें एक साथ दिखाता है।",
+                ));
+            },
+        );
+
         topic(
             ui,
             false,
@@ -255,21 +317,47 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
             |ui| {
                 para(ui, text(
                     state,
-                    "Al crear una expansión elige Fecha en lugar de Texto. Hay cuatro formatos listos y uno que armas por bloques, con su idioma y su zona horaria. La vista previa es un ejemplo: la fecha se calcula cada vez que escribes el atajo, no cuando lo guardas.",
-                    "When you create an expansion, choose Date instead of Text. There are four ready-made formats and one you build from blocks, with its own language and time zone. The preview is an example: the date is worked out each time you type the shortcut, not when you save it.",
-                    "Kapag gumagawa ng expansion, piliin ang Petsa sa halip na Teksto. May apat na handang format at isa na binubuo mo sa mga block, may sariling wika at time zone. Halimbawa lang ang preview: kinakalkula ang petsa sa tuwing iti-type mo ang shortcut, hindi kapag nag-save ka.",
-                    "विस्तार बनाते समय टेक्स्ट के बजाय तारीख़ चुनें। चार तैयार प्रारूप हैं और एक जिसे आप ब्लॉक से बनाते हैं, अपनी भाषा और समय क्षेत्र के साथ। पूर्वावलोकन एक उदाहरण है: तारीख़ हर बार शॉर्टकट लिखने पर बनती है, सहेजते समय नहीं।",
+                    "Al crear una expansión elige Fecha en lugar de Texto. Hay cuatro formatos listos y uno que armas por bloques, con su idioma y su zona horaria. La vista previa es un ejemplo: la fecha se calcula cada vez que escribes el activador, no cuando lo guardas.",
+                    "When you create an expansion, choose Date instead of Text. There are four ready-made formats and one you build from blocks, with its own language and time zone. The preview is an example: the date is worked out each time you type the trigger, not when you save it.",
+                    "Kapag gumagawa ng expansion, piliin ang Petsa sa halip na Teksto. May apat na handang format at isa na binubuo mo sa mga block, may sariling wika at time zone. Halimbawa lang ang preview: kinakalkula ang petsa sa tuwing iti-type mo ang trigger, hindi kapag nag-save ka.",
+                    "विस्तार बनाते समय टेक्स्ट के बजाय तारीख़ चुनें। चार तैयार प्रारूप हैं और एक जिसे आप ब्लॉक से बनाते हैं, अपनी भाषा और समय क्षेत्र के साथ। पूर्वावलोकन एक उदाहरण है: तारीख़ हर बार ट्रिगर लिखने पर बनती है, सहेजते समय नहीं।",
                 ));
+            },
+        );
+
+        topic(ui, false, t.tip_undo_title, |ui| para(ui, t.tip_undo_body));
+
+        let pause_body = crate::i18n::fill(
+            text(
+                state,
+                "El botón {pause} de la biblioteca detiene las expansiones sin cerrar nada, y el mismo botón las vuelve a activar. El punto de estado, a la izquierda del título, dice si Espanso está activo, en pausa o sin responder.",
+                "The {pause} button in the library stops expansions without closing anything, and the same button turns them back on. The status dot to the left of the title says whether Espanso is active, paused or not responding.",
+                "Pinapatigil ng {pause} na button sa aklatan ang mga expansion nang walang isinasara, at ibinabalik din ito ng parehong button. Sinasabi ng status dot sa kaliwa ng pamagat kung aktibo, naka-pause o hindi tumutugon ang Espanso.",
+                "लाइब्रेरी का {pause} बटन बिना कुछ बंद किए विस्तार रोक देता है, और वही बटन उन्हें फिर चालू करता है। शीर्षक के बाईं ओर का स्थिति बिंदु बताता है कि Espanso सक्रिय है, रुका हुआ है या जवाब नहीं दे रहा।",
+            ),
+            &[("pause", t.tray_pause)],
+        );
+        topic(
+            ui,
+            false,
+            text(state, "Pausar y usar la bandeja", "Pause and use the tray", "Mag-pause at gamitin ang tray", "रोकें और ट्रे का उपयोग"),
+            |ui| {
+                para(ui, &pause_body);
+                part(ui, false, t.tip_pause_title, t.tip_pause_body);
+                part(ui, false, t.tip_where_title, t.tip_where_body);
+                part(ui, false, t.tip_pin_title, t.tip_pin_body);
+                ui.add_space(controls::GAP);
+                tray_illustration(ui);
             },
         );
 
         let share_body = crate::i18n::fill(
             text(
                 state,
-                "En {settings} → {transfer} eliges qué carpetas exportar a un archivo; también puedes exportar una sola desde {options}. Quien lo reciba lo importa desde {settings}: se conservan las carpetas y los atajos que ya tenga se omiten, nunca se reemplazan.",
-                "In {settings} → {transfer} you choose which folders to export to a file; you can also export just one from {options}. Whoever receives it imports it from {settings}: folders are kept, and shortcuts they already have are skipped, never replaced.",
-                "Sa {settings} → {transfer}, pipiliin mo kung aling mga folder ang ie-export sa isang file; puwede ring isa lang mula sa {options}. Ini-import ito ng tatanggap mula sa {settings}: mananatili ang mga folder, at lalaktawan ang mga shortcut na mayroon na siya — hindi pinapalitan.",
-                "{settings} → {transfer} में आप चुनते हैं कि कौन-से फ़ोल्डर फ़ाइल में निर्यात करने हैं; {options} से केवल एक भी निर्यात कर सकते हैं। पाने वाला उसे {settings} से आयात करता है: फ़ोल्डर बने रहते हैं, और जो शॉर्टकट उसके पास पहले से हैं वे छोड़ दिए जाते हैं, बदले नहीं जाते।",
+                "En {settings} → {transfer} eliges qué carpetas exportar a un archivo; también puedes exportar una sola desde {options}. Quien lo reciba lo importa desde {settings}: se conservan las carpetas y los activadores que ya tenga se omiten, nunca se reemplazan.",
+                "In {settings} → {transfer} you choose which folders to export to a file; you can also export just one from {options}. Whoever receives it imports it from {settings}: folders are kept, and triggers they already have are skipped, never replaced.",
+                "Sa {settings} → {transfer}, pipiliin mo kung aling mga folder ang ie-export sa isang file; puwede ring isa lang mula sa {options}. Ini-import ito ng tatanggap mula sa {settings}: mananatili ang mga folder, at lalaktawan ang mga trigger na mayroon na siya — hindi pinapalitan.",
+                "{settings} → {transfer} में आप चुनते हैं कि कौन-से फ़ोल्डर फ़ाइल में निर्यात करने हैं; {options} से केवल एक भी निर्यात कर सकते हैं। पाने वाला उसे {settings} से आयात करता है: फ़ोल्डर बने रहते हैं, और जो ट्रिगर उसके पास पहले से हैं वे छोड़ दिए जाते हैं, बदले नहीं जाते।",
             ),
             &[
                 ("settings", t.settings_title),
@@ -288,57 +376,33 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
         // that used to sit under each control is here, under the same name and in the same order,
         // for whoever asks.
         topic(ui, false, t.settings_title, |ui| {
-            part(ui, t.autostart_checkbox, t.autostart_hint);
-            part(ui, t.appearance_section, t.theme_hint);
-            part(ui, t.language_section, t.language_hint);
-            part(ui, t.prefix_section, t.prefix_hint);
-            part(ui, t.apply_prefix, t.apply_prefix_hint);
+            part(ui, true, t.autostart_checkbox, t.autostart_hint);
+            part(ui, false, t.appearance_section, t.theme_hint);
+            part(ui, false, t.language_section, t.language_hint);
+            part(ui, false, t.prefix_section, t.prefix_hint);
+            part(ui, false, t.apply_prefix, t.apply_prefix_hint);
+            // Only where Settings shows it: see the same test in the search topic above.
+            if state.hotkey.is_some() {
+                let default = crate::hotkey::DEFAULT.label(state.settings.lang);
+                let hint = crate::i18n::fill(
+                    text(
+                        state,
+                        "Abre el buscador desde cualquier programa. Haz clic en el recuadro y presiona la combinación nueva; el botón de al lado vuelve a {keys}.",
+                        "Opens the search box from any program. Click the box and press the new combination; the button beside it goes back to {keys}.",
+                        "Binubuksan nito ang search box mula sa kahit anong programa. I-click ang kahon at pindutin ang bagong kombinasyon; ibinabalik ng button sa tabi nito sa {keys}.",
+                        "किसी भी प्रोग्राम से खोज बॉक्स खोलता है। बॉक्स पर क्लिक करें और नया संयोजन दबाएँ; बगल वाला बटन {keys} पर वापस ले जाता है।",
+                    ),
+                    &[("keys", &default)],
+                );
+                part(ui, false, t.launcher_shortcut_section, &hint);
+            }
         });
-
-        let pause_body = crate::i18n::fill(
-            text(
-                state,
-                "El botón {pause} de la biblioteca detiene las expansiones sin cerrar nada, y el mismo botón las vuelve a activar. El punto de estado, a la izquierda del título, dice si Espanso está activo, en pausa o sin responder.",
-                "The {pause} button in the library stops expansions without closing anything, and the same button turns them back on. The status dot to the left of the title says whether Espanso is active, paused or not responding.",
-                "Pinapatigil ng {pause} na button sa aklatan ang mga expansion nang walang isinasara, at ibinabalik din ito ng parehong button. Sinasabi ng status dot sa kaliwa ng pamagat kung aktibo, naka-pause o hindi tumutugon ang Espanso.",
-                "लाइब्रेरी का {pause} बटन बिना कुछ बंद किए विस्तार रोक देता है, और वही बटन उन्हें फिर चालू करता है। शीर्षक के बाईं ओर का स्थिति बिंदु बताता है कि Espanso सक्रिय है, रुका हुआ है या जवाब नहीं दे रहा।",
-            ),
-            &[("pause", t.tray_pause)],
-        );
-        topic(
-            ui,
-            false,
-            text(state, "Pausar y usar la bandeja", "Pause and use the tray", "Mag-pause at gamitin ang tray", "रोकें और ट्रे का उपयोग"),
-            |ui| {
-                para(ui, &pause_body);
-                part(ui, t.tip_pause_title, t.tip_pause_body);
-                part(ui, t.tip_where_title, t.tip_where_body);
-                part(ui, t.tip_pin_title, t.tip_pin_body);
-                ui.add_space(controls::GAP);
-                tray_illustration(ui);
-            },
-        );
-
-        topic(ui, false, t.tip_undo_title, |ui| para(ui, t.tip_undo_body));
 
         topic(
             ui,
             false,
             text(state, "Atajos de teclado", "Keyboard shortcuts", "Mga keyboard shortcut", "कीबोर्ड शॉर्टकट"),
             |ui| shortcut_table(ui, state),
-        );
-
-        let keys = state.search_shortcut.label(state.settings.lang);
-        let search_body = crate::i18n::fill(t.tip_search_body, &[("keys", &keys)]);
-        topic(
-            ui,
-            false,
-            text(state, "Buscar desde cualquier aplicación", "Search from any application", "Maghanap mula sa kahit anong app", "किसी भी ऐप से खोजें"),
-            |ui| {
-                para(ui, t.tip_search_title);
-                ui.add_space(controls::GAP_TIGHT);
-                para(ui, &search_body);
-            },
         );
     });
 }

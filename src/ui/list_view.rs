@@ -2484,10 +2484,10 @@ pub fn show_create_folder_modal(ctx: &egui::Context, state: &mut AppState) {
         ui.label(controls::muted(
             studio::text(
                 state,
-                "Las carpetas solo ordenan tu lista. No cambian los atajos ni el texto.",
-                "Folders only tidy your list. They change neither the shortcuts nor the text.",
-                "Inaayos lang ng folder ang listahan mo. Walang binabago sa shortcut o teksto.",
-                "फ़ोल्डर केवल सूची व्यवस्थित करते हैं। शॉर्टकट या टेक्स्ट नहीं बदलते।",
+                "Las carpetas solo ordenan tu lista. No cambian los activadores ni el texto.",
+                "Folders only tidy your list. They change neither the triggers nor the text.",
+                "Inaayos lang ng folder ang listahan mo. Walang binabago sa trigger o teksto.",
+                "फ़ोल्डर केवल सूची व्यवस्थित करते हैं। ट्रिगर या टेक्स्ट नहीं बदलते।",
             ),
             is_light,
         ));

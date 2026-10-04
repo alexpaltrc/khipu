@@ -44,11 +44,23 @@ was published.
   moves that entry to the new name and the new file.
 - **The tip on searching from any application names the shortcut in the app's language**:
   «Alt+Espacio» in Spanish, the way Windows writes it, instead of «Alt+Space» in every language.
+- **The quick guide is in a new order, and says more.** Searching from any application comes
+  second, right after finding and editing, and says how to pick (arrows and Enter, or a click),
+  that Esc closes it and where the shortcut is changed; the table of keys moves to the end. A new
+  topic shows how to build a lookup list: give a set of triggers the same first letters, such as
+  `:dddparacetamol`, and typing `ddd` in either search lists them all. The Settings topic covers
+  the launcher's shortcut too. Inside a topic, the name of each part is now in Semibold with room
+  above it, so it reads as a heading rather than as one more sentence.
+- **What you type to fire an expansion is called a trigger everywhere** («activador» in Spanish).
+  The guide, the welcome, the editor and the folder options called it a shortcut, the same word
+  as for keyboard shortcuts.
 - **Espanso is 2.4.1**, the latest, up from 2.4.0. Its one fix is in how a match file is read:
   a value written without quotes inside `[ ]` or `{ }` no longer trips it up.
 
 ### Fixed
 
+- **The guide says Backspace undoes an expansion that fired by mistake.** It said Esc, which does
+  nothing of the kind; it is Backspace, pressed right after.
 - **A text box clicked in the app always shows that it is selected.** Now and then the boxes
   took the typing but showed neither their highlight nor the blinking line, and clicking again did
   not bring them back; hiding the window to the tray and opening it again did. The app took its

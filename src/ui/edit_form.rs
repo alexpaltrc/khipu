@@ -500,18 +500,18 @@ fn problem_text(state: &AppState, t: &'static Strings, problem: &Problem) -> Str
     match problem {
         Problem::Empty => studio::text(
             state,
-            "Escribe el atajo que quieres usar.",
-            "Type the shortcut you want to use.",
-            "I-type ang shortcut na gusto mong gamitin.",
-            "जो शॉर्टकट चाहिए वह लिखें।",
+            "Escribe el activador que quieres usar.",
+            "Type the trigger you want to use.",
+            "I-type ang trigger na gusto mong gamitin.",
+            "जो ट्रिगर चाहिए वह लिखें।",
         )
         .to_string(),
         Problem::PrefixHasLetters => studio::text(
             state,
-            "El prefijo solo lleva símbolos, como : o //. Las letras van en el atajo.",
-            "The prefix takes symbols only, such as : or //. Letters belong in the shortcut.",
-            "Simbolo lang ang prefix, gaya ng : o //. Sa shortcut napupunta ang mga letra.",
-            "उपसर्ग में केवल चिह्न आते हैं, जैसे : या //। अक्षर शॉर्टकट में लिखें।",
+            "El prefijo solo lleva símbolos, como : o //. Las letras van en el activador.",
+            "The prefix takes symbols only, such as : or //. Letters belong in the trigger.",
+            "Simbolo lang ang prefix, gaya ng : o //. Sa trigger napupunta ang mga letra.",
+            "उपसर्ग में केवल चिह्न आते हैं, जैसे : या //। अक्षर ट्रिगर में लिखें।",
         )
         .to_string(),
         Problem::Duplicate(trigger) => fill(t.trigger_duplicate, &[("name", trigger)]),
@@ -1171,10 +1171,10 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light:
         // date for ever would be a bug rather than a feature.
         Kind::Date { .. } => studio::text(
             state,
-            "La fecha se calcula cada vez que escribes el atajo.",
-            "The date is worked out each time you type the shortcut.",
-            "Kinakalkula ang petsa sa tuwing ita-type mo ang shortcut.",
-            "हर बार शॉर्टकट लिखने पर दिनांक की गणना होती है।",
+            "La fecha se calcula cada vez que escribes el activador.",
+            "The date is worked out each time you type the trigger.",
+            "Kinakalkula ang petsa sa tuwing ita-type mo ang trigger.",
+            "हर बार ट्रिगर लिखने पर दिनांक की गणना होती है।",
         )
         .to_string(),
     };
