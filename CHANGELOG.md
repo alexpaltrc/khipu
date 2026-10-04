@@ -3,7 +3,7 @@
 All notable changes to Espanso Manager. Dates are the day the work was finished, not the day it
 was published.
 
-## Unreleased (0.0.4-dev)
+## 0.0.4 — 2026-10-04
 
 ### Added
 
@@ -38,10 +38,11 @@ was published.
   in Settings.
 - **The name is written Espanso Manager, with a space**, everywhere it is shown: the window
   title, the welcome, the messages, the start-up switch and the program's description in the Task
-  Manager, and also the file itself, `Espanso Manager.exe`, the ZIP and the folder inside it. To
-  update, delete the old `EspansoManager.exe` and put the new file in its place. A computer that
-  already started the app with Windows goes on doing so: the first time the new file opens, it
-  moves that entry to the new name and the new file.
+  Manager, and also the file itself, `Espanso Manager.exe`, the ZIP and the folder inside it. It
+  is the same app; only the two words were separated. A computer that already started the app
+  with Windows goes on doing so: the first time the new file opens in the same folder, it moves
+  that entry to the new name and the new file. The recommended way to update, though, is a fresh
+  copy: export everything from the old one, unzip the new one and import it there.
 - **The tip on searching from any application names the shortcut in the app's language**:
   «Alt+Espacio» in Spanish, the way Windows writes it, instead of «Alt+Space» in every language.
 - **The quick guide is in a new order, and says more.** Searching from any application comes
