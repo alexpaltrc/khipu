@@ -1,20 +1,20 @@
 /*
- * This file is part of Espanso Manager.
+ * This file is part of Khipu.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * Espanso Manager is free software: you can redistribute it and/or modify
+ * Khipu is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Espanso Manager is distributed in the hope that it will be useful,
+ * Khipu is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! The application itself: its state, its Windows 11 palette, and the eframe loop that drives both.
@@ -37,7 +37,7 @@
 //! or position remembered from a different machine opening off-screen or too small to use. The
 //! rules come from [`crate::display`]; only the winit plumbing is here.
 //!
-//! **4. `EspansoManagerApp`** — the eframe `App`. It owns the tray and the theme watch, drains
+//! **4. `KhipuApp`** — the eframe `App`. It owns the tray and the theme watch, drains
 //! their queues and the hotkey's once a frame, and hands the frame to a view. The hotkey itself
 //! is held by `AppState`, because Settings changes it.
 //!
@@ -334,7 +334,7 @@ impl raw_window_handle::HasDisplayHandle for DialogOwner {
 }
 
 /// All application state that isn't specific to rendering one particular screen. Owned by
-/// [`EspansoManagerApp`] and passed down to the `ui::*` view functions.
+/// [`KhipuApp`] and passed down to the `ui::*` view functions.
 pub struct AppState {
     pub match_file: MatchFile,
     pub match_file_path: PathBuf,
@@ -365,7 +365,7 @@ pub struct AppState {
     ///
     /// A *copy*, refreshed from the tray at the top of every frame that has a window. The pause
     /// state genuinely belongs to [`crate::tray::Tray`] — it is the thing that owns the timed pause,
-    /// the icon and the menu label — and the tray is owned by [`EspansoManagerApp`], not by the
+    /// the icon and the menu label — and the tray is owned by [`KhipuApp`], not by the
     /// state the views receive. Mirroring it is what lets the library show "Activo"/"Pausado"
     /// without a view ever being handed the tray or the daemon.
     pub paused: bool,
@@ -376,7 +376,7 @@ pub struct AppState {
     /// `espanso_ctl`), so this only records the answers the app already had to wait for — which
     /// is enough for the library to stop saying "Activo" about a daemon that never replied.
     pub espanso_confirmed: bool,
-    /// Set by the library's Pausar/Reanudar button and consumed by [`EspansoManagerApp::ui`] after
+    /// Set by the library's Pausar/Reanudar button and consumed by [`KhipuApp::ui`] after
     /// the frame is drawn.
     ///
     /// A request rather than an action, for the same reason: pausing means running `espanso` and
@@ -537,7 +537,7 @@ impl AppState {
     pub fn begin_onboarding(&mut self) {
         let path = self.onboarding_match_path();
         let body = format!(
-            "# Temporary — created by Espanso Manager for its first-run screen and deleted as soon\n\
+            "# Temporary — created by Khipu for its first-run screen and deleted as soon\n\
              # as that screen is finished with. Nothing here is yours; edit base.yml instead.\n\
              matches:\n- trigger: '{}'\n  replace: {}\n",
             crate::ui::onboarding_view::PROBE_TRIGGER,
@@ -2254,7 +2254,7 @@ fn infobar_error(is_light: bool) -> egui::Color32 {
     token(is_light, 0x442726, 0xFDE7E9, |c| c.window)
 }
 
-pub struct EspansoManagerApp {
+pub struct KhipuApp {
     state: AppState,
     tray: Tray,
     /// Tray and menu events, delivered by the threads that wait on them rather than fetched by a
@@ -2344,7 +2344,7 @@ impl EspansoStart {
     }
 }
 
-impl EspansoManagerApp {
+impl KhipuApp {
     pub fn new(cc: &eframe::CreationContext<'_>, mut ctx: StartupContext) -> Self {
         refresh_contrast();
         let is_light = contrast_is_light().unwrap_or(ctx.settings.theme_mode.is_light());
@@ -2958,7 +2958,7 @@ pub fn infobar(ui: &mut egui::Ui, banner: &Banner, t: &Strings) -> (bool, bool) 
     (close, undo)
 }
 
-impl eframe::App for EspansoManagerApp {
+impl eframe::App for KhipuApp {
     /// The main window's focus comes from Windows on every frame, not from the last notice winit
     /// passed on: one lost notice used to leave every text box without its caret and highlight
     /// until the window was hidden and opened again. See [`crate::display::has_keyboard_focus`].

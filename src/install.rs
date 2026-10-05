@@ -1,20 +1,20 @@
 /*
- * This file is part of Espanso Manager.
+ * This file is part of Khipu.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * Espanso Manager is free software: you can redistribute it and/or modify
+ * Khipu is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Espanso Manager is distributed in the hope that it will be useful,
+ * Khipu is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! Where everything lives: beside the executable, or in the app's own corner of the user profile.
@@ -28,7 +28,7 @@
 //!
 //! The invariant: **every path in the program comes from [`Layout`]**, and the two layouts differ
 //! only in where `data` is. Below `data` the shape is the same in both — `.espanso`,
-//! `.espanso-runtime`, `.espanso-manager` — so nothing downstream has to know which one it is in.
+//! `.espanso-runtime`, `.khipu` — so nothing downstream has to know which one it is in.
 //!
 //! espanso is told where `data` is through its own variables, `ESPANSO_CONFIG_DIR` and
 //! `ESPANSO_RUNTIME_DIR` (read by espanso 2.4.1 in `get_path_override`, and handed on by its daemon
@@ -60,7 +60,7 @@ const SEED_DIR: &str = "seed";
 pub struct Layout {
     /// Where `espansod.exe` and its DLLs are. Read-only in the installed package.
     pub resources: PathBuf,
-    /// Where `.espanso`, `.espanso-runtime` and `.espanso-manager` are. Always writable.
+    /// Where `.espanso`, `.espanso-runtime` and `.khipu` are. Always writable.
     pub data: PathBuf,
     /// Set when running from an MSIX package.
     pub packaged: bool,
@@ -80,7 +80,7 @@ impl Layout {
     }
 
     pub fn manager_dir(&self) -> PathBuf {
-        self.data.join(".espanso-manager")
+        self.data.join(".khipu")
     }
 
     /// The variables every run of `espansod` needs. None in the portable layout: there espanso finds
@@ -118,7 +118,7 @@ impl Layout {
 /// Two layouts have to work at once. The tidy one ships everything except the executable inside
 /// [`RESOURCES_DIR`], so unzipping produces exactly one thing to double-click. The old one — the
 /// one already on other people's machines — has the executable sitting among nineteen DLLs, and
-/// the documented way to update it is "replace only `Espanso Manager.exe`". That instruction has to
+/// the documented way to update it is "replace only `Khipu.exe`". That instruction has to
 /// keep being true: a new binary dropped into an old folder finds no subfolder, falls through to
 /// the executable's own directory, and carries on exactly as before.
 ///
@@ -130,7 +130,7 @@ fn resolve_base_dir(exe_dir: PathBuf) -> PathBuf {
     let nested = exe_dir.join(RESOURCES_DIR);
     let is_ours = nested.join("espansod.exe").is_file()
         || nested.join(".espanso").is_dir()
-        || nested.join(".espanso-manager").is_dir();
+        || nested.join(".khipu").is_dir();
     if is_ours {
         nested
     } else {
@@ -229,7 +229,7 @@ mod tests {
     use super::*;
 
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("espansomanager-basedir-test-{name}"));
+        let dir = std::env::temp_dir().join(format!("khipu-basedir-test-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -260,7 +260,7 @@ mod tests {
     }
 
     /// The daemon alone is enough, because that is what a folder looks like before the app has
-    /// ever been run in it — the `.espanso-manager` folder does not exist until the first save.
+    /// ever been run in it — the `.khipu` folder does not exist until the first save.
     #[test]
     fn the_daemon_on_its_own_is_enough_to_recognise_the_subfolder() {
         let dir = scratch("daemon-only");
@@ -275,7 +275,7 @@ mod tests {
     #[test]
     fn a_test_run_is_portable_and_sets_no_espanso_variables() {
         let dir = scratch("portable-resolve");
-        let layout = resolve(&dir.join("Espanso Manager.exe"));
+        let layout = resolve(&dir.join("Khipu.exe"));
         assert!(!layout.packaged);
         assert_eq!(layout.data, layout.resources);
         assert!(layout.espanso_env().is_empty());

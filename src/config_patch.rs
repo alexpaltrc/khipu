@@ -1,20 +1,20 @@
 /*
- * This file is part of Espanso Manager.
+ * This file is part of Khipu.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * Espanso Manager is free software: you can redistribute it and/or modify
+ * Khipu is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Espanso Manager is distributed in the hope that it will be useful,
+ * Khipu is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! Small, surgical edits to `.espanso/config/default.yml` — espanso's file, not ours.
@@ -34,20 +34,20 @@
 
 use std::path::Path;
 
-/// Espanso settings that Espanso Manager turns off on its behalf, with the note left in the file
+/// Espanso settings that Khipu turns off on its behalf, with the note left in the file
 /// explaining why — the config is meant to be readable, so a change made by us shouldn't look
 /// anonymous to whoever opens it next.
 const MANAGED: [(&str, &str, &str); 2] = [
     (
         "show_icon",
         "false",
-        "# Disabled by Espanso Manager: avoids a second Espanso icon in the system tray, since \
-         Espanso Manager already shows one.",
+        "# Disabled by Khipu: avoids a second Espanso icon in the system tray, since \
+         Khipu already shows one.",
     ),
     (
         "show_notifications",
         "false",
-        "# Disabled by Espanso Manager: the app reports what happened in its own window, so the \
+        "# Disabled by Khipu: the app reports what happened in its own window, so the \
          Windows toasts would only repeat it.",
     ),
 ];
@@ -73,7 +73,7 @@ pub fn restore_espanso_icon(config_path: &Path) -> std::io::Result<bool> {
         &[(
             "show_icon",
             "true",
-            "# Restored by Espanso Manager: it could not show its own tray icon, so Espanso keeps \
+            "# Restored by Khipu: it could not show its own tray icon, so Espanso keeps \
              its one.",
         )],
     )
@@ -91,7 +91,7 @@ pub fn set_search_shortcut(config_path: &Path, value: &str) -> std::io::Result<b
         &[(
             "search_shortcut",
             value,
-            "# Set by Espanso Manager: OFF while the app provides its own search window on the same \
+            "# Set by Khipu: OFF while the app provides its own search window on the same \
              shortcut,\n# and espanso's default when that shortcut could not be claimed.",
         )],
     )
@@ -181,7 +181,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("espansomanager-cfg-{name}"));
+        let dir = std::env::temp_dir().join(format!("khipu-cfg-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

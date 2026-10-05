@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Espanso Manager. Dates are the day the work was finished, not the day it
+All notable changes to Khipu, called Espanso Manager until 0.0.5. Dates are the day the work was finished, not the day it
 was published.
 
 ## Unreleased
@@ -29,6 +29,15 @@ was published.
 
 ### Changed
 
+- **Espanso Manager is now Khipu.** The name is Quechua, for the knotted cords the Incas kept
+  their records in. It is the new name everywhere: the window, Start, the tray, the program
+  file, `Khipu.exe`, and the ZIP and the folder inside it. A new copy does not take over an old
+  one's folder, so to bring your expansions along, export them from the old copy (Settings ›
+  Export and import), unzip the new one somewhere of its own, and import them there; files
+  exported before the rename import as they always did. Start with Windows has to be switched
+  on again in the new copy.
+- **The welcome screen no longer promises "no installation"**, now that there is an edition
+  that installs. It says no account instead.
 - **A new icon.** The keycap gives way to a small bird on a knotted cord, the same everywhere:
   the program file, Start and its search, the taskbar, the window, the tray and the welcome
   screen. In the tray it follows the taskbar, dark or light, and paused it keeps the same

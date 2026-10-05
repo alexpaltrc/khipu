@@ -1,5 +1,5 @@
 [package]
-name = "espanso_manager"
+name = "khipu"
 # While a version is being built it carries `-dev`: 0.0.2-dev is the work towards 0.0.2. The
 # suffix comes off in the commit that publishes it, and that commit gets the `v0.0.2` tag.
 version = "0.0.5-dev"
@@ -18,9 +18,9 @@ repository = "https://github.com/alexpaltrc/espanso-manager"
 # how it was asked for.
 
 [[bin]]
-# Cargo refuses a space here ("invalid character ' ' in crate name"), so the build writes
-# `target/release/EspansoManager.exe` and the copy that ships is named `Espanso Manager.exe`.
-name = "EspansoManager"
+# Capitalised, unlike the crate: this is the file people see, `target/release/Khipu.exe`,
+# shipped under the same name.
+name = "Khipu"
 path = "src/main.rs"
 
 [features]

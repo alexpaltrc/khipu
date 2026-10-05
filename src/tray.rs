@@ -1,20 +1,20 @@
 /*
- * This file is part of Espanso Manager.
+ * This file is part of Khipu.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * Espanso Manager is free software: you can redistribute it and/or modify
+ * Khipu is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Espanso Manager is distributed in the hope that it will be useful,
+ * Khipu is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! The tray icon, its menu, and the two threads that keep them alive while the window is not.
@@ -224,7 +224,7 @@ impl Tray {
         let icon = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
             .with_icon(icon_active.clone())
-            .with_tooltip(if crate::EXPERIMENTAL { "Espanso Manager · Studio" } else { t.tray_tooltip })
+            .with_tooltip(if crate::EXPERIMENTAL { "Khipu · Studio" } else { t.tray_tooltip })
             .with_menu_on_left_click(false)
             .build()
             .map_err(|e| e.to_string())?;
@@ -249,7 +249,7 @@ impl Tray {
     pub fn relabel(&self, t: &'static Strings) {
         self.pause10_item.set_text(t.tray_pause_10);
         self.quit_item.set_text(t.tray_quit);
-        let _ = self.icon.set_tooltip(Some(if crate::EXPERIMENTAL { "Espanso Manager · Studio" } else { t.tray_tooltip }));
+        let _ = self.icon.set_tooltip(Some(if crate::EXPERIMENTAL { "Khipu · Studio" } else { t.tray_tooltip }));
         self.sync_visuals(t);
     }
 

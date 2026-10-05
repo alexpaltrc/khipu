@@ -242,7 +242,7 @@ impl FontCell {
 
             if let Some(hinting_instance) = &mut font_data.hinting_instance {
                 let size = skrifa::instance::Size::new(metrics.scale);
-                // EspansoManager: `reconfigure` stores a default location as no coordinates at
+                // Khipu: `reconfigure` stores a default location as no coordinates at
                 // all, so comparing it with the full list of zeros never matched, and a variable
                 // face at its default weight re-ran its hinting programs for every glyph.
                 let wanted = if location.is_default() { &[][..] } else { location.coords() };

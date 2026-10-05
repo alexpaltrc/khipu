@@ -1,20 +1,20 @@
 /*
- * This file is part of Espanso Manager.
+ * This file is part of Khipu.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * Espanso Manager is free software: you can redistribute it and/or modify
+ * Khipu is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Espanso Manager is distributed in the hope that it will be useful,
+ * Khipu is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! The first-run screen: four short steps, one idea each, that never appear again.
@@ -152,7 +152,6 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
         // --- the tip, one small line just above ------------------------------------------------
         ui.add_space(controls::GAP_STACK + controls::GAP_TIGHT);
         let tip = match flow.step {
-            0 if crate::install::is_packaged() => t.onboarding_welcome_tip_installed.to_owned(),
             0 => t.onboarding_welcome_tip.to_owned(),
             1 => t.onboarding_what_tip.to_owned(),
             2 => t.onboarding_try_tip.to_owned(),
@@ -374,7 +373,7 @@ fn welcome(ui: &mut egui::Ui, state: &AppState, enter: &Enter) {
     });
     ui.add_space(controls::GAP_STACK + controls::GAP);
     enter.reveal(ui, 1, |ui| {
-        ui.add(egui::Label::new(controls::semibold("Espanso Manager").size(30.0)).wrap());
+        ui.add(egui::Label::new(controls::semibold("Khipu").size(30.0)).wrap());
     });
     ui.add_space(controls::GAP_TIGHT);
     enter.reveal(ui, 2, |ui| {

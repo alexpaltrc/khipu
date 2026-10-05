@@ -1007,7 +1007,7 @@ fn change_gl_context(
 ) {
     profiling::function_scope!();
 
-    // EspansoManager patch — the only change in this copy of eframe 0.36.1; see vendor/README.md.
+    // Khipu patch — the only change in this copy of eframe 0.36.1; see vendor/README.md.
     //
     // Upstream skips this early-out on Windows (https://github.com/emilk/egui/issues/4289),
     // because WGL's `is_current` only compares the context, not the window it is current on, so

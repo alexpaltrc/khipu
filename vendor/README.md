@@ -50,7 +50,7 @@ second viewport (the search window, when it is on) still gets its context made c
 ## epaint 0.36.1, with one comparison changed
 
 `epaint/` is epaint 0.36.1 exactly as published, with a single change in `src/text/font.rs`,
-function `allocate_glyph_uncached`, marked with a comment that starts `EspansoManager:`. Same
+function `allocate_glyph_uncached`, marked with a comment that starts `Khipu:`. Same
 licence and author as eframe above, same notice kept.
 
 ### What changed and why

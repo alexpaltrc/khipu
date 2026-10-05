@@ -1,25 +1,25 @@
 /*
- * This file is part of Espanso Manager.
+ * This file is part of Khipu.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * Espanso Manager is free software: you can redistribute it and/or modify
+ * Khipu is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Espanso Manager is distributed in the hope that it will be useful,
+ * Khipu is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! The shape of `base.yml`, and the promise printed at the top of it.
 //!
-//! That banner says Espanso Manager preserves any match it cannot show in its interface, and this
+//! That banner says Khipu preserves any match it cannot show in its interface, and this
 //! module is where that is kept or broken. Two mechanisms hold it:
 //!
 //! - `MatchEntry::Advanced` carries anything the form cannot represent — shell commands, regex
@@ -407,7 +407,7 @@ impl MatchFile {
     pub fn to_string_as_off_file(&self) -> Result<String, serde_norway::Error> {
         let body = self.body()?;
         Ok(format!(
-            "# Expansions switched off in Espanso Manager. Espanso does not load files whose name\n\
+            "# Expansions switched off in Khipu. Espanso does not load files whose name\n\
              # starts with an underscore, so none of these fire. Turn them back on in the app.\n\
              # https://espanso.org/docs/\n\n{body}"
         ))
@@ -428,8 +428,8 @@ impl MatchFile {
         Ok(format!(
             // Kept in English regardless of interface language: this is a comment inside a shared
             // config file that a colleague or a support engineer may open on any machine.
-            "# Managed by Espanso Manager — you can still edit this file by hand;\n\
-             # Espanso Manager preserves any match it cannot show in its interface.\n\
+            "# Managed by Khipu — you can still edit this file by hand;\n\
+             # Khipu preserves any match it cannot show in its interface.\n\
              # https://espanso.org/docs/\n\n{body}"
         ))
     }

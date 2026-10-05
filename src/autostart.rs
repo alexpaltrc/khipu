@@ -1,20 +1,20 @@
 /*
- * This file is part of Espanso Manager.
+ * This file is part of Khipu.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * Espanso Manager is free software: you can redistribute it and/or modify
+ * Khipu is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Espanso Manager is distributed in the hope that it will be useful,
+ * Khipu is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! The "start with Windows" checkbox, which is one value under `HKCU\...\CurrentVersion\Run`
@@ -49,9 +49,9 @@ const RUN_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 /// an entry has been switched off. They do not delete the Run value when they do it.
 const APPROVED_KEY: &str =
     "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run";
-const VALUE_NAME: &str = "Espanso Manager";
-/// The name until 0.0.4, when the app started being written with a space. See [`adopt_legacy`].
-const LEGACY_VALUE_NAME: &str = "EspansoManager";
+const VALUE_NAME: &str = "Khipu";
+/// The name until 0.0.5, when the app became Khipu. See [`adopt_legacy`].
+const LEGACY_VALUE_NAME: &str = "Espanso Manager";
 
 /// The executable named by a Run command, as written by us (`"C:\...\x.exe" --tray`) or by hand
 /// (`C:\...\x.exe --tray`).
@@ -208,13 +208,14 @@ mod tests {
     /// Both spellings of a Run command, plus the ones that name nothing at all.
     #[test]
     fn reads_the_executable_out_of_a_run_command() {
-        assert_eq!(registered_exe("\"C:\\Espanso\\Espanso Manager.exe\" --tray"), "C:\\Espanso\\Espanso Manager.exe");
-        assert_eq!(registered_exe("\"C:\\Mis Cosas\\Espanso Manager.exe\" --tray"), "C:\\Mis Cosas\\Espanso Manager.exe");
+        assert_eq!(registered_exe("\"C:\\Espanso\\Khipu.exe\" --tray"), "C:\\Espanso\\Khipu.exe");
+        assert_eq!(registered_exe("\"C:\\Mis Cosas\\Khipu.exe\" --tray"), "C:\\Mis Cosas\\Khipu.exe");
         assert_eq!(registered_exe("C:\\Espanso\\espansod.exe --tray"), "C:\\Espanso\\espansod.exe");
         assert_eq!(registered_exe("  C:\\Espanso\\espansod.exe  "), "C:\\Espanso\\espansod.exe");
-        // Our own name, written by hand without quotes, is the guess that goes wrong: the switch
-        // reads off until it is pressed, as the doc above says, and pressing it writes the quotes.
-        assert_eq!(registered_exe("C:\\Espanso\\Espanso Manager.exe --tray"), "C:\\Espanso\\Espanso");
+        // A folder with a space, written by hand without quotes, is the guess that goes wrong: the
+        // switch reads off until it is pressed, as the doc above says, and pressing it writes the
+        // quotes.
+        assert_eq!(registered_exe("C:\\Mis Cosas\\Khipu.exe --tray"), "C:\\Mis");
         assert_eq!(registered_exe(""), "");
         assert_eq!(registered_exe("\""), "");
     }
@@ -223,9 +224,9 @@ mod tests {
     /// what it is — and pressing it then writes the path that works.
     #[test]
     fn a_command_pointing_somewhere_else_is_not_enabled() {
-        let ours = Path::new("C:\\Espanso\\Espanso Manager.exe");
-        assert!(same_exe(Path::new("c:\\espanso\\espanso manager.exe"), ours));
-        assert!(!same_exe(Path::new("D:\\Viejo\\Espanso Manager.exe"), ours));
+        let ours = Path::new("C:\\Espanso\\Khipu.exe");
+        assert!(same_exe(Path::new("c:\\espanso\\khipu.exe"), ours));
+        assert!(!same_exe(Path::new("D:\\Viejo\\Khipu.exe"), ours));
         assert!(!same_exe(Path::new(""), ours));
     }
 

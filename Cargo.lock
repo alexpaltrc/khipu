@@ -658,24 +658,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b5343afd4a8365a643ac588dab4cf234a190c7f6c88c9f6dd6ffe00837661b7"
 
 [[package]]
-name = "espanso_manager"
-version = "0.0.5-dev"
-dependencies = [
- "eframe",
- "egui",
- "raw-window-handle",
- "rfd",
- "serde",
- "serde_json",
- "serde_norway",
- "tray-icon",
- "windows",
- "winit",
- "winreg",
- "winresource",
-]
-
-[[package]]
 name = "euclid"
 version = "0.22.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1347,6 +1329,24 @@ dependencies = [
  "bitflags 2.13.1",
  "serde",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "khipu"
+version = "0.0.5-dev"
+dependencies = [
+ "eframe",
+ "egui",
+ "raw-window-handle",
+ "rfd",
+ "serde",
+ "serde_json",
+ "serde_norway",
+ "tray-icon",
+ "windows",
+ "winit",
+ "winreg",
+ "winresource",
 ]
 
 [[package]]

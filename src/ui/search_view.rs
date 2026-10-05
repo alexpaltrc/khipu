@@ -1,20 +1,20 @@
 /*
- * This file is part of Espanso Manager.
+ * This file is part of Khipu.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * Espanso Manager is free software: you can redistribute it and/or modify
+ * Khipu is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Espanso Manager is distributed in the hope that it will be useful,
+ * Khipu is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! The search window: Alt+Space anywhere in Windows, pick an expansion, and it lands where the
@@ -90,7 +90,7 @@ pub struct Hit {
 }
 
 fn viewport_id() -> egui::ViewportId {
-    egui::ViewportId::from_hash_of("espanso_manager_search")
+    egui::ViewportId::from_hash_of("khipu_search")
 }
 
 /// Everything the search window shows and everything it has decided, shared between the main
@@ -168,7 +168,7 @@ impl SearchWindow {
     /// instead, sent when they are meant.
     pub fn keep_alive(&self, ctx: &egui::Context) {
         let builder = egui::ViewportBuilder::default()
-            .with_title("Espanso Manager")
+            .with_title("Khipu")
             .with_inner_size(egui::vec2(WINDOW_WIDTH, 120.0))
             .with_decorations(false)
             .with_resizable(false)
@@ -363,7 +363,7 @@ fn own_hwnd() -> isize {
         let mut title = [0u16; 32];
         let len = unsafe { GetWindowTextW(hwnd, &mut title) }.max(0) as usize;
         if ex_style & WS_EX_TOPMOST.0 != 0
-            && String::from_utf16_lossy(&title[..len]) == "Espanso Manager"
+            && String::from_utf16_lossy(&title[..len]) == "Khipu"
         {
             unsafe { *(found.0 as *mut isize) = hwnd.0 as isize };
             return false.into();

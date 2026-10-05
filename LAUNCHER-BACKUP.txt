@@ -1,5 +1,5 @@
-Espanso Manager — nuestro buscador propio (Alt + Barra espaciadora)
-==================================================================
+Khipu — nuestro buscador propio (Alt + Barra espaciadora)
+========================================================
 
 Estado: ENCENDIDO desde 0.0.4 (2026-10-01). Estuvo apagado del 1 de septiembre al 1 de octubre
 de 2026, con espanso dueño de Alt + Barra espaciadora y de su propio buscador. Este archivo

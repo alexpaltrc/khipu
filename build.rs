@@ -1,20 +1,20 @@
 /*
- * This file is part of Espanso Manager.
+ * This file is part of Khipu.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * Espanso Manager is free software: you can redistribute it and/or modify
+ * Khipu is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Espanso Manager is distributed in the hope that it will be useful,
+ * Khipu is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! Stamps Windows version metadata and the multi-size application icon onto the executable.
@@ -46,12 +46,12 @@ fn main() {
     res.set_icon("assets/khipu/app/Khipu.ico");
 
     // Set explicitly rather than left to default: winresource would otherwise take the crate
-    // name, `espanso_manager`, which is not what this program is called anywhere a user looks.
-    res.set("ProductName", "Espanso Manager");
-    res.set("FileDescription", "Espanso Manager");
-    res.set("InternalName", "Espanso Manager");
-    res.set("OriginalFilename", "Espanso Manager.exe");
-    res.set("Comments", "Desktop manager for espanso text expansions. Portable.");
+    // name, `khipu`, all in lowercase, which is not how this program is written anywhere a user looks.
+    res.set("ProductName", "Khipu");
+    res.set("FileDescription", "Khipu");
+    res.set("InternalName", "Khipu");
+    res.set("OriginalFilename", "Khipu.exe");
+    res.set("Comments", "Desktop manager for espanso text expansions.");
 
     // Alex Palacios has no company, and inventing one would put a false statement in the single
     // field an antivirus vendor might actually read. His own name is the true answer.

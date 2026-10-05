@@ -1,20 +1,20 @@
 /*
- * This file is part of Espanso Manager.
+ * This file is part of Khipu.
  *
  * Copyright (C) 2026 Alex Palacios
  *
- * Espanso Manager is free software: you can redistribute it and/or modify
+ * Khipu is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Espanso Manager is distributed in the hope that it will be useful,
+ * Khipu is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
+ * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 //! Carrying expansions between machines: writing them out to a file, and reading somebody else's
@@ -48,7 +48,11 @@ pub struct Export {
     /// Doubles as the marker that this is one of our files at all: a YAML document without this key
     /// is rejected before anything is imported, so pointing the importer at an arbitrary file gives
     /// a clear "this isn't one of ours" rather than a confusing parse error.
-    pub espanso_manager_export: u32,
+    ///
+    /// Files exported before the app was called Khipu carry `espanso_manager_export` instead, and
+    /// exporting from the old copy is how people bring their expansions over to this one.
+    #[serde(alias = "espanso_manager_export")]
+    pub khipu_export: u32,
     #[serde(default)]
     pub expansions: Vec<ExportEntry>,
 }
@@ -111,7 +115,7 @@ pub fn build_export(
         .collect();
 
     Export {
-        espanso_manager_export: FORMAT_VERSION,
+        khipu_export: FORMAT_VERSION,
         expansions,
     }
 }
@@ -221,7 +225,7 @@ pub fn write(path: &Path, export: &Export) -> Result<(), TransferError> {
     let text = format!(
         // English on purpose: this file is made to be sent to someone else, whose copy of the app
         // may well be running in another language.
-        "# Expansions exported from Espanso Manager.\n\
+        "# Expansions exported from Khipu.\n\
          # Import them from Settings -> Export and import. They are added to whatever is\n\
          # already there; nothing you have is replaced.\n\n{body}"
     );
@@ -231,7 +235,7 @@ pub fn write(path: &Path, export: &Export) -> Result<(), TransferError> {
 pub fn read(path: &Path) -> Result<Export, TransferError> {
     let text = std::fs::read_to_string(path).map_err(|e| TransferError::Io(e.to_string()))?;
     let export: Export = serde_norway::from_str(&text).map_err(|_| TransferError::NotOurs)?;
-    if export.espanso_manager_export == 0 {
+    if export.khipu_export == 0 {
         return Err(TransferError::NotOurs);
     }
     if export.expansions.is_empty() {
@@ -311,7 +315,7 @@ pub fn merge(existing: &[MatchEntry], export: Export) -> Merged {
 
 /// A filename that says what the file is without the user having to type anything.
 pub fn suggested_filename() -> &'static str {
-    "expansiones-espansomanager.yml"
+    "expansiones-khipu.yml"
 }
 
 #[cfg(test)]
@@ -349,7 +353,7 @@ mod tests {
         let merged = merge(
             &[],
             Export {
-                espanso_manager_export: FORMAT_VERSION,
+                khipu_export: FORMAT_VERSION,
                 expansions: vec![entry(":hola", vec![]), entry(":shell", vec![shell_var()])],
             },
         );
@@ -357,6 +361,17 @@ mod tests {
         let triggers: Vec<&str> = merged.added.iter().map(|e| e.trigger_str()).collect();
         assert_eq!(triggers, [":hola"]);
         assert_eq!(merged.skipped, 1);
+    }
+
+    /// A file written by Espanso Manager, before the name changed, still reads as one of ours.
+    #[test]
+    fn an_export_from_before_the_rename_still_imports() {
+        let old = "espanso_manager_export: 1\nexpansions:\n- trigger: ':hola'\n  replace: Hola\n";
+        let export: Export = serde_norway::from_str(old).unwrap();
+        assert_eq!(export.khipu_export, 1);
+        assert_eq!(export.expansions[0].trigger, ":hola");
+        let new = serde_norway::to_string(&export).unwrap();
+        assert!(new.starts_with("khipu_export: 1"), "{new}");
     }
 
     /// The rejected entry must not reserve its trigger on the way out: a good entry further down
@@ -368,7 +383,7 @@ mod tests {
         let merged = merge(
             &[],
             Export {
-                espanso_manager_export: FORMAT_VERSION,
+                khipu_export: FORMAT_VERSION,
                 expansions: vec![entry(":firma", vec![shell_var()]), entry(":firma", vec![])],
             },
         );
@@ -395,7 +410,7 @@ mod tests {
         let merged = merge(
             &existing,
             Export {
-                espanso_manager_export: FORMAT_VERSION,
+                khipu_export: FORMAT_VERSION,
                 expansions: vec![entry(":firma", vec![])],
             },
         );
@@ -412,7 +427,7 @@ mod tests {
 
     fn doc(expansions: Vec<ExportEntry>) -> Export {
         Export {
-            espanso_manager_export: FORMAT_VERSION,
+            khipu_export: FORMAT_VERSION,
             expansions,
         }
     }

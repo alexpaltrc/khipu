@@ -1,6 +1,8 @@
 <div align="center">
 
-# ⌨️ Espanso Manager
+# 🪢 Khipu
+
+*Formerly Espanso Manager.*
 
 **A small desktop window for your text expansions — [espanso](https://espanso.org) included.**
 
@@ -43,7 +45,7 @@ appears. That is espanso, and it works everywhere you type — email, chat, a do
 browser.
 
 The only awkward part is setting those up: normally it means opening a configuration file
-and editing it by hand. Espanso Manager is the window that does that for you. You write the
+and editing it by hand. Khipu is the window that does that for you. You write the
 short thing, you write the long thing, and it is ready.
 
 **espanso itself is inside the download**, already set up and started for you. There is no
@@ -113,7 +115,7 @@ None of this would exist without two things:
 
 ## 🚫 What this is not
 
-This is **not a fork of espanso** and contains none of its code. Espanso Manager is a
+This is **not a fork of espanso** and contains none of its code. Khipu is a
 separate program that talks to espanso from the outside, by launching `espansod.exe` as a
 child process and reading what it prints (`src/espanso_ctl.rs`). The two are shipped in the
 same folder; they are not the same work. Sharing espanso's GPL-3.0 licence is a choice made out
@@ -127,9 +129,9 @@ This repository is the **source only** — under 1 MB. It deliberately does not 
 
 | Not here | Why |
 |---|---|
-| 🏗️ `Espanso Manager.exe`, the distribution ZIP | Build outputs. They live in [Releases](https://github.com/alexpaltrc/espanso-manager/releases), which is where build outputs belong. |
+| 🏗️ `Khipu.exe`, the distribution ZIP | Build outputs. They live in [Releases](https://github.com/alexpaltrc/espanso-manager/releases), which is where build outputs belong. |
 | 🧩 `espansod.exe`, `msvcp140*.dll`, … | Not our code. |
-| 🔒 `.espanso/`, `.espanso-manager/`, `.espanso-runtime/` | The user's real expansions and settings. |
+| 🔒 `.espanso/`, `.khipu/`, `.espanso-runtime/` | The user's real expansions and settings. |
 | 🗑️ `target/` | 1.3 GB build cache; regenerates in ~3 minutes. |
 
 All of those live one level above this folder in a working copy, outside the repository —
@@ -148,9 +150,8 @@ Requires a stable Rust toolchain (built with 1.98, edition 2021) on Windows.
 cargo build --release
 ```
 
-The binary lands at `target/release/EspansoManager.exe`, because Cargo does not allow a space
-in it, and is renamed `Espanso Manager.exe` when it is copied out. In a distribution folder it stands
-alone at the top level, with `espansod.exe`, the DLLs and the `.espanso*` folders one level
+The binary lands at `target/release/Khipu.exe`, the name it ships under. In a distribution
+folder it stands alone at the top level, with `espansod.exe`, the DLLs and the `.espanso*` folders one level
 down in `Program Files`, so that unzipping leaves exactly one thing to double-click.
 `resolve_base_dir` in `main.rs` finds that subfolder — and still falls back to the
 executable's own directory, which is the older layout where the two executables sat side by
@@ -193,7 +194,7 @@ speaker.
 
 ## 📄 License
 
-Espanso Manager was created by **Alex Palacios** and is licensed under the
+Khipu was created by **Alex Palacios** and is licensed under the
 [GPL-3.0 license](LICENSE) — the same licence [espanso](https://espanso.org) uses, matched on
 purpose rather than by obligation.
 

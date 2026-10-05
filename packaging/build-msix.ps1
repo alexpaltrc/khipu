@@ -12,15 +12,21 @@
   folder espanso-portable\: that one holds Alex's own expansions.
 
   Identity and publisher are placeholders until the app's final name is reserved in Partner Center;
-  pass the values from its Product identity page then.
+  pass the values from its Product identity page then. The placeholder kept its old name through
+  the rename to Khipu on purpose: nobody sees it, and changing it makes a different package, whose
+  LocalState starts empty.
 #>
 param(
     [string]$Name = "EspansoManager.Dev",
     [string]$Publisher = "CN=Alex Palacios",
     [string]$PublisherDisplayName = "Alex Palacios",
-    [string]$DisplayName = "Espanso Manager",
+    [string]$DisplayName = "Khipu",
     [string]$Description = "Text expansions without touching a config file.",
     [string]$RuntimeZip = "",
+    # The fourth number of the package version. Windows refuses to register a changed manifest
+    # under a version it already has installed, and uninstalling first would delete LocalState;
+    # a higher revision is an update instead, which keeps it.
+    [int]$Revision = 0,
     [switch]$Register
 )
 $ErrorActionPreference = "Stop"
@@ -28,10 +34,10 @@ $repo = Split-Path -Parent $PSScriptRoot
 $paquetes = Join-Path $repo "..\..\paquetes" | Resolve-Path
 $exeName = "$DisplayName.exe"
 
-# --- Version: Cargo's 0.0.5-dev becomes the four numbers MSIX wants, 0.0.5.0.
+# --- Version: Cargo's 0.0.5-dev becomes the four numbers MSIX wants, 0.0.5.0 (or 0.0.5.<Revision>).
 $cargoVersion = (Select-String -Path (Join-Path $repo "Cargo.toml") -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
 $numeric = ($cargoVersion -split '-')[0]
-$msixVersion = "$numeric.0"
+$msixVersion = "$numeric.$Revision"
 
 # --- Build.
 Push-Location $repo
@@ -47,11 +53,11 @@ if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 $res = Join-Path $stage "Program Files"
 $seed = Join-Path $res "seed"
 New-Item -ItemType Directory -Force $res, $seed, (Join-Path $stage "Assets") | Out-Null
-Copy-Item (Join-Path $repo "target\release\EspansoManager.exe") (Join-Path $stage $exeName)
+Copy-Item (Join-Path $repo "target\release\Khipu.exe") (Join-Path $stage $exeName)
 
 # --- espanso, from the portable ZIP.
 if ($RuntimeZip -eq "") {
-    $RuntimeZip = (Get-ChildItem $paquetes -Filter "Espanso Manager Portable *.zip" | Sort-Object LastWriteTime | Select-Object -Last 1).FullName
+    $RuntimeZip = (Get-ChildItem $paquetes -Filter "Khipu Portable *.zip" | Sort-Object LastWriteTime | Select-Object -Last 1).FullName
 }
 Write-Host "espanso from: $RuntimeZip"
 $unzip = Join-Path $repo "target\msix\portable"
