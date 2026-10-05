@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The installed (Microsoft Store) edition's manifest. build-msix.ps1 fills the $TOKENS$.
+
+  Identity Name and Publisher are placeholders until the app has its final name: the Store assigns
+  both when the name is reserved in Partner Center (Product identity page), and the package uploaded
+  there must carry exactly those values.
+
+  runFullTrust: this is an ordinary desktop program, not a sandboxed app. It starts espansod, which
+  reads the keyboard to see triggers and types the expansions — that is what a text expander is.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap desktop rescap">
+
+  <Identity Name="$NAME$" Publisher="$PUBLISHER$" Version="$VERSION$" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>$DISPLAYNAME$</DisplayName>
+    <PublisherDisplayName>$PUBLISHERDISPLAYNAME$</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="es-MX" />
+    <Resource Language="en-US" />
+    <Resource Language="fil-PH" />
+    <Resource Language="hi-IN" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="$EXE$" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="$DISPLAYNAME$"
+        Description="$DESCRIPTION$"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- Start with Windows. Off until the user turns it on (first-run screen or Settings);
+             TaskId must match autostart.rs. Windows starts it with no arguments, so the app asks
+             how it was activated to know it should come up hidden in the tray. -->
+        <desktop:Extension Category="windows.startupTask" Executable="$EXE$" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="AutoStart" Enabled="false" DisplayName="$DISPLAYNAME$" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

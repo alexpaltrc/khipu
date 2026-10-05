@@ -15,6 +15,12 @@ was published.
   the launcher again. Switched-off expansions are kept in `_disabled.yml`, beside `base.yml`,
   a file Espanso does not load; exports carry the switch, so they arrive off on the next machine
   too.
+- **An installed edition, for the Microsoft Store.** Besides the portable ZIP, the app now
+  builds as an MSIX package that Windows installs, updates and removes like any other app. It
+  keeps your expansions and settings in Windows' own folder for the app instead of beside the
+  program, so updates never touch them; uninstalling removes them, so export first. Start with
+  Windows works through Windows' startup list: if it was switched off in Settings › Apps ›
+  Startup, the app says so and points there. The portable edition is unchanged.
 
 ## 0.0.4 — 2026-10-04
 

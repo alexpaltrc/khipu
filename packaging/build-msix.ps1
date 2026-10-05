@@ -1,0 +1,106 @@
+<#
+  Builds the installed (Microsoft Store) edition: an MSIX package.
+
+    powershell -ExecutionPolicy Bypass -File packaging\build-msix.ps1            # build the .msix
+    powershell -ExecutionPolicy Bypass -File packaging\build-msix.ps1 -Register  # and install it here
+
+  The package is left unsigned. The Store signs what is uploaded to it; -Register installs the
+  unpacked layout directly, which Windows allows only with Developer Mode on.
+
+  espansod.exe, its DLLs and the starter .espanso/.espanso-runtime come from the newest portable
+  ZIP in paquetes\, the same pristine copy every portable user gets. Never from the development
+  folder espanso-portable\: that one holds Alex's own expansions.
+
+  Identity and publisher are placeholders until the app's final name is reserved in Partner Center;
+  pass the values from its Product identity page then.
+#>
+param(
+    [string]$Name = "EspansoManager.Dev",
+    [string]$Publisher = "CN=Alex Palacios",
+    [string]$PublisherDisplayName = "Alex Palacios",
+    [string]$DisplayName = "Espanso Manager",
+    [string]$Description = "Text expansions without touching a config file.",
+    [string]$RuntimeZip = "",
+    [switch]$Register
+)
+$ErrorActionPreference = "Stop"
+$repo = Split-Path -Parent $PSScriptRoot
+$paquetes = Join-Path $repo "..\..\paquetes" | Resolve-Path
+$exeName = "$DisplayName.exe"
+
+# --- Version: Cargo's 0.0.5-dev becomes the four numbers MSIX wants, 0.0.5.0.
+$cargoVersion = (Select-String -Path (Join-Path $repo "Cargo.toml") -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+$numeric = ($cargoVersion -split '-')[0]
+$msixVersion = "$numeric.0"
+
+# --- Build.
+Push-Location $repo
+try { cargo build --release; if ($LASTEXITCODE -ne 0) { throw "cargo build failed" } } finally { Pop-Location }
+
+# --- Stage the layout. Kept under target\ so -Register has a folder that stays put.
+$stage = Join-Path $repo "target\msix\layout"
+# A copy registered with -Register runs straight out of this folder, espansod included, and a
+# running .exe cannot be deleted. Only processes started from here are closed.
+Get-Process | Where-Object { $_.Path -like "$stage\*" } | Stop-Process -Force
+Start-Sleep -Milliseconds 500
+if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
+$res = Join-Path $stage "Program Files"
+$seed = Join-Path $res "seed"
+New-Item -ItemType Directory -Force $res, $seed, (Join-Path $stage "Assets") | Out-Null
+Copy-Item (Join-Path $repo "target\release\EspansoManager.exe") (Join-Path $stage $exeName)
+
+# --- espanso, from the portable ZIP.
+if ($RuntimeZip -eq "") {
+    $RuntimeZip = (Get-ChildItem $paquetes -Filter "Espanso Manager Portable *.zip" | Sort-Object LastWriteTime | Select-Object -Last 1).FullName
+}
+Write-Host "espanso from: $RuntimeZip"
+$unzip = Join-Path $repo "target\msix\portable"
+if (Test-Path $unzip) { Remove-Item -Recurse -Force $unzip }
+Expand-Archive $RuntimeZip $unzip
+$pf = Get-ChildItem $unzip -Directory | ForEach-Object { Join-Path $_.FullName "Program Files" } | Select-Object -First 1
+Copy-Item (Join-Path $pf "espansod.exe"), (Join-Path $pf "LICENSE.txt") $res
+Copy-Item (Join-Path $pf "*.dll") $res
+# The seed: copied into the user's LocalState on first start (install.rs). Not the portable's
+# README or .bat files: they describe a folder this edition does not have.
+Copy-Item -Recurse (Join-Path $pf ".espanso"), (Join-Path $pf ".espanso-runtime") $seed
+
+# --- Logos, drawn from the app's own icon.
+Add-Type -AssemblyName System.Drawing
+$ico = Join-Path $repo "assets\Espanso Manager.ico"
+$big = (New-Object System.Drawing.Icon($ico, 256, 256)).ToBitmap()
+function Save-Logo([string]$file, [int]$w, [int]$h, [int]$icon) {
+    $bmp = New-Object System.Drawing.Bitmap($w, $h)
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $g.Clear([System.Drawing.Color]::Transparent)
+    $g.DrawImage($big, [int](($w - $icon) / 2), [int](($h - $icon) / 2), $icon, $icon)
+    $g.Dispose()
+    $bmp.Save((Join-Path $stage "Assets\$file"), [System.Drawing.Imaging.ImageFormat]::Png)
+    $bmp.Dispose()
+}
+Save-Logo "Square44x44Logo.png" 44 44 44
+Save-Logo "Square150x150Logo.png" 150 150 100
+Save-Logo "Wide310x150Logo.png" 310 150 100
+Save-Logo "StoreLogo.png" 50 50 50
+
+# --- Manifest. XML-escaped, since names and descriptions are free text.
+function X([string]$s) { [System.Security.SecurityElement]::Escape($s) }
+$manifest = Get-Content -Raw -Encoding UTF8 (Join-Path $PSScriptRoot "AppxManifest.xml")
+$manifest = $manifest.Replace('$NAME$', (X $Name)).Replace('$PUBLISHER$', (X $Publisher)).
+    Replace('$VERSION$', $msixVersion).Replace('$DISPLAYNAME$', (X $DisplayName)).
+    Replace('$PUBLISHERDISPLAYNAME$', (X $PublisherDisplayName)).Replace('$DESCRIPTION$', (X $Description)).
+    Replace('$EXE$', (X $exeName))
+[System.IO.File]::WriteAllText((Join-Path $stage "AppxManifest.xml"), $manifest, (New-Object System.Text.UTF8Encoding($false)))
+
+# --- Pack.
+$makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" | Sort-Object FullName | Select-Object -Last 1
+if (-not $makeappx) { throw "makeappx.exe not found: install the Windows SDK" }
+$out = Join-Path $paquetes "$DisplayName $cargoVersion.msix"
+& $makeappx.FullName pack /d $stage /p $out /o | Out-Host
+if ($LASTEXITCODE -ne 0) { throw "makeappx failed" }
+Write-Host "package: $out"
+
+if ($Register) {
+    Add-AppxPackage -Register (Join-Path $stage "AppxManifest.xml") -ForceApplicationShutdown
+    Write-Host "registered from: $stage"
+}

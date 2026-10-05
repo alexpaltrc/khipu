@@ -707,6 +707,12 @@ impl AppState {
                 // sentence repeating it under the switch was one more thing to read for nothing.
                 self.refresh_autostart_cache();
             }
+            // The installed copy's startup task can be vetoed in Windows' own Settings, and only
+            // there: the useful thing to say is where.
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied && crate::install::is_packaged() => {
+                self.refresh_autostart_cache();
+                self.set_error_banner(t.autostart_vetoed.to_string());
+            }
             Err(e) => {
                 self.refresh_autostart_cache();
                 self.set_error_banner(fill(t.autostart_error, &[("err", &e.to_string())]));

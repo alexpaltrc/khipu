@@ -151,6 +151,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
         // --- the tip, one small line just above ------------------------------------------------
         ui.add_space(controls::GAP_STACK + controls::GAP_TIGHT);
         let tip = match flow.step {
+            0 if crate::install::is_packaged() => t.onboarding_welcome_tip_installed.to_owned(),
             0 => t.onboarding_welcome_tip.to_owned(),
             1 => t.onboarding_what_tip.to_owned(),
             2 => t.onboarding_try_tip.to_owned(),

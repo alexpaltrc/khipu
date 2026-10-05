@@ -75,7 +75,7 @@ mod studio_tests {
 
     #[test]
     fn studio_refuses_processes_and_worker_pipe_before_touching_the_os() {
-        let ctl = EspansoCtl::new(PathBuf::from("Z:/must-never-run/espansod.exe"));
+        let ctl = EspansoCtl::new(PathBuf::from("Z:/must-never-run/espansod.exe"), Vec::new());
         let t = crate::settings::Settings::default().t();
         for result in [
             ctl.run(&["service", "stop"], t).map(|_| ()),
@@ -104,12 +104,14 @@ const WORKER_PIPE: &str = r"\\.\pipe\espansoworkerv2";
 #[derive(Clone)]
 pub struct EspansoCtl {
     exe_path: PathBuf,
+    /// Set on every run of espansod. Empty in the portable layout; see `install::Layout::espanso_env`.
+    env: Vec<(&'static str, PathBuf)>,
 }
 
 impl EspansoCtl {
     /// `exe_path` should point at `espansod.exe`, which is expected to sit next to our own exe.
-    pub fn new(exe_path: PathBuf) -> Self {
-        Self { exe_path }
+    pub fn new(exe_path: PathBuf, env: Vec<(&'static str, PathBuf)>) -> Self {
+        Self { exe_path, env }
     }
 
     pub fn exe_exists(&self) -> bool {
@@ -152,6 +154,7 @@ impl EspansoCtl {
             // The portable daemon locates its `.espanso`/`.espanso-runtime` folders relative to
             // its own working directory, so always run it from its own folder.
             .current_dir(self.working_dir())
+            .envs(self.env.iter().map(|(k, v)| (k, v)))
             .creation_flags(CREATE_NO_WINDOW)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -236,6 +239,7 @@ impl EspansoCtl {
         Command::new(&self.exe_path)
             .args(args)
             .current_dir(self.working_dir())
+            .envs(self.env.iter().map(|(k, v)| (k, v)))
             .creation_flags(CREATE_NO_WINDOW)
             .stdin(Stdio::null())
             .stdout(Stdio::null())

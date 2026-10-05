@@ -33,6 +33,12 @@
 //! has since been moved or renamed starts nothing; so does a value Windows has been told to ignore.
 //! Both used to read as enabled, which turned a switch into a decoration — and neither can be
 //! detected by looking at the Run value alone.
+//!
+//! The installed copy (see `install`) cannot use any of that: a packaged process writing to `HKCU`
+//! writes into a private copy Windows never reads at login. It has a startup task instead, declared
+//! in the package manifest as `AutoStart`, and the same two questions go to that. The user can veto
+//! it in Settings › Apps › Startup, and that veto, unlike the registry one, cannot be lifted from
+//! here — only reported.
 
 use std::path::Path;
 use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE};
@@ -93,6 +99,9 @@ fn is_approved() -> bool {
 /// Reads live from the registry rather than a cached setting, so the checkbox never drifts from
 /// reality if someone edits the Run key by hand.
 pub fn is_enabled(exe_path: &Path) -> bool {
+    if crate::install::is_packaged() {
+        return packaged::is_enabled();
+    }
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     match hkcu.open_subkey(RUN_KEY).and_then(|key| key.get_value::<String, _>(VALUE_NAME)) {
         Ok(command) => {
@@ -103,6 +112,9 @@ pub fn is_enabled(exe_path: &Path) -> bool {
 }
 
 pub fn set_enabled(enabled: bool, exe_path: &Path) -> std::io::Result<()> {
+    if crate::install::is_packaged() {
+        return packaged::set_enabled(enabled);
+    }
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (key, _) = hkcu.create_subkey(RUN_KEY)?;
     if enabled {
@@ -148,6 +160,44 @@ pub fn adopt_legacy(exe_path: &Path) {
     let _ = run.delete_value(LEGACY_VALUE_NAME);
     if let Some(veto) = veto {
         let _ = veto.delete_value(LEGACY_VALUE_NAME);
+    }
+}
+
+/// The installed copy's switch: the package's startup task.
+mod packaged {
+    use windows::core::HSTRING;
+    use windows::ApplicationModel::{StartupTask, StartupTaskState};
+
+    /// Must match `TaskId` in the manifest's `windows.startupTask` extension.
+    const TASK_ID: &str = "AutoStart";
+
+    fn task() -> windows::core::Result<StartupTask> {
+        StartupTask::GetAsync(&HSTRING::from(TASK_ID))?.join()
+    }
+
+    fn on(state: StartupTaskState) -> bool {
+        state == StartupTaskState::Enabled || state == StartupTaskState::EnabledByPolicy
+    }
+
+    pub fn is_enabled() -> bool {
+        task().and_then(|task| task.State()).is_ok_and(on)
+    }
+
+    /// A veto from the user or from policy comes back as `PermissionDenied`, which the caller turns
+    /// into a sentence that says where to lift it. Windows asks nothing when a desktop app enables
+    /// its task, so the answer is immediate either way.
+    pub fn set_enabled(enabled: bool) -> std::io::Result<()> {
+        let io = |e: windows::core::Error| std::io::Error::other(e.message());
+        let task = task().map_err(io)?;
+        if !enabled {
+            return task.Disable().map_err(io);
+        }
+        let state = task.RequestEnableAsync().and_then(|op| op.join()).map_err(io)?;
+        if on(state) {
+            Ok(())
+        } else {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "startup task vetoed"))
+        }
     }
 }
 
