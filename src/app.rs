@@ -2639,6 +2639,24 @@ impl KhipuApp {
         self.search.open(ctx, self.state.list_all(), self.state.t(), over);
     }
 
+    /// The preview build opens the launcher for a screenshot when `preview-launcher.txt` appears
+    /// beside the exe: its first line is what to have typed, its second where to put the window,
+    /// `x,y` in screen pixels. Off-screen and never focused, unlike the shortcut's way in.
+    #[cfg(feature = "preview")]
+    fn studio_launcher(&mut self, ctx: &egui::Context) {
+        let Some(file) = std::env::current_exe().ok().and_then(|exe| Some(exe.parent()?.join("preview-launcher.txt"))) else {
+            return;
+        };
+        let Ok(text) = std::fs::read_to_string(&file) else { return };
+        let _ = std::fs::remove_file(&file);
+        let mut lines = text.lines();
+        let query = lines.next().unwrap_or("").trim();
+        let mut xy = lines.next().unwrap_or("").split(',').filter_map(|n| n.trim().parse::<f32>().ok());
+        let ppp = ctx.pixels_per_point();
+        let at = egui::pos2(xy.next().unwrap_or(-3000.0) / ppp, xy.next().unwrap_or(100.0) / ppp);
+        self.search.open_for_studio(ctx, self.state.list_all(), self.state.t(), query, at);
+    }
+
     /// Keeps the search window alive, and performs the expansion once one is picked.
     ///
     /// The order matters: the window goes away, the keyboard goes back to where it came from, and
@@ -3047,6 +3065,8 @@ impl eframe::App for KhipuApp {
         self.drain_tray_events();
         self.drain_menu_events(ctx);
         self.poll_hotkey(ctx);
+        #[cfg(feature = "preview")]
+        self.studio_launcher(ctx);
         self.show_search_window(ctx);
 
         self.state.collect_reload();

@@ -192,23 +192,50 @@ impl SearchWindow {
         t: &'static Strings,
         over: windows::Win32::Foundation::HWND,
     ) {
+        self.put_up(ctx, entries, t, over, None);
+    }
+
+    /// The preview build's way in, for the Store's screenshots: the same window with `query`
+    /// already typed, placed at `at` (off-screen) and never handed the keyboard, so whoever is
+    /// working at the computer is not interrupted. The released build never calls it.
+    #[cfg(feature = "preview")]
+    pub fn open_for_studio(
+        &self,
+        ctx: &egui::Context,
+        entries: Vec<(String, String)>,
+        t: &'static Strings,
+        query: &str,
+        at: egui::Pos2,
+    ) {
+        let over = windows::Win32::Foundation::HWND::default();
+        self.put_up(ctx, entries, t, over, Some((query, at)));
+    }
+
+    fn put_up(
+        &self,
+        ctx: &egui::Context,
+        entries: Vec<(String, String)>,
+        t: &'static Strings,
+        over: windows::Win32::Foundation::HWND,
+        studio: Option<(&str, egui::Pos2)>,
+    ) {
         let mut l = self.lock();
         l.entries = entries
             .into_iter()
             .map(|(trigger, preview)| Hit { trigger, preview })
             .collect();
         l.t = Some(t);
-        l.query.clear();
+        l.query = studio.map_or(String::new(), |(query, _)| query.to_owned());
         l.selected = 0;
         l.follow = true;
-        l.needs_focus = true;
+        l.needs_focus = studio.is_none();
         l.had_focus = false;
         l.chosen = None;
         l.trigger_width = 0.0;
         l.jump = true;
         l.shown_at = None;
         l.open = true;
-        let size = window_size(ctx, l.field_height, hits(&l.entries, "").len());
+        let size = window_size(ctx, l.field_height, hits(&l.entries, &l.query).len());
         l.size = size;
 
         // Centred on the screen the person is actually working on, not on the primary one, a
@@ -221,7 +248,9 @@ impl SearchWindow {
             .or_else(|| crate::display::work_area(1.0));
         let id = viewport_id();
         ctx.send_viewport_cmd_to(id, egui::ViewportCommand::InnerSize(size));
-        if let Some(area) = area {
+        if let Some((_, at)) = studio {
+            ctx.send_viewport_cmd_to(id, egui::ViewportCommand::OuterPosition(at));
+        } else if let Some(area) = area {
             let x = area.left + (area.width - size.x * target_scale) * 0.5;
             let y = area.top + (area.height - size.y * target_scale) * 0.35;
             ctx.send_viewport_cmd_to(
@@ -235,7 +264,9 @@ impl SearchWindow {
         l.cloaked = set_cloaked(l.hwnd, true);
         l.passes = 0;
         ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Visible(true));
-        ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Focus);
+        if studio.is_none() {
+            ctx.send_viewport_cmd_to(id, egui::ViewportCommand::Focus);
+        }
         ctx.request_repaint_of(id);
     }
 
