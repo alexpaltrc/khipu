@@ -3,6 +3,8 @@
 All notable changes to Espanso Manager. Dates are the day the work was finished, not the day it
 was published.
 
+## Unreleased
+
 ## 0.0.4 — 2026-10-04
 
 ### Added
