@@ -26,6 +26,9 @@ was published.
   program, so updates never touch them; uninstalling removes them, so export first. Start with
   Windows works through Windows' startup list: if it was switched off in Settings › Apps ›
   Startup, the app says so and points there. The portable edition is unchanged.
+- **Licence notices for everything inside.** Both editions now carry `THIRD-PARTY-NOTICES.txt`
+  beside `LICENSE.txt`: the notice of each library built into Khipu, the Microsoft runtime files
+  that come with Espanso, and where to get the source code of Espanso and of Khipu.
 
 ### Changed
 

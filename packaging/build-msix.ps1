@@ -11,14 +11,17 @@
   ZIP in paquetes\, the same pristine copy every portable user gets. Never from the development
   folder espanso-portable\: that one holds Alex's own expansions.
 
-  Identity and publisher are placeholders until the app's final name is reserved in Partner Center;
-  pass the values from its Product identity page then. The placeholder kept its old name through
-  the rename to Khipu on purpose: nobody sees it, and changing it makes a different package, whose
-  LocalState starts empty.
+  Identity and publisher are the ones Partner Center assigned when "Khipu" was reserved
+  (2026-10-05, Product identity page); the Store accepts no package that carries other values.
+  It is a different package from the EspansoManager.Dev one registered on Alex's PC before that,
+  so Windows keeps them apart, each with its own LocalState. To update that older copy instead:
+    -Name EspansoManager.Dev -Publisher "CN=Alex Palacios" -Revision <higher> -Register
+  Do not -Register the Store identity on a PC that will install Khipu from the Store: the
+  developer copy would stand in the way of the signed one.
 #>
 param(
-    [string]$Name = "EspansoManager.Dev",
-    [string]$Publisher = "CN=Alex Palacios",
+    [string]$Name = "AlexPalacios.Khipu",
+    [string]$Publisher = "CN=A3B4D4CD-AECB-4B6D-9268-AEAB19F8F17B",
     [string]$PublisherDisplayName = "Alex Palacios",
     [string]$DisplayName = "Khipu",
     [string]$Description = "Text expansions without touching a config file.",
@@ -43,8 +46,10 @@ $msixVersion = "$numeric.$Revision"
 Push-Location $repo
 try { cargo build --release; if ($LASTEXITCODE -ne 0) { throw "cargo build failed" } } finally { Pop-Location }
 
-# --- Stage the layout. Kept under target\ so -Register has a folder that stays put.
-$stage = Join-Path $repo "target\msix\layout"
+# --- Stage the layout. Kept under target\ so -Register has a folder that stays put. A build that
+# only packs gets a folder of its own: the registered copy runs out of layout\, and packing the
+# Store identity there would close it and swap its files from under it.
+$stage = Join-Path $repo $(if ($Register) { "target\msix\layout" } else { "target\msix\pack" })
 # A copy registered with -Register runs straight out of this folder, espansod included, and a
 # running .exe cannot be deleted. Only processes started from here are closed.
 Get-Process | Where-Object { $_.Path -like "$stage\*" } | Stop-Process -Force
@@ -66,6 +71,9 @@ Expand-Archive $RuntimeZip $unzip
 $pf = Get-ChildItem $unzip -Directory | ForEach-Object { Join-Path $_.FullName "Program Files" } | Select-Object -First 1
 Copy-Item (Join-Path $pf "espansod.exe"), (Join-Path $pf "LICENSE.txt") $res
 Copy-Item (Join-Path $pf "*.dll") $res
+# Whose work is in the package, under which licence, and where espanso's source is
+# (third-party-notices.ps1). Beside LICENSE.txt, the GPL text Khipu and espanso share.
+Copy-Item (Join-Path $PSScriptRoot "THIRD-PARTY-NOTICES.txt") $res
 # The seed: copied into the user's LocalState on first start (install.rs). Not the portable's
 # README or .bat files: they describe a folder this edition does not have.
 Copy-Item -Recurse (Join-Path $pf ".espanso"), (Join-Path $pf ".espanso-runtime") $seed

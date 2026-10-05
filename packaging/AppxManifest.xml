@@ -2,9 +2,9 @@
 <!--
   The installed (Microsoft Store) edition's manifest. build-msix.ps1 fills the $TOKENS$.
 
-  Identity Name and Publisher are placeholders until the app has its final name: the Store assigns
-  both when the name is reserved in Partner Center (Product identity page), and the package uploaded
-  there must carry exactly those values.
+  Identity Name and Publisher come from Partner Center (Product identity page), assigned when the
+  name Khipu was reserved; the package uploaded there must carry exactly those values. Their
+  defaults live in build-msix.ps1.
 
   runFullTrust: this is an ordinary desktop program, not a sandboxed app. It starts espansod, which
   reads the keyboard to see triggers and types the expansions — that is what a text expander is.
