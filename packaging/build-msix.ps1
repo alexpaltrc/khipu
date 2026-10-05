@@ -64,24 +64,58 @@ Copy-Item (Join-Path $pf "*.dll") $res
 # README or .bat files: they describe a folder this edition does not have.
 Copy-Item -Recurse (Join-Path $pf ".espanso"), (Join-Path $pf ".espanso-runtime") $seed
 
-# --- Logos, drawn from the app's own icon.
+# --- Logos, from the app's own icon.
+# Every image in the .ico is stored as PNG. They are read straight out of the file: going through
+# System.Drawing.Icon.ToBitmap() decodes a PNG-compressed entry as noise, which is what Start
+# showed until 0.0.5 — no icon at all.
 Add-Type -AssemblyName System.Drawing
-$ico = Join-Path $repo "assets\Espanso Manager.ico"
-$big = (New-Object System.Drawing.Icon($ico, 256, 256)).ToBitmap()
+$icoBytes = [System.IO.File]::ReadAllBytes((Join-Path $repo "assets\Espanso Manager.ico"))
+$icons = @{}
+for ($i = 0; $i -lt [BitConverter]::ToUInt16($icoBytes, 4); $i++) {
+    $entry = 6 + 16 * $i
+    $size = if ($icoBytes[$entry] -eq 0) { 256 } else { [int]$icoBytes[$entry] }
+    $length = [BitConverter]::ToUInt32($icoBytes, $entry + 8)
+    $offset = [BitConverter]::ToUInt32($icoBytes, $entry + 12)
+    $png = New-Object byte[] $length
+    [Array]::Copy($icoBytes, $offset, $png, 0, $length)
+    $icons[$size] = [System.Drawing.Image]::FromStream((New-Object System.IO.MemoryStream(, $png)))
+}
+# The image drawn for an icon of $px pixels: the .ico's own one when it has that size (drawn by
+# hand for it, so sharper than any scaling), otherwise the smallest larger one, scaled down.
+function Get-Icon([int]$px) {
+    $fit = $icons.Keys | Where-Object { $_ -ge $px } | Sort-Object | Select-Object -First 1
+    if (-not $fit) { $fit = ($icons.Keys | Sort-Object | Select-Object -Last 1) }
+    $icons[$fit]
+}
 function Save-Logo([string]$file, [int]$w, [int]$h, [int]$icon) {
     $bmp = New-Object System.Drawing.Bitmap($w, $h)
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
     $g.Clear([System.Drawing.Color]::Transparent)
-    $g.DrawImage($big, [int](($w - $icon) / 2), [int](($h - $icon) / 2), $icon, $icon)
+    $g.DrawImage((Get-Icon $icon), [int][Math]::Floor(($w - $icon) / 2), [int][Math]::Floor(($h - $icon) / 2), $icon, $icon)
     $g.Dispose()
     $bmp.Save((Join-Path $stage "Assets\$file"), [System.Drawing.Imaging.ImageFormat]::Png)
     $bmp.Dispose()
 }
-Save-Logo "Square44x44Logo.png" 44 44 44
-Save-Logo "Square150x150Logo.png" 150 150 100
-Save-Logo "Wide310x150Logo.png" 310 150 100
-Save-Logo "StoreLogo.png" 50 50 50
+# Only qualified files: resources.pri (below) tells Windows which one to take for each screen
+# scale and each size it draws. Scales stop where the 256 px source would have to be enlarged.
+$scales = @{ 100 = 1.0; 125 = 1.25; 150 = 1.5; 200 = 2.0; 400 = 4.0 }
+foreach ($s in $scales.Keys) {
+    $k = $scales[$s]
+    Save-Logo "Square44x44Logo.scale-$s.png" ([int](44 * $k)) ([int](44 * $k)) ([int](44 * $k))
+    Save-Logo "StoreLogo.scale-$s.png" ([int](50 * $k)) ([int](50 * $k)) ([int](50 * $k))
+    if ($s -le 200) {
+        Save-Logo "Square150x150Logo.scale-$s.png" ([int](150 * $k)) ([int](150 * $k)) ([int](100 * $k))
+        Save-Logo "Wide310x150Logo.scale-$s.png" ([int](310 * $k)) ([int](150 * $k)) ([int](100 * $k))
+    }
+}
+# The fixed sizes the taskbar, Start's search and the list of apps ask for. "unplated" is the
+# icon on its own, with no square of accent colour behind it.
+foreach ($t in 16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256) {
+    Save-Logo "Square44x44Logo.targetsize-$t.png" $t $t $t
+    Save-Logo "Square44x44Logo.targetsize-${t}_altform-unplated.png" $t $t $t
+}
 
 # --- Manifest. XML-escaped, since names and descriptions are free text.
 function X([string]$s) { [System.Security.SecurityElement]::Escape($s) }
@@ -92,9 +126,25 @@ $manifest = $manifest.Replace('$NAME$', (X $Name)).Replace('$PUBLISHER$', (X $Pu
     Replace('$EXE$', (X $exeName))
 [System.IO.File]::WriteAllText((Join-Path $stage "AppxManifest.xml"), $manifest, (New-Object System.Text.UTF8Encoding($false)))
 
+# --- resources.pri: the index that maps Assets\Square44x44Logo.png in the manifest to the right
+# file among the qualified ones above. Without it Windows finds none of them.
+$sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" | Sort-Object FullName | Select-Object -Last 1
+if (-not $sdk) { throw "makeappx.exe not found: install the Windows SDK" }
+$makepri = Join-Path $sdk.DirectoryName "makepri.exe"
+$priconfig = Join-Path $repo "target\msix\priconfig.xml"
+& $makepri createconfig /cf $priconfig /dq es-MX_en-US_fil-PH_hi-IN /pv 10.0.0 /o | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "makepri createconfig failed" }
+# The default config splits every scale into its own resources.scale-*.pri, which is meant for a
+# bundle of resource packages. This is one package: everything stays in the one resources.pri.
+$config = [xml](Get-Content -Raw $priconfig)
+$packaging = $config.SelectSingleNode("//packaging")
+if ($packaging) { $packaging.ParentNode.RemoveChild($packaging) | Out-Null }
+$config.Save($priconfig)
+& $makepri new /pr $stage /cf $priconfig /mn (Join-Path $stage "AppxManifest.xml") /of (Join-Path $stage "resources.pri") /o | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "makepri new failed" }
+
 # --- Pack.
-$makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" | Sort-Object FullName | Select-Object -Last 1
-if (-not $makeappx) { throw "makeappx.exe not found: install the Windows SDK" }
+$makeappx = $sdk
 $out = Join-Path $paquetes "$DisplayName $cargoVersion.msix"
 & $makeappx.FullName pack /d $stage /p $out /o | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "makeappx failed" }

@@ -15,6 +15,11 @@ was published.
   the launcher again. Switched-off expansions are kept in `_disabled.yml`, beside `base.yml`,
   a file Espanso does not load; exports carry the switch, so they arrive off on the next machine
   too.
+- **One backup per save, even with expansions switched off.** Each save leaves one folder in
+  `backups`, holding the whole library as it was — `base.yml` and, when there is one,
+  `_disabled.yml` — instead of a loose copy of each file. To go back, copy both into the match
+  folder. The last 20 saves are kept, so switching things on and off no longer halves how far
+  back you can go; loose copies from earlier versions age out under the same limit.
 - **An installed edition, for the Microsoft Store.** Besides the portable ZIP, the app now
   builds as an MSIX package that Windows installs, updates and removes like any other app. It
   keeps your expansions and settings in Windows' own folder for the app instead of beside the

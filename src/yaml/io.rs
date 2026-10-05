@@ -24,8 +24,9 @@
 //! any file whose name starts with an underscore. One library in memory, two files on disk; see
 //! [`save`] for the order they are written in.
 //!
-//! A save is: validate, serialize, re-parse the result as a self-check, back the old file up, write
-//! to a scratch file beside it, flush, then rename over the top. The rename is what makes it safe
+//! A save is: validate, serialize, re-parse the result as a self-check, back the old library up —
+//! one folder per save, holding both files — write to a scratch file beside it, flush, then rename
+//! over the top. The rename is what makes it safe
 //! against espanso opening the file mid-write; the flush is what makes it safe against the power
 //! going out, since NTFS journals the directory entry and not the contents.
 //!
@@ -209,8 +210,12 @@ pub fn save(path: &Path, mf: &MatchFile, backups_dir: &Path) -> Result<SaveWarni
     let off_path = off_path(path);
     let off_on_disk = std::fs::read_to_string(&off_path).ok();
     let mut warnings = SaveWarnings::default();
+    // One backup for the whole save, taken before either file is touched — see [`backup`].
+    if let Err(e) = backup(&[path, &off_path], backups_dir, &mut warnings) {
+        warnings.backup = Some(e);
+    }
     if off_rendered == off_on_disk {
-        write_one(path, &rendered, backups_dir, &mut warnings)?;
+        write_one(path, &rendered, &mut warnings)?;
         return Ok(warnings);
     }
     // Does the switched-off file lose anything it has on disk now? Then something is being
@@ -224,36 +229,21 @@ pub fn save(path: &Path, mf: &MatchFile, backups_dir: &Path) -> Result<SaveWarni
             })
         });
     if losing {
-        write_one(path, &rendered, backups_dir, &mut warnings)?;
+        write_one(path, &rendered, &mut warnings)?;
     }
     match &off_rendered {
-        Some(text) => write_one(&off_path, text, backups_dir, &mut warnings)?,
-        None => {
-            if let Err(e) = backup(&off_path, backups_dir, &mut warnings) {
-                warnings.backup = Some(e);
-            }
-            std::fs::remove_file(&off_path).map_err(SaveError::Io)?;
-        }
+        Some(text) => write_one(&off_path, text, &mut warnings)?,
+        None => std::fs::remove_file(&off_path).map_err(SaveError::Io)?,
     }
     if !losing {
-        write_one(path, &rendered, backups_dir, &mut warnings)?;
+        write_one(path, &rendered, &mut warnings)?;
     }
     Ok(warnings)
 }
 
-/// Backs up one file and replaces it atomically with `rendered`.
-fn write_one(
-    path: &Path,
-    rendered: &str,
-    backups_dir: &Path,
-    warnings: &mut SaveWarnings,
-) -> Result<(), SaveError> {
-    if path.exists() {
-        if let Err(e) = backup(path, backups_dir, warnings) {
-            warnings.backup = Some(e);
-        }
-    }
-
+/// Replaces one file atomically with `rendered`. The backup was taken by the caller, once for the
+/// whole save.
+fn write_one(path: &Path, rendered: &str, warnings: &mut SaveWarnings) -> Result<(), SaveError> {
     // The rename is what makes this safe against a reader — espanso is watching this folder and
     // may open the file at any instant — but it is not, on its own, safe against the power going
     // out. NTFS journals the directory entry, not the file's contents, so a rename can survive a
@@ -281,41 +271,65 @@ fn write_one(
     Ok(())
 }
 
-fn backup(
-    path: &Path,
-    backups_dir: &Path,
-    warnings: &mut SaveWarnings,
-) -> std::io::Result<()> {
+/// How many saves keep their backup.
+const BACKUPS_KEPT: usize = 20;
+
+/// One backup per save: a folder named after the moment, holding the library as it was — each of
+/// `files` that exists, copied whole. Restoring is copying them back into the match folder.
+///
+/// One folder and not one copy per file, because the library is two files and a save can rewrite
+/// both: two loose copies per save read as two backups, halved how many saves the cap kept, and
+/// left whoever was restoring to work out which `_disabled.yml` went with which `base.yml`. Both
+/// files go in even when only one is about to change, so every backup is the whole library on its
+/// own.
+fn backup(files: &[&Path], backups_dir: &Path, warnings: &mut SaveWarnings) -> std::io::Result<()> {
+    let present: Vec<&Path> = files.iter().copied().filter(|p| p.exists()).collect();
+    if present.is_empty() {
+        // The first save ever: there is no previous library to keep.
+        return Ok(());
+    }
     std::fs::create_dir_all(backups_dir)?;
     let ts = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    let file_name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "base.yml".to_string());
-    let backup_path: PathBuf = backups_dir.join(format!("{file_name}.{ts}.bak"));
-    std::fs::copy(path, &backup_path)?;
-    // The backup is the only remaining copy of the previous file the moment the rename above
-    // lands, so it gets the same flush — and reopened for writing, because FlushFileBuffers needs
-    // GENERIC_WRITE and a read handle would be refused outright. Recorded rather than returned:
-    // failing here must not skip the pruning below, or the 20-file cap quietly stops holding.
-    //
-    // It goes into `flush` and not into `backup`, because the backup exists — `copy` above
-    // succeeded. What is unconfirmed is whether it reached the disk, which is word for word what
-    // that warning says. `get_or_insert` so the live file's own flush, a few lines later on the
-    // same drive and for the same reason, is the one the user is told about if both fail.
-    if let Err(e) = std::fs::OpenOptions::new()
-        .write(true)
-        .open(&backup_path)
-        .and_then(|f| f.sync_all())
-    {
-        warnings.flush.get_or_insert(e);
+    // Two saves within the same second each get their own folder; reusing the name would let the
+    // second overwrite the only copy of what the first replaced.
+    let mut folder: PathBuf = backups_dir.join(ts.to_string());
+    let mut n = 2;
+    while folder.exists() {
+        folder = backups_dir.join(format!("{ts}-{n}"));
+        n += 1;
     }
-    prune_old_backups(backups_dir, 20)
+    std::fs::create_dir(&folder)?;
+    for path in present {
+        let Some(name) = path.file_name() else { continue };
+        let copy = folder.join(name);
+        std::fs::copy(path, &copy)?;
+        // The backup is the only remaining copy of the previous file the moment the rename in
+        // `write_one` lands, so it gets the same flush — and reopened for writing, because
+        // FlushFileBuffers needs GENERIC_WRITE and a read handle would be refused outright.
+        // Recorded rather than returned: failing here must not skip the pruning below, or the cap
+        // quietly stops holding.
+        //
+        // It goes into `flush` and not into `backup`, because the backup exists — `copy` above
+        // succeeded. What is unconfirmed is whether it reached the disk, which is word for word
+        // what that warning says. `get_or_insert` so the live file's own flush, a few lines later
+        // on the same drive and for the same reason, is the one the user is told about if both
+        // fail.
+        if let Err(e) = std::fs::OpenOptions::new()
+            .write(true)
+            .open(&copy)
+            .and_then(|f| f.sync_all())
+        {
+            warnings.flush.get_or_insert(e);
+        }
+    }
+    prune_old_backups(backups_dir, BACKUPS_KEPT)
 }
 
+/// Keeps the newest `keep` backups. Each folder is one; so is each loose `.bak` file left by
+/// builds before 0.0.5, which age out under the same cap instead of lingering forever.
 fn prune_old_backups(backups_dir: &Path, keep: usize) -> std::io::Result<()> {
     let mut entries: Vec<_> = std::fs::read_dir(backups_dir)?
         .filter_map(|e| e.ok())
@@ -323,7 +337,12 @@ fn prune_old_backups(backups_dir: &Path, keep: usize) -> std::io::Result<()> {
     entries.sort_by_key(|e| e.metadata().and_then(|m| m.modified()).ok());
     if entries.len() > keep {
         for e in &entries[..entries.len() - keep] {
-            let _ = std::fs::remove_file(e.path());
+            let path = e.path();
+            let _ = if path.is_dir() {
+                std::fs::remove_dir_all(&path)
+            } else {
+                std::fs::remove_file(&path)
+            };
         }
     }
     Ok(())
@@ -383,8 +402,71 @@ mod tests {
 
         let kept: Vec<_> = std::fs::read_dir(&backups).unwrap().flatten().collect();
         assert_eq!(kept.len(), 1, "the first version should have been kept");
-        let previous = std::fs::read_to_string(kept[0].path()).unwrap();
+        let previous = std::fs::read_to_string(kept[0].path().join("base.yml")).unwrap();
         assert!(previous.contains(":uno"), "backup holds the previous file");
+    }
+
+    /// The point of the backup folder: a save that rewrites both files — switching something off —
+    /// still leaves one backup, and that one holds the whole library as it was.
+    #[test]
+    fn a_save_that_touches_both_files_leaves_one_backup_with_both() {
+        let dir = scratch("onebackup");
+        let path = dir.join("base.yml");
+        let backups = dir.join("backups");
+        let mut mf = two_matches();
+        mf.off.insert(":dos".to_string());
+        save(&path, &mf, &backups).unwrap();
+
+        mf.off.clear();
+        mf.off.insert(":uno".to_string());
+        save(&path, &mf, &backups).unwrap();
+
+        let kept: Vec<_> = std::fs::read_dir(&backups).unwrap().flatten().collect();
+        assert_eq!(kept.len(), 1, "one save, one backup");
+        let folder = kept[0].path();
+        assert!(folder.is_dir());
+        let base = std::fs::read_to_string(folder.join("base.yml")).unwrap();
+        let off = std::fs::read_to_string(folder.join(crate::yaml::model::OFF_FILE)).unwrap();
+        assert!(base.contains(":uno") && !base.contains(":dos"), "base.yml as it was");
+        assert!(off.contains(":dos") && !off.contains(":uno"), "and its switched-off file with it");
+    }
+
+    /// Saves within the same second are the normal case when dragging things around; each keeps
+    /// its own backup rather than the second overwriting the first.
+    #[test]
+    fn saves_in_the_same_second_keep_separate_backups() {
+        let dir = scratch("samesecond");
+        let path = dir.join("base.yml");
+        let backups = dir.join("backups");
+        save(&path, &one_match(":uno"), &backups).unwrap();
+        save(&path, &one_match(":dos"), &backups).unwrap();
+        save(&path, &one_match(":tres"), &backups).unwrap();
+        let kept = std::fs::read_dir(&backups).unwrap().count();
+        assert_eq!(kept, 2, "the two saves that replaced something each kept a backup");
+    }
+
+    /// The cap counts saves, and the loose `.bak` files of older builds age out under it.
+    #[test]
+    fn pruning_counts_folders_and_old_loose_files_alike() {
+        let dir = scratch("prune");
+        let backups = dir.join("backups");
+        std::fs::create_dir_all(&backups).unwrap();
+        std::fs::write(backups.join("base.yml.1.bak"), "old").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        for i in 0..3 {
+            let folder = backups.join(format!("10{i}"));
+            std::fs::create_dir(&folder).unwrap();
+            std::fs::write(folder.join("base.yml"), "x").unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(30));
+        }
+        prune_old_backups(&backups, 2).unwrap();
+        let mut left: Vec<String> = std::fs::read_dir(&backups)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        left.sort();
+        assert_eq!(left, ["101", "102"]);
     }
 
     /// Validation runs before anything touches the disk, so a rejected save leaves the stored file
