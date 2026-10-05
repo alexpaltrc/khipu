@@ -32,8 +32,9 @@
 //!
 //! **The way forward is always on screen.** The buttons and the tip are laid out first, against the
 //! bottom edge; the step is centred in what is left and scrolls only if the window is too short for
-//! it. **Every animation is drawn here, by the painter** — no image, so nothing blurs on a scaled
-//! display or goes stale in the other theme — and asks for frames only while something moves. With
+//! it. **Every animation is drawn here, by the painter** — no image file, so nothing blurs on a
+//! scaled display or goes stale in the other theme; the two icons are drawn by `crate::icons` at
+//! the display's exact pixel size — and asks for frames only while something moves. With
 //! Windows' animation effects off, nothing moves: each step appears whole, and the two animated
 //! pictures are replaced by still ones that say the same thing.
 
@@ -369,7 +370,7 @@ fn welcome(ui: &mut egui::Ui, state: &AppState, enter: &Enter) {
     let is_light = !ui.visuals().dark_mode;
     enter.reveal(ui, 0, |ui| {
         let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(LOGO), egui::Sense::hover());
-        paint_mark(ui.painter(), ui.visuals(), rect, true);
+        paint_mark(ui.painter(), ui.visuals(), rect);
     });
     ui.add_space(controls::GAP_STACK + controls::GAP);
     enter.reveal(ui, 1, |ui| {
@@ -388,42 +389,60 @@ fn welcome(ui: &mut egui::Ui, state: &AppState, enter: &Enter) {
 /// The side of the mark on the welcome step.
 const LOGO: f32 = 96.0;
 
-/// The app's mark — the keycap with a colon and a chevron — drawn from the same 16-unit geometry
-/// as the icon in [`crate::icons`], so the welcome and the tray show one and the same thing. Drawn
-/// as shapes at whatever size it is asked for, so it is as sharp at 96 points as at 16.
-fn paint_mark(painter: &egui::Painter, visuals: &egui::Visuals, rect: Rect, shadow: bool) {
-    let is_light = !visuals.dark_mode;
-    let (face, mark, edge) = if crate::app::contrast().is_some() {
-        let (fill, ink) = crate::app::accent_fill(visuals);
-        (fill, ink, ink)
-    } else {
-        let p = if is_light { crate::icons::Palette::LIGHT } else { crate::icons::Palette::DARK };
-        let c = |v: [u8; 3]| Color32::from_rgb(v[0], v[1], v[2]);
-        (c(p.face), c(p.mark), c(p.edge))
-    };
+/// The app's icon — the bird on its violet square — exactly as the exe and Start show it. The brand
+/// keeps its two colours in either theme; only the shadow under it follows the page.
+fn paint_mark(painter: &egui::Painter, visuals: &egui::Visuals, rect: Rect) {
+    let (rect, px) = whole_pixels(painter.ctx(), rect);
     let k = rect.width() / 16.0;
-    let at = |x: f32, y: f32| rect.min + vec2(x, y) * k;
-    let square = |a: f32, b: f32| Rect::from_min_max(at(a, a), at(b, b));
-    if shadow {
-        let depth = egui::epaint::Shadow {
-            offset: [0, (k * 1.2) as i8],
-            blur: (k * 3.0).min(60.0) as u8,
-            spread: 0,
-            color: Color32::from_black_alpha(if is_light { 46 } else { 90 }),
-        };
-        painter.add(depth.as_shape(square(0.25, 15.75), 3.25 * k));
+    let depth = egui::epaint::Shadow {
+        offset: [0, (k * 1.2) as i8],
+        blur: (k * 3.0).min(60.0) as u8,
+        spread: 0,
+        color: Color32::from_black_alpha(if visuals.dark_mode { 90 } else { 46 }),
+    };
+    painter.add(depth.as_shape(rect, rect.width() * 8.8 / 40.0));
+    let texture = drawn(painter.ctx(), "app", px, || crate::icons::app(px));
+    painter.image(texture.id(), rect, FULL_UV, Color32::WHITE);
+}
+
+/// The tray's icon, as the notification area shows it: the bird alone, in the tone of the bar.
+fn paint_tray_mark(painter: &egui::Painter, visuals: &egui::Visuals, rect: Rect) {
+    let tint = if crate::app::contrast().is_some() {
+        visuals.text_color()
+    } else {
+        let tones = if visuals.dark_mode { crate::icons::Tones::DARK } else { crate::icons::Tones::LIGHT };
+        Color32::from_rgb(tones.active[0], tones.active[1], tones.active[2])
+    };
+    let (rect, px) = whole_pixels(painter.ctx(), rect);
+    // Drawn white and tinted here, so one texture serves every theme.
+    let texture = drawn(painter.ctx(), "tray", px, || crate::icons::symbol(px, [255; 3]));
+    painter.image(texture.id(), rect, FULL_UV, tint);
+}
+
+const FULL_UV: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+
+/// `rect` moved and sized onto whole physical pixels, and that size in pixels. Both marks are drawn
+/// by [`crate::icons`] at exactly this size and shown texel for texel: nothing is scaled, so nothing
+/// blurs on a scaled display.
+fn whole_pixels(ctx: &egui::Context, rect: Rect) -> (Rect, u32) {
+    let ppp = ctx.pixels_per_point();
+    let px = (rect.width() * ppp).round().max(1.0);
+    let min = ((rect.center().to_vec2() * ppp) - egui::Vec2::splat(px * 0.5)).round() / ppp;
+    (Rect::from_min_size(min.to_pos2(), egui::Vec2::splat(px / ppp)), px as u32)
+}
+
+/// One drawing of a mark at one pixel size, made the first time it is asked for and kept. The
+/// sizes in use are few: one per display scale, and the handful the tray demonstration grows through.
+fn drawn(ctx: &egui::Context, kind: &'static str, px: u32, draw: impl FnOnce() -> egui::IconData) -> egui::TextureHandle {
+    let id = egui::Id::new(("khipu-mark", kind, px));
+    if let Some(texture) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return texture;
     }
-    painter.rect_filled(square(0.25, 15.75), 3.25 * k, edge);
-    painter.rect_filled(square(0.75, 15.25), 2.75 * k, face);
-    painter.circle_filled(at(5.0, 5.25), 1.3 * k, mark);
-    painter.circle_filled(at(5.0, 10.75), 1.3 * k, mark);
-    // The chevron: a stroke with round ends and a round corner, as the icon's distance field has.
-    let chevron = [at(8.6, 4.6), at(12.0, 8.0), at(8.6, 11.4)];
-    let width = 1.9 * k;
-    painter.add(egui::Shape::line(chevron.to_vec(), Stroke::new(width, mark)));
-    for p in chevron {
-        painter.circle_filled(p, width * 0.5, mark);
-    }
+    let data = draw();
+    let image = egui::ColorImage::from_rgba_unmultiplied([data.width as usize, data.height as usize], &data.rgba);
+    let texture = ctx.load_texture(format!("khipu-{kind}-{px}"), image, egui::TextureOptions::NEAREST);
+    ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
+    texture
 }
 
 // --- 2. what an expansion is ----------------------------------------------------------------
@@ -874,7 +893,7 @@ fn tray_demo(ui: &mut egui::Ui, rect: Rect, clock: f64, frames: &mut Frames) {
         let icon = Rect::from_center_size(icon_at + vec2(0.0, if in_flyout { rise } else { 0.0 }), egui::Vec2::splat(size));
         let mut layer = painter.clone();
         layer.set_opacity(icon_alpha);
-        paint_mark(&layer, ui.visuals(), icon, lift > 0.0);
+        paint_tray_mark(&layer, ui.visuals(), icon);
     }
 
     // --- the pointer -----------------------------------------------------------------------------

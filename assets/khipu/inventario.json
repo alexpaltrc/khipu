@@ -1,0 +1,548 @@
+[
+  {
+    "file": "bandeja/khipu-light-active-16.png",
+    "width": 16,
+    "height": 16,
+    "role": "Bandeja light, active, tamaño físico 16"
+  },
+  {
+    "file": "bandeja/khipu-light-active-20.png",
+    "width": 20,
+    "height": 20,
+    "role": "Bandeja light, active, tamaño físico 20"
+  },
+  {
+    "file": "bandeja/khipu-light-active-24.png",
+    "width": 24,
+    "height": 24,
+    "role": "Bandeja light, active, tamaño físico 24"
+  },
+  {
+    "file": "bandeja/khipu-light-active-32.png",
+    "width": 32,
+    "height": 32,
+    "role": "Bandeja light, active, tamaño físico 32"
+  },
+  {
+    "file": "bandeja/khipu-light-active-40.png",
+    "width": 40,
+    "height": 40,
+    "role": "Bandeja light, active, tamaño físico 40"
+  },
+  {
+    "file": "bandeja/khipu-light-active-48.png",
+    "width": 48,
+    "height": 48,
+    "role": "Bandeja light, active, tamaño físico 48"
+  },
+  {
+    "file": "bandeja/khipu-light-active-64.png",
+    "width": 64,
+    "height": 64,
+    "role": "Bandeja light, active, tamaño físico 64"
+  },
+  {
+    "file": "bandeja/khipu-light-paused-16.png",
+    "width": 16,
+    "height": 16,
+    "role": "Bandeja light, paused, tamaño físico 16"
+  },
+  {
+    "file": "bandeja/khipu-light-paused-20.png",
+    "width": 20,
+    "height": 20,
+    "role": "Bandeja light, paused, tamaño físico 20"
+  },
+  {
+    "file": "bandeja/khipu-light-paused-24.png",
+    "width": 24,
+    "height": 24,
+    "role": "Bandeja light, paused, tamaño físico 24"
+  },
+  {
+    "file": "bandeja/khipu-light-paused-32.png",
+    "width": 32,
+    "height": 32,
+    "role": "Bandeja light, paused, tamaño físico 32"
+  },
+  {
+    "file": "bandeja/khipu-light-paused-40.png",
+    "width": 40,
+    "height": 40,
+    "role": "Bandeja light, paused, tamaño físico 40"
+  },
+  {
+    "file": "bandeja/khipu-light-paused-48.png",
+    "width": 48,
+    "height": 48,
+    "role": "Bandeja light, paused, tamaño físico 48"
+  },
+  {
+    "file": "bandeja/khipu-light-paused-64.png",
+    "width": 64,
+    "height": 64,
+    "role": "Bandeja light, paused, tamaño físico 64"
+  },
+  {
+    "file": "bandeja/khipu-dark-active-16.png",
+    "width": 16,
+    "height": 16,
+    "role": "Bandeja dark, active, tamaño físico 16"
+  },
+  {
+    "file": "bandeja/khipu-dark-active-20.png",
+    "width": 20,
+    "height": 20,
+    "role": "Bandeja dark, active, tamaño físico 20"
+  },
+  {
+    "file": "bandeja/khipu-dark-active-24.png",
+    "width": 24,
+    "height": 24,
+    "role": "Bandeja dark, active, tamaño físico 24"
+  },
+  {
+    "file": "bandeja/khipu-dark-active-32.png",
+    "width": 32,
+    "height": 32,
+    "role": "Bandeja dark, active, tamaño físico 32"
+  },
+  {
+    "file": "bandeja/khipu-dark-active-40.png",
+    "width": 40,
+    "height": 40,
+    "role": "Bandeja dark, active, tamaño físico 40"
+  },
+  {
+    "file": "bandeja/khipu-dark-active-48.png",
+    "width": 48,
+    "height": 48,
+    "role": "Bandeja dark, active, tamaño físico 48"
+  },
+  {
+    "file": "bandeja/khipu-dark-active-64.png",
+    "width": 64,
+    "height": 64,
+    "role": "Bandeja dark, active, tamaño físico 64"
+  },
+  {
+    "file": "bandeja/khipu-dark-paused-16.png",
+    "width": 16,
+    "height": 16,
+    "role": "Bandeja dark, paused, tamaño físico 16"
+  },
+  {
+    "file": "bandeja/khipu-dark-paused-20.png",
+    "width": 20,
+    "height": 20,
+    "role": "Bandeja dark, paused, tamaño físico 20"
+  },
+  {
+    "file": "bandeja/khipu-dark-paused-24.png",
+    "width": 24,
+    "height": 24,
+    "role": "Bandeja dark, paused, tamaño físico 24"
+  },
+  {
+    "file": "bandeja/khipu-dark-paused-32.png",
+    "width": 32,
+    "height": 32,
+    "role": "Bandeja dark, paused, tamaño físico 32"
+  },
+  {
+    "file": "bandeja/khipu-dark-paused-40.png",
+    "width": 40,
+    "height": 40,
+    "role": "Bandeja dark, paused, tamaño físico 40"
+  },
+  {
+    "file": "bandeja/khipu-dark-paused-48.png",
+    "width": 48,
+    "height": 48,
+    "role": "Bandeja dark, paused, tamaño físico 48"
+  },
+  {
+    "file": "bandeja/khipu-dark-paused-64.png",
+    "width": 64,
+    "height": 64,
+    "role": "Bandeja dark, paused, tamaño físico 64"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.scale-100.png",
+    "width": 44,
+    "height": 44,
+    "role": "Manifiesto: Square44x44Logo, escala 100%"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.scale-125.png",
+    "width": 55,
+    "height": 55,
+    "role": "Manifiesto: Square44x44Logo, escala 125%"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.scale-150.png",
+    "width": 66,
+    "height": 66,
+    "role": "Manifiesto: Square44x44Logo, escala 150%"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.scale-200.png",
+    "width": 88,
+    "height": 88,
+    "role": "Manifiesto: Square44x44Logo, escala 200%"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.scale-400.png",
+    "width": 176,
+    "height": 176,
+    "role": "Manifiesto: Square44x44Logo, escala 400%"
+  },
+  {
+    "file": "msix/Assets/Square150x150Logo.scale-100.png",
+    "width": 150,
+    "height": 150,
+    "role": "Manifiesto: Square150x150Logo, escala 100%"
+  },
+  {
+    "file": "msix/Assets/Square150x150Logo.scale-125.png",
+    "width": 188,
+    "height": 188,
+    "role": "Manifiesto: Square150x150Logo, escala 125%"
+  },
+  {
+    "file": "msix/Assets/Square150x150Logo.scale-150.png",
+    "width": 225,
+    "height": 225,
+    "role": "Manifiesto: Square150x150Logo, escala 150%"
+  },
+  {
+    "file": "msix/Assets/Square150x150Logo.scale-200.png",
+    "width": 300,
+    "height": 300,
+    "role": "Manifiesto: Square150x150Logo, escala 200%"
+  },
+  {
+    "file": "msix/Assets/Square150x150Logo.scale-400.png",
+    "width": 600,
+    "height": 600,
+    "role": "Manifiesto: Square150x150Logo, escala 400%"
+  },
+  {
+    "file": "msix/Assets/Wide310x150Logo.scale-100.png",
+    "width": 310,
+    "height": 150,
+    "role": "Manifiesto: Wide310x150Logo, escala 100%"
+  },
+  {
+    "file": "msix/Assets/Wide310x150Logo.scale-125.png",
+    "width": 388,
+    "height": 188,
+    "role": "Manifiesto: Wide310x150Logo, escala 125%"
+  },
+  {
+    "file": "msix/Assets/Wide310x150Logo.scale-150.png",
+    "width": 465,
+    "height": 225,
+    "role": "Manifiesto: Wide310x150Logo, escala 150%"
+  },
+  {
+    "file": "msix/Assets/Wide310x150Logo.scale-200.png",
+    "width": 620,
+    "height": 300,
+    "role": "Manifiesto: Wide310x150Logo, escala 200%"
+  },
+  {
+    "file": "msix/Assets/Wide310x150Logo.scale-400.png",
+    "width": 1240,
+    "height": 600,
+    "role": "Manifiesto: Wide310x150Logo, escala 400%"
+  },
+  {
+    "file": "msix/Assets/StoreLogo.scale-100.png",
+    "width": 50,
+    "height": 50,
+    "role": "Manifiesto: StoreLogo, escala 100%"
+  },
+  {
+    "file": "msix/Assets/StoreLogo.scale-125.png",
+    "width": 63,
+    "height": 63,
+    "role": "Manifiesto: StoreLogo, escala 125%"
+  },
+  {
+    "file": "msix/Assets/StoreLogo.scale-150.png",
+    "width": 75,
+    "height": 75,
+    "role": "Manifiesto: StoreLogo, escala 150%"
+  },
+  {
+    "file": "msix/Assets/StoreLogo.scale-200.png",
+    "width": 100,
+    "height": 100,
+    "role": "Manifiesto: StoreLogo, escala 200%"
+  },
+  {
+    "file": "msix/Assets/StoreLogo.scale-400.png",
+    "width": 200,
+    "height": 200,
+    "role": "Manifiesto: StoreLogo, escala 400%"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-16.png",
+    "width": 16,
+    "height": 16,
+    "role": "AppList 16, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-16_altform-unplated.png",
+    "width": 16,
+    "height": 16,
+    "role": "AppList 16, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-16_altform-lightunplated.png",
+    "width": 16,
+    "height": 16,
+    "role": "AppList 16, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-20.png",
+    "width": 20,
+    "height": 20,
+    "role": "AppList 20, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-20_altform-unplated.png",
+    "width": 20,
+    "height": 20,
+    "role": "AppList 20, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-20_altform-lightunplated.png",
+    "width": 20,
+    "height": 20,
+    "role": "AppList 20, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-24.png",
+    "width": 24,
+    "height": 24,
+    "role": "AppList 24, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-24_altform-unplated.png",
+    "width": 24,
+    "height": 24,
+    "role": "AppList 24, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-24_altform-lightunplated.png",
+    "width": 24,
+    "height": 24,
+    "role": "AppList 24, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-30.png",
+    "width": 30,
+    "height": 30,
+    "role": "AppList 30, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-30_altform-unplated.png",
+    "width": 30,
+    "height": 30,
+    "role": "AppList 30, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-30_altform-lightunplated.png",
+    "width": 30,
+    "height": 30,
+    "role": "AppList 30, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-32.png",
+    "width": 32,
+    "height": 32,
+    "role": "AppList 32, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-32_altform-unplated.png",
+    "width": 32,
+    "height": 32,
+    "role": "AppList 32, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-32_altform-lightunplated.png",
+    "width": 32,
+    "height": 32,
+    "role": "AppList 32, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-36.png",
+    "width": 36,
+    "height": 36,
+    "role": "AppList 36, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-36_altform-unplated.png",
+    "width": 36,
+    "height": 36,
+    "role": "AppList 36, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-36_altform-lightunplated.png",
+    "width": 36,
+    "height": 36,
+    "role": "AppList 36, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-40.png",
+    "width": 40,
+    "height": 40,
+    "role": "AppList 40, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-40_altform-unplated.png",
+    "width": 40,
+    "height": 40,
+    "role": "AppList 40, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-40_altform-lightunplated.png",
+    "width": 40,
+    "height": 40,
+    "role": "AppList 40, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-48.png",
+    "width": 48,
+    "height": 48,
+    "role": "AppList 48, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-48_altform-unplated.png",
+    "width": 48,
+    "height": 48,
+    "role": "AppList 48, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-48_altform-lightunplated.png",
+    "width": 48,
+    "height": 48,
+    "role": "AppList 48, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-60.png",
+    "width": 60,
+    "height": 60,
+    "role": "AppList 60, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-60_altform-unplated.png",
+    "width": 60,
+    "height": 60,
+    "role": "AppList 60, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-60_altform-lightunplated.png",
+    "width": 60,
+    "height": 60,
+    "role": "AppList 60, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-64.png",
+    "width": 64,
+    "height": 64,
+    "role": "AppList 64, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-64_altform-unplated.png",
+    "width": 64,
+    "height": 64,
+    "role": "AppList 64, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-64_altform-lightunplated.png",
+    "width": 64,
+    "height": 64,
+    "role": "AppList 64, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-72.png",
+    "width": 72,
+    "height": 72,
+    "role": "AppList 72, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-72_altform-unplated.png",
+    "width": 72,
+    "height": 72,
+    "role": "AppList 72, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-72_altform-lightunplated.png",
+    "width": 72,
+    "height": 72,
+    "role": "AppList 72, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-80.png",
+    "width": 80,
+    "height": 80,
+    "role": "AppList 80, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-80_altform-unplated.png",
+    "width": 80,
+    "height": 80,
+    "role": "AppList 80, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-80_altform-lightunplated.png",
+    "width": 80,
+    "height": 80,
+    "role": "AppList 80, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-96.png",
+    "width": 96,
+    "height": 96,
+    "role": "AppList 96, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-96_altform-unplated.png",
+    "width": 96,
+    "height": 96,
+    "role": "AppList 96, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-96_altform-lightunplated.png",
+    "width": 96,
+    "height": 96,
+    "role": "AppList 96, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-256.png",
+    "width": 256,
+    "height": 256,
+    "role": "AppList 256, default; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-256_altform-unplated.png",
+    "width": 256,
+    "height": 256,
+    "role": "AppList 256, _altform-unplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "msix/Assets/Square44x44Logo.targetsize-256_altform-lightunplated.png",
+    "width": 256,
+    "height": 256,
+    "role": "AppList 256, _altform-lightunplated; fondo propio de marca, esquinas transparentes"
+  },
+  {
+    "file": "store/Khipu-app-tile-300.png",
+    "width": 300,
+    "height": 300,
+    "role": "Ficha Microsoft Store: 1:1 App tile icon"
+  }
+]

@@ -64,58 +64,11 @@ Copy-Item (Join-Path $pf "*.dll") $res
 # README or .bat files: they describe a folder this edition does not have.
 Copy-Item -Recurse (Join-Path $pf ".espanso"), (Join-Path $pf ".espanso-runtime") $seed
 
-# --- Logos, from the app's own icon.
-# Every image in the .ico is stored as PNG. They are read straight out of the file: going through
-# System.Drawing.Icon.ToBitmap() decodes a PNG-compressed entry as noise, which is what Start
-# showed until 0.0.5 — no icon at all.
-Add-Type -AssemblyName System.Drawing
-$icoBytes = [System.IO.File]::ReadAllBytes((Join-Path $repo "assets\Espanso Manager.ico"))
-$icons = @{}
-for ($i = 0; $i -lt [BitConverter]::ToUInt16($icoBytes, 4); $i++) {
-    $entry = 6 + 16 * $i
-    $size = if ($icoBytes[$entry] -eq 0) { 256 } else { [int]$icoBytes[$entry] }
-    $length = [BitConverter]::ToUInt32($icoBytes, $entry + 8)
-    $offset = [BitConverter]::ToUInt32($icoBytes, $entry + 12)
-    $png = New-Object byte[] $length
-    [Array]::Copy($icoBytes, $offset, $png, 0, $length)
-    $icons[$size] = [System.Drawing.Image]::FromStream((New-Object System.IO.MemoryStream(, $png)))
-}
-# The image drawn for an icon of $px pixels: the .ico's own one when it has that size (drawn by
-# hand for it, so sharper than any scaling), otherwise the smallest larger one, scaled down.
-function Get-Icon([int]$px) {
-    $fit = $icons.Keys | Where-Object { $_ -ge $px } | Sort-Object | Select-Object -First 1
-    if (-not $fit) { $fit = ($icons.Keys | Sort-Object | Select-Object -Last 1) }
-    $icons[$fit]
-}
-function Save-Logo([string]$file, [int]$w, [int]$h, [int]$icon) {
-    $bmp = New-Object System.Drawing.Bitmap($w, $h)
-    $g = [System.Drawing.Graphics]::FromImage($bmp)
-    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-    $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-    $g.Clear([System.Drawing.Color]::Transparent)
-    $g.DrawImage((Get-Icon $icon), [int][Math]::Floor(($w - $icon) / 2), [int][Math]::Floor(($h - $icon) / 2), $icon, $icon)
-    $g.Dispose()
-    $bmp.Save((Join-Path $stage "Assets\$file"), [System.Drawing.Imaging.ImageFormat]::Png)
-    $bmp.Dispose()
-}
-# Only qualified files: resources.pri (below) tells Windows which one to take for each screen
-# scale and each size it draws. Scales stop where the 256 px source would have to be enlarged.
-$scales = @{ 100 = 1.0; 125 = 1.25; 150 = 1.5; 200 = 2.0; 400 = 4.0 }
-foreach ($s in $scales.Keys) {
-    $k = $scales[$s]
-    Save-Logo "Square44x44Logo.scale-$s.png" ([int](44 * $k)) ([int](44 * $k)) ([int](44 * $k))
-    Save-Logo "StoreLogo.scale-$s.png" ([int](50 * $k)) ([int](50 * $k)) ([int](50 * $k))
-    if ($s -le 200) {
-        Save-Logo "Square150x150Logo.scale-$s.png" ([int](150 * $k)) ([int](150 * $k)) ([int](100 * $k))
-        Save-Logo "Wide310x150Logo.scale-$s.png" ([int](310 * $k)) ([int](150 * $k)) ([int](100 * $k))
-    }
-}
-# The fixed sizes the taskbar, Start's search and the list of apps ask for. "unplated" is the
-# icon on its own, with no square of accent colour behind it.
-foreach ($t in 16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256) {
-    Save-Logo "Square44x44Logo.targetsize-$t.png" $t $t $t
-    Save-Logo "Square44x44Logo.targetsize-${t}_altform-unplated.png" $t $t $t
-}
+# --- Logos: the identity pack's own, as delivered (assets\khipu\msix\Assets). Each one is drawn
+# from the vector at its exact size, every scale and every size the taskbar, Start's search and
+# the list of apps ask for. Only qualified files: resources.pri (below) tells Windows which one to
+# take; without it Windows finds none of them, which is what Start showed until 0.0.5.
+Copy-Item (Join-Path $repo "assets\khipu\msix\Assets\*.png") (Join-Path $stage "Assets")
 
 # --- Manifest. XML-escaped, since names and descriptions are free text.
 function X([string]$s) { [System.Security.SecurityElement]::Escape($s) }

@@ -35,7 +35,7 @@
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=assets/Espanso Manager.ico");
+    println!("cargo:rerun-if-changed=assets/khipu/app/Khipu.ico");
 
     // The crate is Windows-only, but a build script still runs wherever cargo runs.
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
@@ -43,7 +43,7 @@ fn main() {
     }
 
     let mut res = winresource::WindowsResource::new();
-    res.set_icon("assets/Espanso Manager.ico");
+    res.set_icon("assets/khipu/app/Khipu.ico");
 
     // Set explicitly rather than left to default: winresource would otherwise take the crate
     // name, `espanso_manager`, which is not what this program is called anywhere a user looks.

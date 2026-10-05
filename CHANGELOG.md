@@ -27,6 +27,14 @@ was published.
   Windows works through Windows' startup list: if it was switched off in Settings › Apps ›
   Startup, the app says so and points there. The portable edition is unchanged.
 
+### Changed
+
+- **A new icon.** The keycap gives way to a small bird on a knotted cord, the same everywhere:
+  the program file, Start and its search, the taskbar, the window, the tray and the welcome
+  screen. In the tray it follows the taskbar, dark or light, and paused it keeps the same
+  shape, only dimmer. It is drawn at the exact size each screen asks for, so it stays sharp at
+  any display scale, and small sizes get bolder strokes so the bird still reads at 16 pixels.
+
 ## 0.0.4 — 2026-10-04
 
 ### Added
