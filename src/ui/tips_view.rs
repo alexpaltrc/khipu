@@ -325,6 +325,21 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
             },
         );
 
+        topic(
+            ui,
+            false,
+            text(state, "Apagar expansiones", "Turn expansions off", "Patayin ang mga expansion", "विस्तार बंद करना"),
+            |ui| {
+                para(ui, text(
+                    state,
+                    "Para un texto que usas de vez en cuando y no necesita activador, abre la expansión y apaga su interruptor de Estado. Apagada no se expande ni aparece en el lanzador, pero sigue en la lista, más tenue y al final de su carpeta: puedes copiar su texto desde ahí o volver a encenderla. Desde las opciones de una carpeta se apaga la carpeta entera.",
+                    "For a text you use now and then that needs no trigger, open the expansion and turn off its Status switch. Off, it neither expands nor shows in the launcher, but it stays in the list, dimmer and at the end of its folder: you can copy its text from there or turn it back on. A folder's options turn off the whole folder.",
+                    "Para sa tekstong paminsan-minsan mo lang ginagamit at hindi kailangan ng trigger, buksan ang expansion at patayin ang switch ng Katayuan nito. Kapag nakapatay, hindi ito nag-e-expand at wala sa launcher, pero nananatili ito sa listahan, mas malabo at nasa dulo ng folder nito: puwede mong kopyahin ang teksto nito roon o buksan itong muli. Sa mga opsyon ng isang folder, mapapatay ang buong folder.",
+                    "ऐसे टेक्स्ट के लिए जिसे आप कभी-कभी उपयोग करते हैं और जिसे ट्रिगर की ज़रूरत नहीं, विस्तार खोलें और उसका स्थिति स्विच बंद करें। बंद होने पर वह न विस्तार करता है, न लॉन्चर में दिखता है, पर सूची में रहता है, हल्का और अपने फ़ोल्डर के अंत में: वहाँ से उसका टेक्स्ट कॉपी कर सकते हैं या उसे फिर चालू कर सकते हैं। फ़ोल्डर के विकल्पों से पूरा फ़ोल्डर बंद होता है।",
+                ));
+            },
+        );
+
         topic(ui, false, t.tip_undo_title, |ui| para(ui, t.tip_undo_body));
 
         let pause_body = crate::i18n::fill(

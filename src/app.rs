@@ -239,6 +239,8 @@ pub struct ListRow {
     /// where to cut, so handing it a multi-kilobyte replacement would make the row pay for glyphs
     /// nobody can see.
     pub preview: String,
+    /// Switched off: kept, drawn dimmer, and absent from espanso and from the launcher.
+    pub off: bool,
 }
 
 /// Everything the list screen needs, derived once from the expansions and the folder assignments.
@@ -556,13 +558,17 @@ impl AppState {
     }
 
     /// Every expansion this app manages, as (trigger, one-line preview), for the search window.
+    /// The ones switched off are left out: the launcher fires expansions, and these do not fire.
     pub fn list_all(&self) -> Vec<(String, String)> {
         let t = self.t();
         self.match_file
             .entries
             .iter()
             .filter_map(|entry| match entry {
-                MatchEntry::Simple(m) => Some((m.trigger.clone(), entry.preview(t))),
+                MatchEntry::Simple(m) if !self.match_file.is_off(&m.trigger) => {
+                    Some((m.trigger.clone(), entry.preview(t)))
+                }
+                MatchEntry::Simple(_) => None,
                 MatchEntry::Advanced(_) => None,
             })
             .collect()
@@ -646,8 +652,14 @@ impl AppState {
             rows.push(ListRow {
                 trigger: entry.trigger_label(),
                 preview: truncate(&preview, PREVIEW_MAX_CHARS),
+                off: self.match_file.is_off(entry.trigger_str()),
             });
         }
+
+        // What is switched off goes to the bottom: of the whole list, and so of every folder too,
+        // since the buckets below are filled in this order. The sort is stable, so each half keeps
+        // the file's order.
+        rows.sort_by_key(|row| row.off);
 
         // Grouped in one pass (O(n)) rather than re-scanning the rows once per folder name
         // (O(folders × n)). `BTreeMap` also gives the A→Z folder ordering for free.
@@ -824,6 +836,8 @@ impl AppState {
                 m.trigger = format!("{new_prefix}{rest}");
             }
         }
+        self.match_file
+            .rename_triggers(renamed.iter().map(|(old, new)| (old.as_str(), new.as_str())));
         for (old, new) in &renamed {
             self.settings.rename_trigger(old, new);
             self.selection_rename(old, new);
@@ -857,6 +871,7 @@ impl AppState {
         self.match_file
             .entries
             .retain(|e| !to_remove.contains(e.trigger_str()));
+        self.match_file.prune_off();
         for t in triggers {
             self.settings.remove_trigger(t);
             self.selection_forget(t);
@@ -1101,6 +1116,7 @@ impl AppState {
             return;
         }
         self.match_file.entries.remove(index);
+        self.match_file.prune_off();
         self.settings.remove_trigger(&trigger);
         self.selection_forget(&trigger);
         let _ = self.settings_store.save(&self.settings);
@@ -1235,12 +1251,66 @@ impl AppState {
         }
     }
 
+    /// Switches expansions off, or back on.
+    ///
+    /// Off, an expansion stays in the list and in its folder, but moves to `_disabled.yml`, which
+    /// espanso does not load, and leaves the launcher. On, it goes back to `base.yml` and to both.
+    /// Those already where they are asked to be are dropped first, so the message counts only what
+    /// actually changed — and a gesture that changes nothing says nothing.
+    pub fn set_off(&mut self, triggers: &[String], off: bool) {
+        let changing: Vec<String> = triggers
+            .iter()
+            .filter(|trigger| self.match_file.is_off(trigger) != off)
+            .filter(|trigger| {
+                self.match_file
+                    .entries
+                    .iter()
+                    .any(|e| matches!(e, MatchEntry::Simple(m) if m.trigger == **trigger))
+            })
+            .cloned()
+            .collect();
+        if changing.is_empty() {
+            return;
+        }
+
+        let previous_off = self.match_file.off.clone();
+        let previous_entries = self.match_file.entries.clone();
+        for trigger in &changing {
+            if off {
+                self.match_file.off.insert(trigger.clone());
+            } else {
+                self.match_file.off.remove(trigger);
+            }
+        }
+        // Switched off, an expansion also goes to the end of the list in memory, because that is
+        // where the next start will find it: read back, the file of switched-off expansions comes
+        // after `base.yml`. Left where it was, the order on screen would change on a restart.
+        if off {
+            let (moving, staying): (Vec<MatchEntry>, Vec<MatchEntry>) = std::mem::take(&mut self.match_file.entries)
+                .into_iter()
+                .partition(|e| changing.iter().any(|t| t == e.trigger_str()));
+            self.match_file.entries = staying;
+            self.match_file.entries.extend(moving);
+        }
+        self.touch_list();
+
+        let t = self.t();
+        let template = if off { t.turned_off } else { t.turned_on };
+        let message = crate::i18n::fill_count(template, changing.len(), &[]);
+        if !self.save_and_reload(message) {
+            // Not on disk, so not on screen either: the red banner says why.
+            self.match_file.off = previous_off;
+            self.match_file.entries = previous_entries;
+            self.touch_list();
+        }
+    }
+
     /// Writes one folder's expansions out to a file, with nothing to choose between first: the
     /// folder was already named by the screen this came from.
     pub fn export_folder(&mut self, folder: &str) {
         let export = crate::transfer::build_export(&self.match_file.entries, |trigger| {
             self.settings.folder_of(trigger).map(str::to_owned)
-        });
+        }, |trigger| self.match_file.is_off(trigger));
         let export = crate::transfer::retain_folders(export, &[Some(folder.to_owned())]);
         if !export.expansions.is_empty() { self.write_export(export); }
     }
@@ -1257,6 +1327,7 @@ impl AppState {
         for change in &changes {
             if let MatchEntry::Simple(m) = &mut candidate.entries[change.index] { m.trigger.clone_from(&change.new); }
         }
+        candidate.rename_triggers(changes.iter().map(|c| (c.old.as_str(), c.new.as_str())));
         crate::folders::apply_assignments(&mut settings, &changes);
         let warnings = match yaml_io::save(&self.match_file_path, &candidate, &self.backups_dir) {
             Ok(warnings) => warnings,
@@ -1289,7 +1360,7 @@ impl AppState {
     pub fn export_expansions(&mut self) {
         let export = crate::transfer::build_export(&self.match_file.entries, |trigger| {
             self.settings.folder_of(trigger).map(str::to_string)
-        });
+        }, |trigger| self.match_file.is_off(trigger));
 
         let groups = crate::transfer::groups(&export);
         if groups.len() < 2 {
@@ -1388,8 +1459,10 @@ impl AppState {
         // Kept so a failed write can be taken back: otherwise the list would show expansions that
         // are not in the file, and the next successful save would write them in unasked.
         let previous_entries = self.match_file.entries.clone();
+        let previous_off = self.match_file.off.clone();
         let previous_settings = self.settings.clone();
         self.match_file.entries.extend(merged.added);
+        self.match_file.off.extend(merged.off);
         for (trigger, folder) in &merged.folders {
             self.settings.set_folder(trigger, folder.clone());
         }
@@ -1406,6 +1479,7 @@ impl AppState {
         };
         if !self.save_and_reload(message) {
             self.match_file.entries = previous_entries;
+            self.match_file.off = previous_off;
             self.settings = previous_settings;
             let _ = self.settings_store.save(&self.settings);
             self.touch_list();
@@ -1488,6 +1562,7 @@ impl AppState {
         // What to put back if the file cannot be written. Until `base.yml` has it, the edit exists
         // only in the form — so the form stays, and the list must not show a row that disk lacks.
         let previous_entries = self.match_file.entries.clone();
+        let previous_off = self.match_file.off.clone();
         let previous_settings = self.settings.clone();
 
         match edit.editing_index {
@@ -1496,6 +1571,7 @@ impl AppState {
         }
 
         if let Some(previous_trigger) = &previous_trigger {
+            self.match_file.rename_trigger(previous_trigger, &new_match.trigger);
             self.settings.rename_trigger(previous_trigger, &new_match.trigger);
             self.selection_rename(previous_trigger, &new_match.trigger);
         }
@@ -1509,6 +1585,7 @@ impl AppState {
             // The red banner `save_and_reload` raised says why; the draft is still on screen,
             // untouched, to try again or cancel.
             self.match_file.entries = previous_entries;
+            self.match_file.off = previous_off;
             self.settings = previous_settings;
             let _ = self.settings_store.save(&self.settings);
             if let Some(previous_trigger) = &previous_trigger {

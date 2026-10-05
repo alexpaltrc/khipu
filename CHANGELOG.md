@@ -5,6 +5,17 @@ was published.
 
 ## Unreleased
 
+### Added
+
+- **Expansions can be switched off without deleting them.** Each expansion's detail has a
+  Status switch: off, it no longer expands and leaves the launcher, but it stays in the list,
+  dimmer and at the end of its folder, to copy its text from or turn back on — handy for texts
+  you reuse now and then that need no trigger. Several can be switched at once from the
+  selection bar, and a whole folder from its options. Turned back on, they expand and show in
+  the launcher again. Switched-off expansions are kept in `_disabled.yml`, beside `base.yml`,
+  a file Espanso does not load; exports carry the switch, so they arrive off on the next machine
+  too.
+
 ## 0.0.4 — 2026-10-04
 
 ### Added

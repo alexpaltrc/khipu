@@ -20,6 +20,10 @@
 //! Reading and writing `base.yml` — the user's own file, which espanso is watching at the same
 //! time.
 //!
+//! And the file beside it that holds the expansions switched off, `_disabled.yml`: espanso skips
+//! any file whose name starts with an underscore. One library in memory, two files on disk; see
+//! [`save`] for the order they are written in.
+//!
 //! A save is: validate, serialize, re-parse the result as a self-check, back the old file up, write
 //! to a scratch file beside it, flush, then rename over the top. The rename is what makes it safe
 //! against espanso opening the file mid-write; the flush is what makes it safe against the power
@@ -88,9 +92,33 @@ impl LoadError {
     }
 }
 
+/// The file of switched-off expansions that goes with the `base.yml` at `path`.
+pub fn off_path(path: &Path) -> PathBuf {
+    path.with_file_name(super::model::OFF_FILE)
+}
+
+/// Reads the library: `base.yml` and, if there is one, the file of switched-off expansions beside
+/// it.
+///
+/// Either file failing to read is a failure of the whole load, so the app refuses to save — a
+/// `_disabled.yml` that could not be read would otherwise be written over with nothing. A missing
+/// `base.yml` is reported as missing only when there is no file of switched-off expansions either:
+/// with one, the library is simply all switched off.
 pub fn load(path: &Path) -> Result<MatchFile, LoadError> {
-    let contents = std::fs::read_to_string(path).map_err(LoadError::Io)?;
-    MatchFile::from_str(&contents).map_err(LoadError::Parse)
+    let off = match std::fs::read_to_string(off_path(path)) {
+        Ok(text) => Some(MatchFile::from_str(&text).map_err(LoadError::Parse)?),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(LoadError::Io(e)),
+    };
+    let mut mf = match std::fs::read_to_string(path) {
+        Ok(contents) => MatchFile::from_str(&contents).map_err(LoadError::Parse)?,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound && off.is_some() => MatchFile::default(),
+        Err(e) => return Err(LoadError::Io(e)),
+    };
+    if let Some(off) = off {
+        mf.take_off_file(off);
+    }
+    Ok(mf)
 }
 
 #[derive(Debug)]
@@ -151,21 +179,77 @@ impl SaveWarnings {
 /// the bytes are on the disk before the rename that makes them the expansions file.
 ///
 /// Returns what degraded on the way, for the caller to put on screen.
+///
+/// The library is two files (see [`MatchFile::split`]), and they cannot be replaced in one step.
+/// So the order is chosen to make the moment between the two harmless: when an expansion is being
+/// switched on, `base.yml` gains it before the other file loses it; when one is being switched
+/// off, the other file gains it before `base.yml` loses it. Interrupted at any point, an expansion
+/// is in both files or in its old one, never in neither — and [`load`] reads one that is in both
+/// as on. The file of switched-off expansions is only rewritten when it changes, and removed when
+/// it would be empty, so a library that never switches anything off never has one.
 pub fn save(path: &Path, mf: &MatchFile, backups_dir: &Path) -> Result<SaveWarnings, SaveError> {
     let issues = validate(mf);
     if !issues.is_empty() {
         return Err(SaveError::Validation(issues));
     }
 
-    let rendered = mf
+    let (base, off) = mf.split();
+    let rendered = base
         .to_string_with_banner()
         .map_err(SaveError::SelfCheckFailed)?;
     MatchFile::from_str(&rendered).map_err(SaveError::SelfCheckFailed)?;
+    let off_rendered = if off.entries.is_empty() && off.extra_top_level.is_empty() {
+        None
+    } else {
+        let text = off.to_string_as_off_file().map_err(SaveError::SelfCheckFailed)?;
+        MatchFile::from_str(&text).map_err(SaveError::SelfCheckFailed)?;
+        Some(text)
+    };
 
+    let off_path = off_path(path);
+    let off_on_disk = std::fs::read_to_string(&off_path).ok();
     let mut warnings = SaveWarnings::default();
+    if off_rendered == off_on_disk {
+        write_one(path, &rendered, backups_dir, &mut warnings)?;
+        return Ok(warnings);
+    }
+    // Does the switched-off file lose anything it has on disk now? Then something is being
+    // switched on, and `base.yml` goes first.
+    let losing = off_on_disk
+        .as_deref()
+        .and_then(|text| MatchFile::from_str(text).ok())
+        .is_some_and(|old| {
+            old.entries.iter().any(|e| {
+                matches!(e, MatchEntry::Simple(m) if !off.entries.iter().any(|n| n.trigger_str() == m.trigger))
+            })
+        });
+    if losing {
+        write_one(path, &rendered, backups_dir, &mut warnings)?;
+    }
+    match &off_rendered {
+        Some(text) => write_one(&off_path, text, backups_dir, &mut warnings)?,
+        None => {
+            if let Err(e) = backup(&off_path, backups_dir, &mut warnings) {
+                warnings.backup = Some(e);
+            }
+            std::fs::remove_file(&off_path).map_err(SaveError::Io)?;
+        }
+    }
+    if !losing {
+        write_one(path, &rendered, backups_dir, &mut warnings)?;
+    }
+    Ok(warnings)
+}
 
+/// Backs up one file and replaces it atomically with `rendered`.
+fn write_one(
+    path: &Path,
+    rendered: &str,
+    backups_dir: &Path,
+    warnings: &mut SaveWarnings,
+) -> Result<(), SaveError> {
     if path.exists() {
-        if let Err(e) = backup(path, backups_dir, &mut warnings) {
+        if let Err(e) = backup(path, backups_dir, warnings) {
             warnings.backup = Some(e);
         }
     }
@@ -194,7 +278,7 @@ pub fn save(path: &Path, mf: &MatchFile, backups_dir: &Path) -> Result<SaveWarni
         let _ = std::fs::remove_file(&tmp_path);
         return Err(SaveError::Io(e));
     }
-    Ok(warnings)
+    Ok(())
 }
 
 fn backup(
@@ -266,6 +350,7 @@ mod tests {
                 label: None,
             })],
             extra_top_level: Default::default(),
+            ..Default::default()
         }
     }
 
@@ -350,5 +435,71 @@ mod tests {
         // error.
         let reloaded = load(&path).unwrap();
         assert_eq!(reloaded.entries[0].trigger_str(), ":dos");
+    }
+
+    fn two_matches() -> MatchFile {
+        let mut mf = one_match(":uno");
+        mf.entries.extend(one_match(":dos").entries);
+        mf
+    }
+
+    #[test]
+    fn switching_off_moves_the_expansion_to_the_file_espanso_skips_and_back() {
+        let dir = scratch("off");
+        let path = dir.join("base.yml");
+        let backups = dir.join("backups");
+        let mut mf = two_matches();
+        save(&path, &mf, &backups).unwrap();
+        assert!(!off_path(&path).exists(), "nothing off, no second file");
+
+        mf.off.insert(":dos".to_string());
+        save(&path, &mf, &backups).unwrap();
+        let base = std::fs::read_to_string(&path).unwrap();
+        let off = std::fs::read_to_string(off_path(&path)).unwrap();
+        assert!(base.contains(":uno") && !base.contains(":dos"));
+        assert!(off.contains(":dos") && !off.contains(":uno"));
+        assert!(off_path(&path).file_name().unwrap().to_string_lossy().starts_with('_'));
+
+        let reloaded = load(&path).unwrap();
+        assert_eq!(reloaded.entries.len(), 2);
+        assert!(reloaded.is_off(":dos") && !reloaded.is_off(":uno"));
+
+        mf.off.clear();
+        save(&path, &mf, &backups).unwrap();
+        assert!(!off_path(&path).exists(), "an empty second file is removed, not left empty");
+        assert!(std::fs::read_to_string(&path).unwrap().contains(":dos"));
+    }
+
+    #[test]
+    fn a_library_that_is_all_switched_off_still_loads() {
+        let dir = scratch("alloff");
+        let path = dir.join("base.yml");
+        std::fs::write(off_path(&path), "matches:\n  - trigger: \":uno\"\n    replace: hola\n").unwrap();
+        let mf = load(&path).unwrap();
+        assert_eq!(mf.entries.len(), 1);
+        assert!(mf.is_off(":uno"));
+    }
+
+    /// What a save interrupted between its two files leaves: the expansion in both. The copy that
+    /// fires wins; an identical one in the other file is the leftover and goes, a different one
+    /// is someone's text and stays.
+    #[test]
+    fn an_expansion_in_both_files_is_on_and_only_a_different_copy_is_kept() {
+        let dir = scratch("both");
+        let path = dir.join("base.yml");
+        std::fs::write(&path, "matches:\n  - trigger: \":uno\"\n    replace: hola\n").unwrap();
+        std::fs::write(
+            off_path(&path),
+            "matches:\n  - trigger: \":uno\"\n    replace: hola\n  - trigger: \":uno\"\n    replace: otra\n",
+        )
+        .unwrap();
+        let mf = load(&path).unwrap();
+        assert_eq!(mf.entries.len(), 1);
+        assert!(!mf.is_off(":uno"));
+        assert_eq!(mf.off_kept.len(), 1);
+
+        save(&path, &mf, &dir.join("backups")).unwrap();
+        let off = std::fs::read_to_string(off_path(&path)).unwrap();
+        assert!(off.contains("otra") && !off.contains("hola"));
     }
 }

@@ -1225,6 +1225,10 @@ fn bulk_bar(ui: &mut egui::Ui, state: &mut AppState, list: &ListCache, visible: 
     let mut unfile = false;
     let mut delete = false;
     let mut done = false;
+    let mut switch_to: Option<bool> = None;
+    // One button, worded for what it would do: with every ticked expansion already off it turns
+    // them on, and with any of them on it turns them all off.
+    let all_off = any && state.selected.iter().all(|t| state.match_file.is_off(t));
 
     controls::inset_frame(ui).show(ui, |ui| {
         ui.set_width(ui.available_width());
@@ -1252,6 +1256,14 @@ fn bulk_bar(ui: &mut egui::Ui, state: &mut AppState, list: &ListCache, visible: 
                 .clicked()
             {
                 unfile = true;
+            }
+            let switch_label = if all_off {
+                studio::text(state, "Encender", "Turn on", "Buksan", "चालू करें")
+            } else {
+                studio::text(state, "Apagar", "Turn off", "Patayin", "बंद करें")
+            };
+            if controls::button(ui, switch_label, Tone::Normal, any).clicked() {
+                switch_to = Some(!all_off);
             }
             let delete_tip = keys::tip(t.delete_selected, keys::DELETE, lang);
             if controls::button(ui, t.delete_selected, Tone::Danger, any)
@@ -1293,6 +1305,10 @@ fn bulk_bar(ui: &mut egui::Ui, state: &mut AppState, list: &ListCache, visible: 
             .cloned()
             .collect();
         state.assign_folder_to_triggers(&triggers, None);
+    }
+    if let Some(off) = switch_to {
+        let triggers: Vec<String> = state.selected.iter().cloned().collect();
+        state.set_off(&triggers, off);
     }
     if delete {
         state.request_delete_selected();
@@ -1928,7 +1944,14 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                     controls::paint_checkbox(ui, rect, is_selected);
                 }
 
-                let strong = ui.visuals().strong_text_color();
+                // A switched-off expansion is still here to read and to switch back on, so it stays a
+                // row like any other; it only steps back, trigger and text alike, to the colour of
+                // something that cannot be used right now.
+                let strong = if row.off {
+                    crate::app::disabled_text(is_light)
+                } else {
+                    ui.visuals().strong_text_color()
+                };
                 let trigger_text = || egui::RichText::new(&row.trigger).monospace().color(strong);
                 // A hard column, not a minimum: a trigger wider than the column is cut short here
                 // and shown whole in the detail. Letting it push past instead would move the start
@@ -1967,7 +1990,11 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                     ui.add_space(padding);
                 }
                 ui.add(
-                    egui::Label::new(controls::muted(&row.preview, is_light))
+                    egui::Label::new(if row.off {
+                        egui::RichText::new(&row.preview).color(crate::app::disabled_text(is_light))
+                    } else {
+                        controls::muted(&row.preview, is_light)
+                    })
                         .truncate()
                         .selectable(false),
                 );
@@ -1980,8 +2007,13 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
 // ---------------------------------------------------------------------------------------------
 
 /// Room kept under the text box for what follows it: the gap, the folder's caption and line, the
-/// gap, the row of actions, and the card's own bottom margin and edge.
+/// gap, the status's caption and switch, the gap, the row of actions, and the card's own
+/// bottom margin and edge.
 const INSPECTOR_FOOT: f32 = controls::GAP_SECTION
+    + 18.0
+    + controls::GAP_TIGHT
+    + 24.0
+    + controls::GAP_SECTION
     + 18.0
     + controls::GAP_TIGHT
     + 24.0
@@ -2014,6 +2046,8 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
         .find(|e| e.trigger_str() == trigger)
         .map(|e| e.full_text(t));
     let folder = state.settings.folder_of(trigger).map(str::to_owned);
+    let was_off = state.match_file.is_off(trigger);
+    let mut switch_to: Option<bool> = None;
     let close_tip = keys::tip(
         studio::text(state, "Cerrar", "Close", "Isara", "बंद करें"),
         keys::BACK,
@@ -2100,6 +2134,35 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
             ui.add(egui::Label::new(truncate(name, 40)).truncate());
         });
 
+        // On or off, said by the switch itself and by the word beside it. A simple expansion only:
+        // anything the form cannot edit never reaches the list, and so never reaches this.
+        ui.add_space(controls::GAP_SECTION);
+        ui.label(controls::small_muted(
+            studio::text(state, "Estado", "Status", "Katayuan", "स्थिति"),
+            is_light,
+        ));
+        ui.add_space(controls::GAP_TIGHT);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = controls::GAP;
+            let mut on = !was_off;
+            let tip = studio::text(
+                state,
+                "Apagada, no se expande ni aparece en el lanzador. Sigue aquí para encenderla cuando haga falta.",
+                "Off, it neither expands nor shows in the launcher. It stays here, to turn back on when needed.",
+                "Kapag nakapatay, hindi ito nag-e-expand at wala sa launcher. Nananatili ito rito para buksan muli kapag kailangan.",
+                "बंद होने पर यह न विस्तार करता है, न लॉन्चर में दिखता है। यह यहीं रहता है, ज़रूरत पर फिर से चालू करने के लिए।",
+            );
+            if controls::toggle(ui, &mut on).on_hover_text(tip).changed() {
+                switch_to = Some(!on);
+            }
+            let word = if was_off {
+                studio::text(state, "Apagada", "Off", "Nakapatay", "बंद")
+            } else {
+                studio::text(state, "Activada", "On", "Nakabukas", "चालू")
+            };
+            ui.label(word);
+        });
+
         ui.add_space(controls::GAP_SECTION);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = controls::GAP;
@@ -2178,6 +2241,9 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
     }
     if unfile {
         state.assign_folder_to_triggers(&[trigger.to_owned()], None);
+    }
+    if let Some(off) = switch_to {
+        state.set_off(&[trigger.to_owned()], off);
     }
     if delete {
         if let Some(index) = entry_index(state, trigger) {

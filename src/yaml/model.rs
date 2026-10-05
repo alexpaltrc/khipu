@@ -27,6 +27,8 @@
 //!   unchanged. `is_safely_editable` is what the interface asks before offering to edit a row.
 //! - `MatchFile::extra_top_level` does the same for keys beside `matches:` that we know nothing
 //!   about, such as `global_vars`.
+//! - `MatchFile::off_kept` and `off_top_level` do both for `_disabled.yml`, the file of expansions
+//!   switched off, which gets the same promise in a banner of its own.
 //!
 //! Which is why a `matches:` that is neither a list nor absent is a hard error rather than an empty
 //! file: taking it for "no expansions" and saving over it would delete everything the user had,
@@ -36,6 +38,7 @@
 use crate::i18n::Strings;
 use serde::{Deserialize, Serialize};
 use serde_norway::{Mapping, Value};
+use std::collections::BTreeSet;
 
 /// A `vars:` entry inside a match, e.g. the "current date" variable.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -240,11 +243,33 @@ fn to_value(entry: &MatchEntry) -> Value {
 
 /// A whole `*.yml` match file: our editable list of matches, plus any top-level keys we don't
 /// touch (e.g. `global_vars:`, `imports:`) preserved exactly as read.
+///
+/// Read from disk it is the whole library, and that is two files: `base.yml` and the expansions
+/// that are switched off, in [`OFF_FILE`] beside it. In memory they are one list — `entries` holds
+/// both, and `off` says which are off — so that everything that looks a trigger up (the duplicate
+/// check, folders, the editor, an import) sees an expansion that is off exactly as it sees one that
+/// is on. Only [`split`](Self::split) tells them apart, on the way back to disk.
 #[derive(Debug, Clone, Default)]
 pub struct MatchFile {
     pub entries: Vec<MatchEntry>,
     pub extra_top_level: Mapping,
+    /// Triggers of the expansions that are switched off. Only ever names a `Simple` entry.
+    pub off: BTreeSet<String>,
+    /// What the file of switched-off expansions holds that is not an expansion this app shows: a
+    /// match the form cannot edit, or a second copy of a trigger `base.yml` already has. Written
+    /// back to that file untouched, never shown and never switched on — the same promise
+    /// `Advanced` keeps for `base.yml`.
+    pub off_kept: Vec<Value>,
+    /// Top-level keys of that file other than `matches:`, kept as read.
+    pub off_top_level: Mapping,
 }
+
+/// Where the switched-off expansions live, beside `base.yml`.
+///
+/// Espanso loads every file in its `match` folder **except** the ones whose name starts with an
+/// underscore — its documented way to keep a file it should not read. So these are still a match
+/// file in espanso's own format, readable and movable by hand, and none of them fires.
+pub const OFF_FILE: &str = "_disabled.yml";
 
 impl MatchFile {
     pub fn from_str(contents: &str) -> Result<Self, serde_norway::Error> {
@@ -288,17 +313,118 @@ impl MatchFile {
         Ok(MatchFile {
             entries,
             extra_top_level: top,
+            ..Default::default()
         })
     }
 
-    pub fn to_string_with_banner(&self) -> Result<String, serde_norway::Error> {
+    pub fn is_off(&self, trigger: &str) -> bool {
+        self.off.contains(trigger)
+    }
+
+    /// Takes in the file of switched-off expansions, read on its own with [`from_str`].
+    ///
+    /// Each expansion this app shows joins `entries` and is marked off. Anything else stays in
+    /// `off_kept`, including an expansion whose trigger `base.yml` already has: the one that fires
+    /// wins, and the other is kept where it was rather than dropped, since it may not say the same.
+    /// One that says exactly the same is dropped: that is what a save interrupted between its two
+    /// files leaves behind (see [`save`](super::io::save)), and keeping it would carry a dead copy
+    /// along for ever.
+    ///
+    /// [`from_str`]: Self::from_str
+    pub fn take_off_file(&mut self, file: MatchFile) {
+        for entry in file.entries {
+            if let MatchEntry::Simple(m) = &entry {
+                let same = |e: &MatchEntry| matches!(e, MatchEntry::Simple(b) if b == m);
+                if self.entries.iter().any(same) {
+                    continue;
+                }
+            }
+            match entry {
+                MatchEntry::Simple(m)
+                    if !m.trigger.trim().is_empty()
+                        && !self.entries.iter().any(|e| e.trigger_str() == m.trigger) =>
+                {
+                    self.off.insert(m.trigger.clone());
+                    self.entries.push(MatchEntry::Simple(m));
+                }
+                other => self.off_kept.push(to_value(&other)),
+            }
+        }
+        self.off_top_level = file.extra_top_level;
+    }
+
+    /// The two files this library is written to: what espanso loads, and what is switched off.
+    pub fn split(&self) -> (MatchFile, MatchFile) {
+        let (off, on): (Vec<&MatchEntry>, Vec<&MatchEntry>) = self
+            .entries
+            .iter()
+            .partition(|e| matches!(e, MatchEntry::Simple(m) if self.off.contains(&m.trigger)));
+        let base = MatchFile {
+            entries: on.into_iter().cloned().collect(),
+            extra_top_level: self.extra_top_level.clone(),
+            ..Default::default()
+        };
+        let mut off_entries: Vec<MatchEntry> = off.into_iter().cloned().collect();
+        off_entries.extend(self.off_kept.iter().cloned().map(MatchEntry::Advanced));
+        let off_file = MatchFile {
+            entries: off_entries,
+            extra_top_level: self.off_top_level.clone(),
+            ..Default::default()
+        };
+        (base, off_file)
+    }
+
+    /// Moves the off mark with a trigger that changes, the way the folder assignment moves.
+    pub fn rename_trigger(&mut self, old: &str, new: &str) {
+        self.rename_triggers([(old, new)]);
+    }
+
+    /// The same for many renames made at once. Every mark is lifted before any is set down, so a
+    /// chain — `:a` becomes `:b` while `:b` becomes `:c` — moves each mark one step and no further.
+    pub fn rename_triggers<'a>(&mut self, renames: impl IntoIterator<Item = (&'a str, &'a str)>) {
+        let moving: Vec<(&str, &str)> = renames
+            .into_iter()
+            .filter(|(old, new)| old != new && self.off.contains(*old))
+            .collect();
+        for (old, _) in &moving {
+            self.off.remove(*old);
+        }
+        for (_, new) in moving {
+            self.off.insert(new.to_string());
+        }
+    }
+
+    /// Forgets the mark of every trigger that is no longer in the list, so an expansion made later
+    /// with the same trigger is not born switched off.
+    pub fn prune_off(&mut self) {
+        let present: std::collections::HashSet<&str> =
+            self.entries.iter().map(MatchEntry::trigger_str).collect();
+        self.off.retain(|t| present.contains(t.as_str()));
+    }
+
+    /// The file of switched-off expansions as text, with a banner of its own saying why espanso
+    /// leaves it alone.
+    pub fn to_string_as_off_file(&self) -> Result<String, serde_norway::Error> {
+        let body = self.body()?;
+        Ok(format!(
+            "# Expansions switched off in Espanso Manager. Espanso does not load files whose name\n\
+             # starts with an underscore, so none of these fire. Turn them back on in the app.\n\
+             # https://espanso.org/docs/\n\n{body}"
+        ))
+    }
+
+    fn body(&self) -> Result<String, serde_norway::Error> {
         let mut root = Mapping::new();
         let seq: Vec<Value> = self.entries.iter().map(to_value).collect();
         root.insert(Value::String("matches".to_string()), Value::Sequence(seq));
         for (k, v) in &self.extra_top_level {
             root.insert(k.clone(), v.clone());
         }
-        let body = serde_norway::to_string(&Value::Mapping(root))?;
+        serde_norway::to_string(&Value::Mapping(root))
+    }
+
+    pub fn to_string_with_banner(&self) -> Result<String, serde_norway::Error> {
+        let body = self.body()?;
         Ok(format!(
             // Kept in English regardless of interface language: this is a comment inside a shared
             // config file that a colleague or a support engineer may open on any machine.
@@ -388,5 +514,13 @@ mod tests {
         assert!(mf
             .extra_top_level
             .contains_key(Value::String("imports".to_string())));
+    }
+
+    #[test]
+    fn a_chain_of_renames_moves_each_off_mark_one_step() {
+        let mut mf = MatchFile::default();
+        mf.off.insert(":a".to_string());
+        mf.rename_triggers([(":a", ":b"), (":b", ":c")]);
+        assert_eq!(mf.off.iter().collect::<Vec<_>>(), [":b"]);
     }
 }

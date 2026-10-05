@@ -17,10 +17,10 @@
  * along with Espanso Manager.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//! Everything that can be done *to* a folder rather than inside it: rename it, change the prefix
-//! of its triggers, export it, delete it.
+//! Everything that can be done *to* a folder rather than inside it: rename it, switch its
+//! expansions off or on, change the prefix of its triggers, export it, delete it.
 //!
-//! A screen and not a permanent panel. These are four things a person does to a folder perhaps
+//! A screen and not a permanent panel. These are five things a person does to a folder perhaps
 //! twice in its life; a side panel showing them at all times spends a fifth of the window on them
 //! for ever, and the library is what the window is *for*. Reached from a folder chip, one step
 //! back — and the step back restores the filter, so the user lands where they came from.
@@ -57,7 +57,7 @@ fn draft_key(folder: &str) -> egui::Id {
     egui::Id::new("folder-prefix-draft").with(folder)
 }
 
-/// Between the four things this screen does. With no card around each, the space is what tells
+/// Between the five things this screen does. With no card around each, the space is what tells
 /// them apart; the editor uses the same.
 const PART_GAP: f32 = 28.0;
 
@@ -132,6 +132,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             ui.add_space(PART_GAP);
 
             name_section(ui, state, is_light);
+            ui.add_space(PART_GAP);
+            switch_section(ui, state, &folder, is_light);
             ui.add_space(PART_GAP);
             prefix_section(ui, state, &folder, &prefixes, is_light);
             ui.add_space(PART_GAP);
@@ -401,6 +403,82 @@ fn export_section(
         if controls::button(ui, label, Tone::Normal, count > 0).clicked() {
             state.export_folder(folder);
         }
+    });
+}
+
+// ----------------------------------------------------------------------------------------------
+// On and off
+// ----------------------------------------------------------------------------------------------
+
+/// Switches every expansion in the folder off, or back on. Not a state of the folder: a folder is
+/// only the assignments of its triggers, so this does to all of them at once what the switch in
+/// the detail does to one. Both buttons stay, each live while there is something for it to do — a
+/// folder with some of each can go either way.
+fn switch_section(ui: &mut egui::Ui, state: &mut AppState, folder: &str, is_light: bool) {
+    let triggers: Vec<String> = state
+        .match_file
+        .entries
+        .iter()
+        .filter_map(|e| match e {
+            crate::yaml::model::MatchEntry::Simple(m)
+                if state.settings.folder_of(&m.trigger) == Some(folder) =>
+            {
+                Some(m.trigger.clone())
+            }
+            _ => None,
+        })
+        .collect();
+    let off = triggers.iter().filter(|t| state.match_file.is_off(t)).count();
+    let on = triggers.len() - off;
+
+    ui.vertical(|ui| {
+        ui.set_width(ui.available_width());
+        ui.label(controls::h3(studio::text(
+            state,
+            "Apagar o encender",
+            "Turn off or on",
+            "Patayin o buksan",
+            "बंद या चालू करें",
+        )));
+        ui.add_space(controls::GAP);
+        ui.label(controls::muted(
+            studio::text(
+                state,
+                "Apagadas, sus expansiones no se expanden ni aparecen en el lanzador, pero siguen aquí, al final de la carpeta.",
+                "Off, its expansions neither expand nor show in the launcher, but they stay here, at the end of the folder.",
+                "Kapag nakapatay, hindi nag-e-expand ang mga expansion nito at wala sa launcher, pero nananatili rito sa dulo ng folder.",
+                "बंद होने पर इसके विस्तार न विस्तार करते हैं, न लॉन्चर में दिखते हैं, पर फ़ोल्डर के अंत में यहीं रहते हैं।",
+            ),
+            is_light,
+        ));
+        if off > 0 && on > 0 {
+            ui.add_space(controls::GAP_TIGHT);
+            ui.label(controls::small_muted(
+                crate::i18n::fill(
+                    studio::text(
+                        state,
+                        "{k} de {n} apagadas.",
+                        "{k} of {n} off.",
+                        "{k} sa {n} ang nakapatay.",
+                        "{n} में से {k} बंद।",
+                    ),
+                    &[("k", &off.to_string()), ("n", &triggers.len().to_string())],
+                ),
+                is_light,
+            ));
+        }
+        ui.add_space(controls::GAP_ROW);
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(controls::GAP, controls::GAP);
+            let turn_off = studio::text(state, "Apagar la carpeta", "Turn folder off", "Patayin ang folder", "फ़ोल्डर बंद करें");
+            if controls::button(ui, turn_off, Tone::Normal, on > 0).clicked() {
+                state.set_off(&triggers, true);
+            }
+            let turn_on = studio::text(state, "Encender la carpeta", "Turn folder on", "Buksan ang folder", "फ़ोल्डर चालू करें");
+            if controls::button(ui, turn_on, Tone::Normal, off > 0).clicked() {
+                state.set_off(&triggers, false);
+            }
+        });
     });
 }
 

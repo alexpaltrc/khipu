@@ -352,6 +352,8 @@ pub struct Strings {
     pub folder_renamed: &'static str,
     pub moved_to_folder: &'static str,
     pub removed_from_folder: &'static str,
+    pub turned_off: &'static str,
+    pub turned_on: &'static str,
 
     // --- match previews ------------------------------------------------------------------
     pub preview_date: &'static str,
@@ -566,6 +568,8 @@ pub static EN: Strings = Strings {
     folder_renamed: "Folder renamed to \"{name}\".",
     moved_to_folder: "{n} expansion moved to \"{name}\".|{n} expansions moved to \"{name}\".",
     removed_from_folder: "{n} expansion taken out of its folder.|{n} expansions taken out of their folder.",
+    turned_off: "{n} expansion turned off.|{n} expansions turned off.",
+    turned_on: "{n} expansion turned back on.|{n} expansions turned back on.",
 
     preview_date: "Date/time — e.g. {example}",
     preview_advanced_vars: "Advanced (uses special variables) — edit it in the .yml file",
@@ -766,6 +770,8 @@ pub static ES: Strings = Strings {
     folder_renamed: "Carpeta renombrada a \"{name}\".",
     moved_to_folder: "{n} expansión movida a \"{name}\".|{n} expansiones movidas a \"{name}\".",
     removed_from_folder: "{n} expansión quitada de su carpeta.|{n} expansiones quitadas de su carpeta.",
+    turned_off: "{n} expansión apagada.|{n} expansiones apagadas.",
+    turned_on: "{n} expansión encendida de nuevo.|{n} expansiones encendidas de nuevo.",
 
     preview_date: "Fecha/hora — ej. {example}",
     preview_advanced_vars: "Avanzado (usa variables especiales) — edítalo en el archivo .yml",
@@ -966,6 +972,8 @@ pub static FIL: Strings = Strings {
     folder_renamed: "Pinalitan ang pangalan ng folder tungong \"{name}\".",
     moved_to_folder: "{n} expansion ang inilipat sa \"{name}\".|{n} expansion ang inilipat sa \"{name}\".",
     removed_from_folder: "{n} expansion ang inilabas sa folder nito.|{n} expansion ang inilabas sa kanilang folder.",
+    turned_off: "Pinatay ang {n} expansion.|Pinatay ang {n} expansion.",
+    turned_on: "Binuksan muli ang {n} expansion.|Binuksan muli ang {n} expansion.",
 
     preview_date: "Petsa/oras — hal. {example}",
     preview_advanced_vars: "Advanced (gumagamit ng espesyal na variable) — i-edit ito sa .yml file",
@@ -1166,6 +1174,8 @@ pub static HI: Strings = Strings {
     folder_renamed: "फ़ोल्डर का नाम बदलकर \"{name}\" कर दिया गया।",
     moved_to_folder: "{n} विस्तार \"{name}\" में ले जाया गया।|{n} विस्तार \"{name}\" में ले जाए गए।",
     removed_from_folder: "{n} विस्तार अपने फ़ोल्डर से बाहर निकाला गया।|{n} विस्तार अपने फ़ोल्डर से बाहर निकाले गए।",
+    turned_off: "{n} विस्तार बंद किया गया।|{n} विस्तार बंद किए गए।",
+    turned_on: "{n} विस्तार फिर से चालू किया गया।|{n} विस्तार फिर से चालू किए गए।",
 
     preview_date: "दिनांक/समय — जैसे {example}",
     preview_advanced_vars: "उन्नत (विशेष वेरिएबल का उपयोग करता है) — इसे .yml फ़ाइल में संपादित करें",

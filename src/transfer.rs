@@ -63,6 +63,15 @@ pub struct ExportEntry {
     /// organised the way its author left it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
+    /// Switched off where it came from, and so switched off where it lands. Left out of the file
+    /// when false, so an export of nothing but switched-on expansions reads as it always did,
+    /// and an older build that does not know the key still reads every file this one writes.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub off: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// What went wrong, in terms the caller can turn into a sentence for the user.
@@ -84,6 +93,7 @@ pub enum TransferError {
 pub fn build_export(
     entries: &[MatchEntry],
     folder_of: impl Fn(&str) -> Option<String>,
+    is_off: impl Fn(&str) -> bool,
 ) -> Export {
     let expansions = entries
         .iter()
@@ -94,6 +104,7 @@ pub fn build_export(
                 replace: m.replace.clone(),
                 vars: m.vars.clone(),
                 folder: folder_of(&m.trigger),
+                off: is_off(&m.trigger),
             }),
             MatchEntry::Advanced(_) => None,
         })
@@ -234,6 +245,8 @@ pub struct Merged {
     pub added: Vec<MatchEntry>,
     /// Folder to file each added expansion under, paired by trigger.
     pub folders: Vec<(String, Option<String>)>,
+    /// Triggers of the added expansions that arrive switched off.
+    pub off: Vec<String>,
     /// Triggers that were left alone because that trigger was already in use.
     pub skipped: usize,
 }
@@ -259,6 +272,7 @@ pub fn merge(existing: &[MatchEntry], export: Export) -> Merged {
 
     let mut added = Vec::new();
     let mut folders = Vec::new();
+    let mut off = Vec::new();
     let mut skipped = 0usize;
 
     for entry in export.expansions {
@@ -280,6 +294,9 @@ pub fn merge(existing: &[MatchEntry], export: Export) -> Merged {
         // The trigger is claimed only once the entry is actually accepted. Claiming it earlier
         // would let a rejected entry shadow a good one further down the same file.
         taken.insert(trigger.clone());
+        if entry.off {
+            off.push(trigger.clone());
+        }
         folders.push((trigger, entry.folder));
         added.push(candidate);
     }
@@ -287,6 +304,7 @@ pub fn merge(existing: &[MatchEntry], export: Export) -> Merged {
     Merged {
         added,
         folders,
+        off,
         skipped,
     }
 }
@@ -307,6 +325,7 @@ mod tests {
             replace: "texto".to_string(),
             vars,
             folder: None,
+            off: false,
         }
     }
 
@@ -489,5 +508,20 @@ mod tests {
             .map(|e| e.trigger.as_str())
             .collect();
         assert_eq!(triggers, vec!["a"]);
+    }
+
+    /// Switched off on one machine, switched off on the next; and a file with nothing off in it
+    /// carries no `off:` key at all, so it reads exactly as files did before there was one.
+    #[test]
+    fn the_off_mark_travels_and_is_absent_when_false() {
+        let mut off = entry(":dos", Vec::new());
+        off.off = true;
+        let text = serde_norway::to_string(&doc(vec![entry(":uno", Vec::new()), off])).unwrap();
+        assert_eq!(text.matches("off:").count(), 1);
+
+        let read: Export = serde_norway::from_str(&text).unwrap();
+        let merged = merge(&[], read);
+        assert_eq!(merged.added.len(), 2);
+        assert_eq!(merged.off, vec![":dos".to_string()]);
     }
 }
