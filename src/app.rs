@@ -2966,14 +2966,58 @@ pub fn infobar(ui: &mut egui::Ui, banner: &Banner, t: &Strings) -> (bool, bool) 
     (close, undo)
 }
 
+/// The preview build, opened behind everything for screenshots, takes its clicks from
+/// `preview-clicks.txt` beside the exe: one `x,y` per line, in window pixels. Windows cannot
+/// deliver them: off-screen, the real cursor is never over the window, every synthetic move is
+/// followed by a leave, and winit drops a press that arrives without a position. Each click is
+/// spread over frames as a hand would make it: move and press, release, then away.
+fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+    use std::collections::VecDeque;
+    use std::sync::Mutex;
+    static QUEUE: Mutex<VecDeque<Vec<egui::Event>>> = Mutex::new(VecDeque::new());
+
+    raw_input.events.retain(|e| !matches!(e, egui::Event::PointerGone | egui::Event::PointerButton { .. }));
+    let Ok(mut queue) = QUEUE.lock() else { return };
+    let file = std::env::current_exe().ok().and_then(|exe| Some(exe.parent()?.join("preview-clicks.txt")));
+    let text = file.as_ref().and_then(|f| std::fs::read_to_string(f).ok());
+    if let (Some(file), Some(text)) = (file, text) {
+        let _ = std::fs::remove_file(&file);
+        let ppp = ctx.pixels_per_point();
+        for line in text.lines() {
+            let mut xy = line.split(',').filter_map(|n| n.trim().parse::<f32>().ok());
+            let (Some(x), Some(y)) = (xy.next(), xy.next()) else { continue };
+            let pos = egui::pos2(x / ppp, y / ppp);
+            let button = |pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            queue.push_back(vec![egui::Event::PointerMoved(pos)]);
+            queue.push_back(vec![button(true)]);
+            queue.push_back(vec![button(false)]);
+            queue.push_back(vec![]);
+            queue.push_back(vec![]);
+            queue.push_back(vec![egui::Event::PointerMoved(egui::pos2(2.0, raw_input.screen_rect.map_or(2.0, |r| r.max.y - 2.0)))]);
+        }
+    }
+    if let Some(step) = queue.pop_front() {
+        raw_input.events.extend(step);
+    }
+    ctx.request_repaint_after(std::time::Duration::from_millis(50));
+}
+
 impl eframe::App for KhipuApp {
     /// The main window's focus comes from Windows on every frame, not from the last notice winit
     /// passed on: one lost notice used to leave every text box without its caret and highlight
     /// until the window was hidden and opened again. See [`crate::display::has_keyboard_focus`].
     /// The launcher's viewport keeps winit's answer: it is a window of its own, with its own focus.
-    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         if raw_input.viewport_id != egui::ViewportId::ROOT {
             return;
+        }
+        if cfg!(feature = "preview") && std::env::var_os("EM_PREVIEW_BACKGROUND").is_some() {
+            studio_clicks(ctx, raw_input);
         }
         let hwnd = self.window.as_deref().and_then(hwnd_of);
         if let Some(focused) = hwnd.and_then(crate::display::has_keyboard_focus) {
