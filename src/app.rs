@@ -2367,6 +2367,14 @@ impl KhipuApp {
         // type up on precisely the machine we know least about.
         let text_scale = work_area.map_or(1.0, |a| crate::display::text_scale(a.height));
         apply_layout_style(&cc.egui_ctx, text_scale);
+        // The preview build can draw itself at more pixels than the screen's scale gives it, for
+        // images that have to stay sharp at 4K (the Store's screenshots): the whole window, type
+        // and icons, rendered at that factor, not enlarged afterwards.
+        if cfg!(feature = "preview") {
+            if let Some(zoom) = std::env::var("EM_PREVIEW_ZOOM").ok().and_then(|z| z.parse::<f32>().ok()) {
+                cc.egui_ctx.set_zoom_factor(zoom.clamp(1.0, 4.0));
+            }
+        }
         crate::theme::refresh_animations();
         apply_motion(&cc.egui_ctx);
         apply_theme(&cc.egui_ctx, window.as_deref(), is_light);

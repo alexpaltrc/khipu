@@ -339,6 +339,11 @@ fn main() {
     if let Some(icon) = icon {
         viewport = viewport.with_icon(icon);
     }
+    // The preview build can open behind whatever is in use, for screenshots taken while somebody
+    // is typing elsewhere: shown without being activated, so the keyboard stays where it was.
+    if EXPERIMENTAL && std::env::var_os("EM_PREVIEW_BACKGROUND").is_some() {
+        viewport = viewport.with_active(false);
+    }
 
     let native_options = eframe::NativeOptions {
         viewport,
