@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🪢 Khipu
+<img src="assets/khipu/app/Khipu-256.png" alt="" width="96" height="96">
+
+# Khipu
 
 *Formerly Espanso Manager.*
 
@@ -9,7 +11,7 @@
 ![Windows](https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.98-CE422B?logo=rust&logoColor=white)
 ![egui](https://img.shields.io/badge/egui-0.36-7B68EE)
-![Version](https://img.shields.io/badge/version-0.0.4-blue)
+![Version](https://img.shields.io/badge/version-0.0.5-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 ![Portable](https://img.shields.io/badge/portable-no%20installer-2EA043)
 ![Free](https://img.shields.io/badge/free-forever-2EA043)
@@ -17,9 +19,9 @@
 
 **Free forever. No account, nothing sent anywhere.**
 
-### [⬇️ Download for Windows](https://github.com/alexpaltrc/espanso-manager/releases/download/v0.0.4/Espanso-Manager-Portable-0.0.4.zip)
+### [⬇️ Download for Windows](https://github.com/alexpaltrc/khipu/releases/download/v0.0.5/Khipu-Portable-0.0.5.zip)
 
-<sub>10 MB · espanso is in the box · nothing gets installed · unzip and open `Espanso Manager.exe`</sub>
+<sub>10 MB · espanso is in the box · nothing gets installed · unzip and open `Khipu.exe`</sub>
 
 <sub>Not signed yet, so the first run shows *"Windows protected your PC"* → **More info** → **Run anyway**.</sub>
 
@@ -129,7 +131,7 @@ This repository is the **source only** — under 1 MB. It deliberately does not 
 
 | Not here | Why |
 |---|---|
-| 🏗️ `Khipu.exe`, the distribution ZIP | Build outputs. They live in [Releases](https://github.com/alexpaltrc/espanso-manager/releases), which is where build outputs belong. |
+| 🏗️ `Khipu.exe`, the distribution ZIP | Build outputs. They live in [Releases](https://github.com/alexpaltrc/khipu/releases), which is where build outputs belong. |
 | 🧩 `espansod.exe`, `msvcp140*.dll`, … | Not our code. |
 | 🔒 `.espanso/`, `.khipu/`, `.espanso-runtime/` | The user's real expansions and settings. |
 | 🗑️ `target/` | 1.3 GB build cache; regenerates in ~3 minutes. |

@@ -47,7 +47,7 @@ date at the top.
 
 ## Contact
 
-Questions about this policy: https://github.com/alexpaltrc/espanso-manager/issues
+Questions about this policy: https://github.com/alexpaltrc/khipu/issues
 
 ---
 
@@ -100,4 +100,4 @@ nueva arriba.
 
 ## Contacto
 
-Preguntas sobre esta política: https://github.com/alexpaltrc/espanso-manager/issues
+Preguntas sobre esta política: https://github.com/alexpaltrc/khipu/issues

@@ -81,7 +81,7 @@ $sb = New-Object System.Text.StringBuilder
 function L([string]$s = "") { [void]$sb.Append($s).Append("`r`n") }
 
 L "THIRD-PARTY NOTICES"
-L "Khipu - https://github.com/alexpaltrc/espanso-manager"
+L "Khipu - https://github.com/alexpaltrc/khipu"
 L
 L "Khipu is free software by Alex Palacios, licensed under the GNU General Public License,"
 L "version 3 or (at your option) any later version. Its source code is at the address above."

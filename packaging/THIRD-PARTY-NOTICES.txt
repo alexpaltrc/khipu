@@ -1,5 +1,5 @@
 THIRD-PARTY NOTICES
-Khipu - https://github.com/alexpaltrc/espanso-manager
+Khipu - https://github.com/alexpaltrc/khipu
 
 Khipu is free software by Alex Palacios, licensed under the GNU General Public License,
 version 3 or (at your option) any later version. Its source code is at the address above.

@@ -11,7 +11,7 @@ authors = ["Alex Palacios"]
 # one for what ours says.
 license = "GPL-3.0-or-later"
 description = "A desktop window for text expansions on Windows, with espanso included"
-repository = "https://github.com/alexpaltrc/espanso-manager"
+repository = "https://github.com/alexpaltrc/khipu"
 # None of the four lines above reach the executable. `winresource::WindowsResource::new()` reads
 # only CARGO_PKG_VERSION and CARGO_PKG_NAME (checked in winresource 0.1.31, lib.rs:178). In
 # particular it never derives LegalCopyright from `authors`, so that field stays empty, which is
