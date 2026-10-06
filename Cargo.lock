@@ -1333,7 +1333,7 @@ dependencies = [
 
 [[package]]
 name = "khipu"
-version = "0.0.5-dev"
+version = "0.0.5"
 dependencies = [
  "eframe",
  "egui",
