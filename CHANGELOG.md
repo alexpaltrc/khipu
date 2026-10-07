@@ -8,10 +8,11 @@ was published.
 ### Added
 
 - **A hidden theme.** Somewhere in Tips, a few arrow keys pressed in the right order unlock
-  «I got chiiils», a fourth appearance in Khipu's own violet. Once found, Settings opens by
-  itself with the new option outlined and pointed out for a few seconds; it stays in Appearance
-  from then on, and wearing it is up to you. A copy of Khipu from before this version reads the
-  setting as the light theme.
+  «I got chiiills», a fourth appearance in Khipu's own violet, title bar included. Once found,
+  Settings opens by itself with the new option outlined and pointed out for a few seconds; it
+  stays in Appearance from then on, and wearing it is up to you. Going back to another theme
+  gives the title bar back to Windows. If the option is ever lost, the same keys find it again.
+  A copy of Khipu from before this version reads the setting as the light theme.
 
 ## 0.0.5 — 2026-10-05
 

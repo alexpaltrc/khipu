@@ -144,7 +144,7 @@ pub const SPOTLIGHT: std::time::Duration = std::time::Duration::from_secs(4);
 /// One beat of the halo while it is pointed out, in seconds.
 const SPOTLIGHT_BEAT: f32 = 1.2;
 
-/// Sistema, claro, oscuro — and, once found in Consejos, «I got chiiils», outlined in violet.
+/// Sistema, claro, oscuro — and, once found in Consejos, «I got chiiills», outlined in violet.
 ///
 /// The fourth option makes the row longer than the dialog in Filipino («Maliwanag na tema»). Cut
 /// text is not an option, so where the full names do not fit, light and dark drop the word for

@@ -44,7 +44,7 @@ pub enum ThemeMode {
     System,
     Light,
     Dark,
-    /// «I got chiiils»: the hidden theme, Khipu's own violet. Found in Consejos (↑ ↑ ↓ ↓ ← → ← →)
+    /// «I got chiiills»: the hidden theme, Khipu's own violet. Found in Consejos (↑ ↑ ↓ ↓ ← → ← →)
     /// and only offered once found. A light theme as far as egui and the title bar are concerned —
     /// its window is a pale violet — with its own palette laid over the light one in `app.rs`.
     ///

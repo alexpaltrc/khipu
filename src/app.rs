@@ -1742,7 +1742,7 @@ fn rgb(c: [u8; 3]) -> egui::Color32 {
     egui::Color32::from_rgb(c[0], c[1], c[2])
 }
 
-/// Whether the hidden theme («I got chiiils») is the one being worn. Set by [`set_khipu_palette`]
+/// Whether the hidden theme («I got chiiills») is the one being worn. Set by [`set_khipu_palette`]
 /// before the palette is (re)built, read by every token: a flag rather than an argument, because
 /// the drawing code asks for colours by light or dark and has no business knowing there is a third.
 static KHIPU: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -2128,6 +2128,42 @@ pub fn apply_theme(
         } else {
             winit::window::Theme::Dark
         }));
+        // The hidden theme dresses the title bar too, in the window's own violet and ink; every
+        // other theme hands it back to Windows, Mica and all. Decided on every apply, so leaving
+        // the theme — or a contrast theme taking over — undoes it on the same frame.
+        let violet = khipu_palette() && is_light && contrast().is_none();
+        set_title_bar_colours(
+            window,
+            violet.then(|| (win_background(true), win_text(true))),
+        );
+    }
+}
+
+/// Paints the title bar a fixed colour, or with `None` gives it back to Windows. Windows 11 only:
+/// an older one ignores both attributes and keeps the bar it always had.
+fn set_title_bar_colours(window: &winit::window::Window, colours: Option<(egui::Color32, egui::Color32)>) {
+    use windows::Win32::Foundation::COLORREF;
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_CAPTION_COLOR, DWMWA_COLOR_DEFAULT, DWMWA_TEXT_COLOR,
+    };
+    let Some(hwnd) = hwnd_of(window) else {
+        return;
+    };
+    // A COLORREF is 0x00BBGGRR.
+    let colorref = |c: egui::Color32| COLORREF(u32::from_le_bytes([c.r(), c.g(), c.b(), 0]));
+    let (caption, text) = match colours {
+        Some((caption, text)) => (colorref(caption), colorref(text)),
+        None => (COLORREF(DWMWA_COLOR_DEFAULT), COLORREF(DWMWA_COLOR_DEFAULT)),
+    };
+    for (attribute, value) in [(DWMWA_CAPTION_COLOR, caption), (DWMWA_TEXT_COLOR, text)] {
+        unsafe {
+            let _ = DwmSetWindowAttribute(
+                hwnd,
+                attribute,
+                (&value as *const COLORREF).cast(),
+                std::mem::size_of::<COLORREF>() as u32,
+            );
+        }
     }
 }
 

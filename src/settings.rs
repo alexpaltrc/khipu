@@ -272,8 +272,12 @@ impl SettingsStore {
         // deserialises it as `false`, and even if it is one of the broken ones above. Only a
         // folder with no settings at all is genuinely new.
         settings.onboarding_done = true;
+        // Wearing the hidden theme means it was found: a file that says one without the other must
+        // not leave someone in a theme whose option they cannot see. One that lost both — saved by
+        // 0.0.5, say — loses the theme, and the same arrows in Consejos find it again.
         if settings.khipu_theme {
             settings.theme_mode = ThemeMode::Khipu;
+            settings.khipu_theme_found = true;
         }
         (settings, issue)
     }
@@ -423,6 +427,17 @@ mod tests {
         }
         let older: Older = serde_json::from_str(&text).unwrap();
         assert_eq!(older.theme_mode, ThemeMode::Light);
+    }
+
+    /// Worn means found, even when the file forgot to say so: the option must be there to leave by.
+    #[test]
+    fn wearing_the_hidden_theme_shows_its_option() {
+        let dir = scratch("khipu-worn");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("settings.json"), r#"{"theme_mode": "Light", "khipu_theme": true}"#).unwrap();
+        let (back, _) = SettingsStore::new(&dir).load();
+        assert_eq!(back.theme_mode, ThemeMode::Khipu);
+        assert!(back.khipu_theme_found);
     }
 
     /// A folder with no settings in it is the only genuinely new one, and the only one that should
