@@ -7,6 +7,11 @@ was published.
 
 ### Added
 
+- **Khipu is in the Microsoft Store.** Get it from
+  [apps.microsoft.com/detail/9NXXV15RJ94T](https://apps.microsoft.com/detail/9NXXV15RJ94T):
+  signed by Microsoft, so it installs without an administrator password or the "Windows protected
+  your PC" warning, and it updates itself. The portable ZIP stays, unchanged. The two keep their
+  expansions and settings apart; Export in one and Import in the other to move them.
 - **A hidden theme.** Somewhere in Tips, a few arrow keys pressed in the right order unlock
   «I got chiiills», a fourth appearance in Khipu's own violet, title bar included. Once found,
   Settings opens by itself with the new option outlined and pointed out for a few seconds; it

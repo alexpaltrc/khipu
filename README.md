@@ -11,19 +11,25 @@
 ![Windows](https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.98-CE422B?logo=rust&logoColor=white)
 ![egui](https://img.shields.io/badge/egui-0.36-7B68EE)
-![Version](https://img.shields.io/badge/version-0.0.5-blue)
+![Version](https://img.shields.io/badge/version-0.0.6-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
-![Portable](https://img.shields.io/badge/portable-no%20installer-2EA043)
+![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-or%20portable-0078D4)
 ![Free](https://img.shields.io/badge/free-forever-2EA043)
 ![Offline](https://img.shields.io/badge/no%20internet-required-6E7681)
 
 **Free forever. No account, nothing sent anywhere.**
 
-### [⬇️ Download for Windows](https://github.com/alexpaltrc/khipu/releases/download/v0.0.5/Khipu-Portable-0.0.5.zip)
+<a href="https://apps.microsoft.com/detail/9NXXV15RJ94T?mode=direct"><img src="https://get.microsoft.com/images/en-us%20dark.svg" alt="Get it from Microsoft" width="200"></a>
 
-<sub>10 MB · espanso is in the box · nothing gets installed · unzip and open `Khipu.exe`</sub>
+<sub>Signed by Microsoft · no administrator password · updates itself · espanso is in the box</sub>
 
-<sub>Not signed yet, so the first run shows *"Windows protected your PC"* → **More info** → **Run anyway**.</sub>
+**or**
+
+### [⬇️ Download the portable ZIP](https://github.com/alexpaltrc/khipu/releases/download/v0.0.6/Khipu-Portable-0.0.6.zip)
+
+<sub>10 MB · nothing gets installed · unzip and open `Khipu.exe`</sub>
+
+<sub>The ZIP is not signed, so its first run shows *"Windows protected your PC"* → **More info** → **Run anyway**.</sub>
 
 </div>
 
@@ -50,9 +56,10 @@ The only awkward part is setting those up: normally it means opening a configura
 and editing it by hand. Khipu is the window that does that for you. You write the
 short thing, you write the long thing, and it is ready.
 
-**espanso itself is inside the download**, already set up and started for you. There is no
-second program to go and fetch, and nothing to install — one ZIP, unzip it, open the one
-`.exe` inside.
+**espanso itself comes with it**, already set up and started for you. There is no second
+program to go and fetch. Install it from the Microsoft Store, or take the portable ZIP: unzip it
+and open the one `.exe` inside. The two keep their data apart; Export and Import move your
+expansions from one to the other.
 
 > 💡 Nothing is hidden away, though. It writes espanso's own `.espanso/match/base.yml`, so
 > the file stays perfectly readable and you can still edit it by hand whenever you want to.
@@ -131,7 +138,7 @@ This repository is the **source only** — under 1 MB. It deliberately does not 
 
 | Not here | Why |
 |---|---|
-| 🏗️ `Khipu.exe`, the distribution ZIP | Build outputs. They live in [Releases](https://github.com/alexpaltrc/khipu/releases), which is where build outputs belong. |
+| 🏗️ `Khipu.exe`, the distribution ZIP, the MSIX | Build outputs. The ZIP lives in [Releases](https://github.com/alexpaltrc/khipu/releases), the MSIX in the [Microsoft Store](https://apps.microsoft.com/detail/9NXXV15RJ94T); `packaging/build-msix.ps1` builds it. |
 | 🧩 `espansod.exe`, `msvcp140*.dll`, … | Not our code. |
 | 🔒 `.espanso/`, `.khipu/`, `.espanso-runtime/` | The user's real expansions and settings. |
 | 🗑️ `target/` | 1.3 GB build cache; regenerates in ~3 minutes. |
@@ -160,7 +167,7 @@ executable's own directory, which is the older layout where the two executables 
 side, so dropping a new binary into an existing folder keeps working.
 
 ```sh
-cargo test                            # 85 tests
+cargo test                            # 104 tests
 cargo clippy --release --all-targets
 ```
 
@@ -188,7 +195,8 @@ file — it is the real documentation, and it is kept true.
 
 ## 📌 Status
 
-In daily use by the author. Interface is finished and approved; changes that make it uglier
+In daily use by the author and his colleagues, and in the
+[Microsoft Store](https://apps.microsoft.com/detail/9NXXV15RJ94T) since 0.0.6. Interface is finished and approved; changes that make it uglier
 are not wanted. The Filipino and Hindi translations have not been reviewed by a native
 speaker.
 
