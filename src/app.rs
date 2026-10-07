@@ -82,8 +82,8 @@ pub type DragPayload = Vec<String>;
 /// see `ui::search_view` for how.
 ///
 /// This constant is still the entire switch. Off, nothing of ours is registered, espanso gets its
-/// shortcut and its bar back, and our window cannot open. `LAUNCHER-BACKUP.txt` beside the source
-/// says what was built and what was never solved.
+/// shortcut and its bar back, and our window cannot open. What was built, measured and never
+/// solved is in the notes that left the tree in 0.0.6: `git show 58753f7:LAUNCHER-BACKUP.txt`.
 const OWN_LAUNCHER: bool = true;
 
 /// Far more characters than any row can display, so the width-aware trim the label does afterwards

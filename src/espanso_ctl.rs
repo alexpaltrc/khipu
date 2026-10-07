@@ -37,7 +37,8 @@
 //!
 //! `match_exec` is the sharp one. It means "expand as though this trigger had just been typed", so
 //! espanso sends one backspace per character of the trigger before writing the replacement. That
-//! single fact is why our own launcher could never work; see `LAUNCHER-BACKUP.txt`.
+//! single fact is why our own launcher could never work by itself; see
+//! `git show 58753f7:LAUNCHER-BACKUP.txt`.
 
 use crate::i18n::{fill, Strings};
 use std::io::Read;
