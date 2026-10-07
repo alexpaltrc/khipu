@@ -5,6 +5,14 @@ was published.
 
 ## Unreleased
 
+### Added
+
+- **A hidden theme.** Somewhere in Tips, a few arrow keys pressed in the right order unlock
+  «I got chiiils», a fourth appearance in Khipu's own violet. Once found, Settings opens by
+  itself with the new option outlined and pointed out for a few seconds; it stays in Appearance
+  from then on, and wearing it is up to you. A copy of Khipu from before this version reads the
+  setting as the light theme.
+
 ## 0.0.5 — 2026-10-05
 
 ### Added

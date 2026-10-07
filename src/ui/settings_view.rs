@@ -138,6 +138,80 @@ fn label(ui: &mut egui::Ui, text: &str) {
     ui.add_space(controls::GAP);
 }
 
+/// How long the hidden theme's option is pointed out after it has been found.
+pub const SPOTLIGHT: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// One beat of the halo while it is pointed out, in seconds.
+const SPOTLIGHT_BEAT: f32 = 1.2;
+
+/// Sistema, claro, oscuro — and, once found in Consejos, «I got chiiils», outlined in violet.
+///
+/// The fourth option makes the row longer than the dialog in Filipino («Maliwanag na tema»). Cut
+/// text is not an option, so where the full names do not fit, light and dark drop the word for
+/// «theme» instead; only then, so a language with room keeps the names it always had.
+fn theme_row(ui: &mut egui::Ui, state: &mut AppState) {
+    let t = state.t();
+    let found = state.settings.khipu_theme_found;
+    let mut modes = ThemeMode::ALL.to_vec();
+    if found {
+        modes.push(ThemeMode::Khipu);
+    }
+    let n = modes.len();
+    let full = [t.theme_system, t.theme_light, t.theme_dark, t.theme_khipu];
+    let short = [t.theme_system, t.theme_light_short, t.theme_dark_short, t.theme_khipu];
+    // The same room `segmented` measures itself against.
+    let room = ui.available_width() - 8.0;
+    let labels = if found && controls::segmented_natural_width(ui, &full[..n]) > room {
+        &short[..n]
+    } else {
+        &full[..n]
+    };
+    let selected = modes.iter().position(|m| *m == state.settings.theme_mode);
+
+    let mark = found.then(|| {
+        let is_light = !ui.visuals().dark_mode;
+        let elapsed = state.khipu_spotlight.map(|at| at.elapsed());
+        let glow = match elapsed {
+            Some(e) if e < SPOTLIGHT => {
+                let fade = 1.0 - e.as_secs_f32() / SPOTLIGHT.as_secs_f32();
+                ui.ctx().request_repaint();
+                if crate::theme::animations_enabled() {
+                    let phase = e.as_secs_f32() / SPOTLIGHT_BEAT * std::f32::consts::TAU;
+                    fade * (0.6 + 0.4 * phase.cos())
+                } else {
+                    // Nothing moves: the halo is simply there, and then it is not.
+                    1.0
+                }
+            }
+            _ => 0.0,
+        };
+        if elapsed.is_some_and(|e| e >= SPOTLIGHT) {
+            state.khipu_spotlight = None;
+        }
+        // The keyboard is handed over once, as it is pointed out: Enter or Space then wears it.
+        // Asked for on every frame it would hold the keyboard for the whole four seconds.
+        let focus_id = egui::Id::new("khipu-spotlight-focused");
+        let focus = match state.khipu_spotlight {
+            Some(at) => ui.ctx().data_mut(|d| {
+                let first = d.get_temp::<std::time::Instant>(focus_id) != Some(at);
+                d.insert_temp(focus_id, at);
+                first
+            }),
+            None => false,
+        };
+        controls::SegmentMark {
+            index: n - 1,
+            outline: crate::app::khipu_outline(is_light),
+            glow,
+            focus,
+        }
+    });
+
+    if let Some(picked) = controls::segmented_marked(ui, "theme", labels, selected, mark) {
+        state.set_theme_mode(modes[picked]);
+    }
+}
+
 fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     let t = state.t();
 
@@ -159,13 +233,7 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     ui.add_space(GROUP_GAP);
 
     label(ui, t.appearance_section);
-    let labels = [t.theme_system, t.theme_light, t.theme_dark];
-    let selected = ThemeMode::ALL
-        .iter()
-        .position(|m| *m == state.settings.theme_mode);
-    if let Some(picked) = controls::segmented(ui, "theme", &labels, selected) {
-        state.set_theme_mode(ThemeMode::ALL[picked]);
-    }
+    theme_row(ui, state);
     ui.add_space(GROUP_GAP);
 
     label(ui, t.language_section);
@@ -532,5 +600,43 @@ pub fn show_folder_picker(ctx: &egui::Context, state: &mut AppState) {
         state.confirm_pending_transfer();
     } else if cancel {
         state.cancel_pending_transfer();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The theme row never cuts a word, in any language, with or without the hidden theme: the
+    /// names it would draw, measured in the faces the app really uses, against the narrowest the
+    /// dialog's contents get (the full width less the scroll bar's column, which opens on a short
+    /// window, less the room `segmented` keeps for itself).
+    #[test]
+    fn the_theme_row_fits_in_every_language() {
+        const ROOM: f32 = WIDEST - 10.0 - 8.0;
+        let ctx = egui::Context::default();
+        crate::fonts::install(&ctx, true);
+        ctx.all_styles_mut(|s| {
+            s.text_styles.insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+        });
+        // The first pass is what makes the font atlas exist.
+        for pass in 0..2 {
+            let mut out = ctx.run_ui(Default::default(), |ui| {
+                if pass == 0 {
+                    return;
+                }
+                for lang in Lang::ALL {
+                    let t = lang.strings();
+                    let three = [t.theme_system, t.theme_light, t.theme_dark];
+                    let full = [t.theme_system, t.theme_light, t.theme_dark, t.theme_khipu];
+                    let short = [t.theme_system, t.theme_light_short, t.theme_dark_short, t.theme_khipu];
+                    let width = |labels: &[&str]| controls::segmented_natural_width(ui, labels);
+                    assert!(width(&three) <= ROOM, "{lang:?}: {}", width(&three));
+                    let four = width(&full).min(width(&short));
+                    assert!(four <= ROOM, "{lang:?}: {four} > {ROOM}");
+                }
+            });
+            out.textures_delta.clear();
+        }
     }
 }

@@ -44,16 +44,23 @@ pub enum ThemeMode {
     System,
     Light,
     Dark,
+    /// «I got chiiils»: the hidden theme, Khipu's own violet. Found in Consejos (↑ ↑ ↓ ↓ ← → ← →)
+    /// and only offered once found. A light theme as far as egui and the title bar are concerned —
+    /// its window is a pale violet — with its own palette laid over the light one in `app.rs`.
+    ///
+    /// Never written to disk under this name: see [`crate::settings::Settings::khipu_theme`].
+    Khipu,
 }
 
 impl ThemeMode {
+    /// The three anyone is offered. The hidden one is added by Ajustes once it has been found.
     pub const ALL: [ThemeMode; 3] = [ThemeMode::System, ThemeMode::Light, ThemeMode::Dark];
 
     /// Resolves to the appearance that should actually be drawn right now.
     pub fn is_light(self) -> bool {
         match self {
             ThemeMode::System => is_light_theme(),
-            ThemeMode::Light => true,
+            ThemeMode::Light | ThemeMode::Khipu => true,
             ThemeMode::Dark => false,
         }
     }

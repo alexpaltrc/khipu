@@ -68,7 +68,18 @@ pub struct Settings {
     /// Interface language. Independent of the expansions themselves, which are never translated.
     pub lang: Lang,
     /// Light/dark appearance, or follow Windows.
+    ///
+    /// The hidden theme is written here as `Light`, with [`khipu_theme`](Self::khipu_theme) beside
+    /// it. A version from before it existed would not know the word `Khipu`, call the whole file
+    /// damaged and set it aside — and with it every folder. Written this way it reads a light
+    /// theme and an unknown field, which it skips.
+    #[serde(serialize_with = "theme_on_disk")]
     pub theme_mode: ThemeMode,
+    /// Whether the hidden theme is the one being worn. Folded into `theme_mode` as soon as the file
+    /// is read; see there for why it is a field of its own.
+    pub khipu_theme: bool,
+    /// Whether the hidden theme has been found, which is what puts it in Ajustes.
+    pub khipu_theme_found: bool,
     /// Whether the first-run screen has been seen. Defaults to `false`, which is also what an
     /// older settings file without the field deserialises to — so an existing install shows the
     /// screen once and then never again, and a fresh one shows it on its very first start.
@@ -91,9 +102,19 @@ impl Default for Settings {
             compact_view: false,
             lang: Lang::default(),
             theme_mode: ThemeMode::default(),
+            khipu_theme: false,
+            khipu_theme_found: false,
             onboarding_done: false,
             launcher_shortcut: None,
         }
+    }
+}
+
+/// `theme_mode` as an older version can read it. See [`Settings::theme_mode`].
+fn theme_on_disk<S: serde::Serializer>(mode: &ThemeMode, out: S) -> Result<S::Ok, S::Error> {
+    match mode {
+        ThemeMode::Khipu => ThemeMode::Light.serialize(out),
+        other => other.serialize(out),
     }
 }
 
@@ -251,6 +272,9 @@ impl SettingsStore {
         // deserialises it as `false`, and even if it is one of the broken ones above. Only a
         // folder with no settings at all is genuinely new.
         settings.onboarding_done = true;
+        if settings.khipu_theme {
+            settings.theme_mode = ThemeMode::Khipu;
+        }
         (settings, issue)
     }
 
@@ -368,6 +392,37 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// The hidden theme comes back as itself, and goes on disk in words 0.0.5 already knew: an
+    /// older version reading this file must find a light theme, not a damaged file.
+    #[test]
+    fn the_hidden_theme_round_trips_and_an_older_version_reads_light() {
+        let dir = scratch("khipu-theme");
+        let store = SettingsStore::new(&dir);
+        let mut s = Settings::default();
+        s.theme_mode = ThemeMode::Khipu;
+        s.khipu_theme = true;
+        s.khipu_theme_found = true;
+        store.save(&s).unwrap();
+
+        let text = std::fs::read_to_string(dir.join("settings.json")).unwrap();
+        assert!(text.contains("\"theme_mode\": \"Light\"") || text.contains("\"theme_mode\":\"Light\""), "{text}");
+        assert!(!text.contains("\"Khipu\""), "{text}");
+
+        let (back, issue) = store.load();
+        assert!(issue.is_none());
+        assert_eq!(back.theme_mode, ThemeMode::Khipu);
+        assert!(back.khipu_theme_found);
+
+        // What 0.0.5 had: the same struct without the two new fields, unknown ones skipped.
+        #[derive(Deserialize)]
+        #[allow(dead_code)]
+        struct Older {
+            theme_mode: ThemeMode,
+        }
+        let older: Older = serde_json::from_str(&text).unwrap();
+        assert_eq!(older.theme_mode, ThemeMode::Light);
     }
 
     /// A folder with no settings in it is the only genuinely new one, and the only one that should

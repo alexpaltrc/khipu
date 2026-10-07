@@ -106,7 +106,63 @@ fn part(ui: &mut egui::Ui, first: bool, title: &str, body: &str) {
     para(ui, body);
 }
 
+/// The way to the hidden theme: ↑ ↑ ↓ ↓ ← → ← →, one key after another. Arrows only, so it can be
+/// typed on any keyboard in any layout; no letters, which would mean a different thing on each.
+const SECRET: [egui::Key; 8] = {
+    use egui::Key::{ArrowDown as D, ArrowLeft as L, ArrowRight as R, ArrowUp as U};
+    [U, U, D, D, L, R, L, R]
+};
+
+/// How much of [`SECRET`] the keys pressed so far have spelt, after `key`.
+///
+/// A wrong key does not throw away what came before it when that still starts the sequence: a third
+/// ↑ after ↑ ↑ leaves ↑ ↑, not nothing, so whoever is trying is never made to begin again for a key
+/// that was right after all. Anything that is not a plain arrow begins again from nothing.
+fn advance(progress: usize, key: egui::Key) -> usize {
+    let mut typed: Vec<egui::Key> = SECRET[..progress].to_vec();
+    typed.push(key);
+    // The longest tail of what was typed that is also a beginning of the sequence.
+    (1..=typed.len().min(SECRET.len()))
+        .rev()
+        .find(|&n| typed[typed.len() - n..] == SECRET[..n])
+        .unwrap_or(0)
+}
+
+/// Follows the keys pressed while this screen is up, and hands the hidden theme over when they
+/// spell [`SECRET`]. Reads the keys without taking them: whatever else they do here, they still do.
+fn listen_for_secret(ui: &egui::Ui, state: &mut AppState) {
+    if state.settings_open {
+        return;
+    }
+    let id = egui::Id::new("tips-secret");
+    let mut progress = ui.ctx().data(|d| d.get_temp::<usize>(id)).unwrap_or(0);
+    let keys: Vec<(egui::Key, egui::Modifiers)> = ui.input(|i| {
+        i.events
+            .iter()
+            .filter_map(|e| match e {
+                egui::Event::Key { key, pressed: true, repeat: false, modifiers, .. } => {
+                    Some((*key, *modifiers))
+                }
+                _ => None,
+            })
+            .collect()
+    });
+    if keys.is_empty() {
+        return;
+    }
+    for (key, modifiers) in keys {
+        progress = if modifiers.is_none() { advance(progress, key) } else { 0 };
+        if progress == SECRET.len() {
+            progress = 0;
+            state.find_khipu_theme();
+            break;
+        }
+    }
+    ui.ctx().data_mut(|d| d.insert_temp(id, progress));
+}
+
 pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
+    listen_for_secret(ui, state);
     let t = state.t();
     // The name the «…» menu gave it, so the way in and the page agree about what this is.
     let title = t.tips_button_tip;
@@ -605,4 +661,32 @@ pub fn tray_illustration(ui: &mut egui::Ui) {
         accent,
         egui::Stroke::NONE,
     ));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::Key::{ArrowDown as D, ArrowLeft as L, ArrowRight as R, ArrowUp as U};
+
+    fn spell(keys: &[egui::Key]) -> usize {
+        keys.iter().fold(0, |p, k| if p == SECRET.len() { p } else { advance(p, *k) })
+    }
+
+    #[test]
+    fn the_sequence_unlocks_and_nothing_shorter_does() {
+        assert_eq!(spell(&[U, U, D, D, L, R, L, R]), SECRET.len());
+        assert_eq!(spell(&[U, U, D, D, L, R, L]), 7);
+        // Simultaneous is impossible here by construction; out of order is not the sequence.
+        assert_ne!(spell(&[U, D, U, D, L, R, L, R]), SECRET.len());
+    }
+
+    /// A mistake costs only what it has to: retrying needs no pause and no clearing first.
+    #[test]
+    fn a_wrong_key_keeps_what_still_starts_the_sequence() {
+        assert_eq!(spell(&[U, U, U]), 2);
+        assert_eq!(spell(&[U, U, D, D, L, L]), 0);
+        assert_eq!(spell(&[U, U, D, D, U]), 1);
+        assert_eq!(spell(&[U, U, D, egui::Key::A]), 0);
+        assert_eq!(spell(&[R, U, U, U, D, D, L, R, L, R]), SECRET.len());
+    }
 }

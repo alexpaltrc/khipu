@@ -744,13 +744,61 @@ pub fn segmented<S: AsRef<str>>(
     labels: &[S],
     selected: Option<usize>,
 ) -> Option<usize> {
+    segmented_marked(ui, id_salt, labels, selected, None)
+}
+
+/// One segment set apart from the others: drawn with its own outline and, while `glow` is above
+/// zero, a soft halo of the same colour that fades as it falls. `focus` hands it the keyboard, so
+/// Enter or Space picks it — the way to say «this one, over here» without picking it for the user.
+pub struct SegmentMark {
+    pub index: usize,
+    pub outline: egui::Color32,
+    pub glow: f32,
+    pub focus: bool,
+}
+
+const SEGMENT_HEIGHT: f32 = FIELD_HEIGHT - 4.0;
+const SEGMENT_GAP: f32 = 2.0;
+const SEGMENT_PADDING: f32 = 12.0;
+
+/// A segment's width at rest, for a label `text_width` wide.
+fn segment_width(text_width: f32) -> f32 {
+    (text_width + SEGMENT_PADDING * 2.0).max(SEGMENT_HEIGHT)
+}
+
+/// The width a whole segmented control asks for, track included, before it is made to shrink.
+/// For a caller deciding whether a row of options fits at all: shrunk, the labels are cut.
+pub fn segmented_natural_width<S: AsRef<str>>(ui: &egui::Ui, labels: &[S]) -> f32 {
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let segments: f32 = labels
+        .iter()
+        .map(|label| {
+            let galley = ui.painter().layout_no_wrap(
+                label.as_ref().to_owned(),
+                font.clone(),
+                egui::Color32::PLACEHOLDER,
+            );
+            segment_width(galley.size().x)
+        })
+        .sum();
+    // The track's own margin and border, either side.
+    segments + SEGMENT_GAP * labels.len().saturating_sub(1) as f32 + 2.0 * 3.0
+}
+
+/// [`segmented`], with one segment set apart. See [`SegmentMark`].
+pub fn segmented_marked<S: AsRef<str>>(
+    ui: &mut egui::Ui,
+    id_salt: impl std::hash::Hash + std::fmt::Debug,
+    labels: &[S],
+    selected: Option<usize>,
+    mark: Option<SegmentMark>,
+) -> Option<usize> {
     if labels.is_empty() {
         return None;
     }
 
-    const HEIGHT: f32 = FIELD_HEIGHT - 4.0;
-    const GAP: f32 = 2.0;
-    const PADDING: f32 = 12.0;
+    const HEIGHT: f32 = SEGMENT_HEIGHT;
+    const GAP: f32 = SEGMENT_GAP;
 
     let is_light = !ui.visuals().dark_mode;
     let font = egui::TextStyle::Button.resolve(ui.style());
@@ -767,7 +815,7 @@ pub fn segmented<S: AsRef<str>>(
 
     let mut widths: Vec<f32> = galleys
         .iter()
-        .map(|g| (g.size().x + PADDING * 2.0).max(HEIGHT))
+        .map(|g| segment_width(g.size().x))
         .collect();
     let gaps = GAP * (labels.len() - 1) as f32;
     let natural: f32 = widths.iter().sum::<f32>() + gaps;
@@ -809,8 +857,34 @@ pub fn segmented<S: AsRef<str>>(
                         !is_selected && response.hovered(),
                         hover_tint(is_light),
                     );
+                    let marked = mark.as_ref().filter(|m| m.index == i);
+                    if marked.is_some_and(|m| m.focus) {
+                        response.request_focus();
+                    }
                     if ui.is_rect_visible(rect) {
                         segment_background(ui, rect, is_selected);
+                        if let Some(m) = marked {
+                            let radius = f32::from(RADIUS_CONTROL) - 1.0;
+                            // Rings fading outward, strongest against the segment.
+                            for step in 1..=3 {
+                                let k = step as f32;
+                                let alpha = m.glow * (1.0 - (k - 1.0) / 3.0) * 0.55;
+                                if alpha > 0.0 {
+                                    ui.painter().rect_stroke(
+                                        rect.expand(k),
+                                        radius + k,
+                                        egui::Stroke::new(1.0, m.outline.gamma_multiply(alpha)),
+                                        egui::StrokeKind::Inside,
+                                    );
+                                }
+                            }
+                            ui.painter().rect_stroke(
+                                rect,
+                                radius,
+                                egui::Stroke::new(1.5, m.outline),
+                                egui::StrokeKind::Inside,
+                            );
+                        }
                         let ink = if is_selected {
                             ui.visuals().text_color()
                         } else {

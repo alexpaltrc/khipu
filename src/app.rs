@@ -399,6 +399,10 @@ pub struct AppState {
     /// Set when the theme mode changes, so the palette is re-applied immediately rather than at
     /// the next scheduled poll.
     pub pending_theme_refresh: bool,
+    /// Set the moment the hidden theme is found, and cleared once its option in Ajustes has been
+    /// pointed out for [`crate::ui::settings_view::SPOTLIGHT`]: the option is drawn with a halo
+    /// and given the keyboard until then.
+    pub khipu_spotlight: Option<Instant>,
     /// What has been typed into the first-run screen's trial box, and whether the expansion has
     /// fired in it yet.
     pub onboarding_probe: String,
@@ -468,6 +472,7 @@ impl AppState {
     pub fn close_settings(&mut self) {
         self.settings_open = false;
         self.settings_note = None;
+        self.khipu_spotlight = None;
         self.shortcut_taken = None;
         self.cancel_shortcut_capture();
     }
@@ -736,11 +741,30 @@ impl AppState {
             return;
         }
         self.settings.theme_mode = mode;
+        self.settings.khipu_theme = mode == ThemeMode::Khipu;
+        self.save_theme_settings();
+        self.pending_theme_refresh = true;
+    }
+
+    fn save_theme_settings(&mut self) {
         if let Err(e) = self.settings_store.save(&self.settings) {
             let msg = fill(self.t().theme_save_error, &[("err", &e.to_string())]);
             self.set_error_banner(msg);
         }
-        self.pending_theme_refresh = true;
+    }
+
+    /// The hidden theme has just been found (↑ ↑ ↓ ↓ ← → ← → in Consejos). It joins the other three
+    /// in Ajustes for good, and Ajustes opens with it pointed out — offered, not put on: wearing it
+    /// is still the user's click.
+    ///
+    /// Found again, it is pointed out again; nothing else happens twice.
+    pub fn find_khipu_theme(&mut self) {
+        if !self.settings.khipu_theme_found {
+            self.settings.khipu_theme_found = true;
+            self.save_theme_settings();
+        }
+        self.open_settings();
+        self.khipu_spotlight = Some(Instant::now());
     }
 
     pub fn set_language(&mut self, lang: Lang) {
@@ -1718,19 +1742,52 @@ fn rgb(c: [u8; 3]) -> egui::Color32 {
     egui::Color32::from_rgb(c[0], c[1], c[2])
 }
 
-/// One token: its dark value, its light value, and what it becomes under a contrast theme.
+/// Whether the hidden theme («I got chiiils») is the one being worn. Set by [`set_khipu_palette`]
+/// before the palette is (re)built, read by every token: a flag rather than an argument, because
+/// the drawing code asks for colours by light or dark and has no business knowing there is a third.
+static KHIPU: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Puts the hidden theme's palette on, or takes it off. Takes effect at the next [`apply_theme`].
+pub fn set_khipu_palette(on: bool) {
+    KHIPU.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn khipu_palette() -> bool {
+    KHIPU.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// One token: its dark value, its light value, its value in the hidden theme, and what it becomes
+/// under a contrast theme.
+///
+/// The hidden theme is a light one, so its value stands in for the light value only; and a contrast
+/// theme still wins over it, as over everything — that one is the user's accessibility choice.
+/// Its values come from Khipu's own palette (`assets/khipu/`), and `khipu_palette_reads` holds
+/// every pair that has to stay legible to the same floor or better.
 fn token(
     is_light: bool,
     dark: u32,
     light: u32,
+    khipu: u32,
     contrast_role: fn(&crate::theme::ContrastPalette) -> [u8; 3],
 ) -> egui::Color32 {
     if let Some(c) = contrast() {
         return rgb(contrast_role(&c));
     }
-    let v = if is_light { light } else { dark };
+    let v = match (is_light, khipu_palette()) {
+        (true, true) => khipu,
+        (true, false) => light,
+        (false, _) => dark,
+    };
+    hex(v)
+}
+
+fn hex(v: u32) -> egui::Color32 {
     egui::Color32::from_rgb((v >> 16) as u8, (v >> 8) as u8, v as u8)
 }
+
+/// The hidden theme's accent: its ink, which is also its primary button — the darkest violet in
+/// Khipu's palette, with white on it.
+const KHIPU_ACCENT: u32 = 0x211B37;
 
 /// The window itself — the surface every layer sits *on*, never the layer.
 pub fn win_background_for(is_light: bool) -> egui::Color32 {
@@ -1738,7 +1795,7 @@ pub fn win_background_for(is_light: bool) -> egui::Color32 {
 }
 
 fn win_background(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x202020, 0xF3F3F3, |c| c.window)
+    token(is_light, 0x202020, 0xF3F3F3, 0xA99BE7, |c| c.window)
 }
 
 /// A layer: the inspector, a section of a screen, a dialog.
@@ -1747,12 +1804,12 @@ pub fn win_card_for(is_light: bool) -> egui::Color32 {
 }
 
 fn win_card(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x2B2B2B, 0xFBFBFB, |c| c.window)
+    token(is_light, 0x2B2B2B, 0xFBFBFB, 0xDDD2F7, |c| c.window)
 }
 
 /// A block of content set *into* a layer: the full text of an expansion, a folder shown as a tag.
 pub fn win_sunken_for(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x1C1C1C, 0xF3F3F3, |c| c.window)
+    token(is_light, 0x1C1C1C, 0xF3F3F3, 0xCBC0F2, |c| c.window)
 }
 
 /// The body of a button or field.
@@ -1761,32 +1818,32 @@ pub fn win_control_for(is_light: bool) -> egui::Color32 {
 }
 
 fn win_control(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x2D2D2D, 0xFFFFFF, |c| c.button_face)
+    token(is_light, 0x2D2D2D, 0xFFFFFF, 0xE9E3FA, |c| c.button_face)
 }
 
 /// The same control while the pointer is over it.
 fn win_control_hover(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x323232, 0xF6F6F6, |c| c.button_face)
+    token(is_light, 0x323232, 0xF6F6F6, 0xE3DCF9, |c| c.button_face)
 }
 
 /// Pressed.
 fn win_control_active(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x272727, 0xF0F0F0, |c| c.button_face)
+    token(is_light, 0x272727, 0xF0F0F0, 0xDCD3F6, |c| c.button_face)
 }
 
 /// The divider: between two rows, round a layer.
 fn win_stroke(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x333333, 0xE0E0E0, |c| c.text)
+    token(is_light, 0x333333, 0xE0E0E0, 0xBBADEC, |c| c.text)
 }
 
 /// Primary text.
 fn win_text(is_light: bool) -> egui::Color32 {
-    token(is_light, 0xFFFFFF, 0x1B1B1B, |c| c.text)
+    token(is_light, 0xFFFFFF, 0x1B1B1B, 0x211B37, |c| c.text)
 }
 
 /// Labels, and the quieter half of a pair.
 fn win_text_secondary(is_light: bool) -> egui::Color32 {
-    token(is_light, 0xCFCFCF, 0x5F5F5F, |c| c.text)
+    token(is_light, 0xCFCFCF, 0x5F5F5F, 0x392F52, |c| c.text)
 }
 
 /// The user's Windows accent, in the shade this theme uses.
@@ -1798,6 +1855,10 @@ fn win_text_secondary(is_light: bool) -> egui::Color32 {
 fn read_system_accent(is_light: bool) -> egui::Color32 {
     if let Some(c) = contrast() {
         return rgb(c.hotlight);
+    }
+    // The hidden theme wears its own accent: a Windows blue on violet would be two brands at once.
+    if is_light && khipu_palette() {
+        return hex(KHIPU_ACCENT);
     }
     let (r, g, b) = crate::theme::system_accent(is_light);
     egui::Color32::from_rgb(r, g, b)
@@ -2004,21 +2065,28 @@ pub fn hairline(is_light: bool) -> egui::Color32 {
 /// The border round something you can type in or press — firmer than a divider, because it marks
 /// the edge of a *target* rather than a division between two things already separate.
 pub fn line_strong(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x454545, 0xD4D4D4, |c| c.button_text)
+    token(is_light, 0x454545, 0xD4D4D4, 0x5B4878, |c| c.button_text)
 }
 
 /// Previews, captions, key names: the quietest text there is, and still legible on the window.
 pub fn text_tertiary(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x9E9E9E, 0x707070, |c| c.text)
+    token(is_light, 0x9E9E9E, 0x707070, 0x3E3358, |c| c.text)
 }
 
 pub fn secondary_text(is_light: bool) -> egui::Color32 {
     win_text_secondary(is_light)
 }
 
+/// The outline that sets the hidden theme's option apart in Ajustes, in Khipu's violet: the
+/// palette's pale violet where the card is dark, a deeper one where it is light, and its border
+/// violet on the theme's own card. Each is 3:1 or more against the card it sits on.
+pub fn khipu_outline(is_light: bool) -> egui::Color32 {
+    token(is_light, 0xA99BE7, 0x8A78D6, 0x5B4878, |c| c.hotlight)
+}
+
 /// Text on something that cannot be used right now.
 pub fn disabled_text(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x787878, 0xA0A0A0, |c| c.gray)
+    token(is_light, 0x787878, 0xA0A0A0, 0x7A6CA8, |c| c.gray)
 }
 
 /// Applies a theme to *everything*, including the window's own title bar.
@@ -2213,45 +2281,45 @@ pub fn tint_base(is_light: bool) -> egui::Color32 {
 /// carried by the short bar beside it instead, so a trigger written in that same accent keeps its
 /// contrast on the row. The `accent` argument stays for the callers that still pass it.
 pub fn selection_tint(is_light: bool, _accent: egui::Color32) -> egui::Color32 {
-    token(is_light, 0x2D2D2D, 0xEAEAEA, |c| c.window)
+    token(is_light, 0x2D2D2D, 0xEAEAEA, 0xC2B6F0, |c| c.window)
 }
 
 /// The wash under the row the pointer is over. Weaker than the selection, so "where my mouse is"
 /// never competes with "what I have chosen".
 pub fn hover_tint(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x292929, 0xEDEDED, |c| c.window)
+    token(is_light, 0x292929, 0xEDEDED, 0xB6A9EC, |c| c.window)
 }
 
 /// The chosen row while the pointer is over it too.
 pub fn selection_hover_tint(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x323232, 0xE4E4E4, |c| c.window)
+    token(is_light, 0x323232, 0xE4E4E4, 0xCABFF3, |c| c.window)
 }
 
 /// Fluent's critical colour: for errors and for what cannot be undone.
 pub fn danger(is_light: bool) -> egui::Color32 {
-    token(is_light, 0xFF99A4, 0xC42B1C, |c| c.text)
+    token(is_light, 0xFF99A4, 0xC42B1C, 0x700B1B, |c| c.text)
 }
 
 /// Fluent's caution colour — louder than a hint, quieter than an error, because nothing is wrong
 /// yet. Used for "Pausado".
 pub fn caution(is_light: bool) -> egui::Color32 {
-    token(is_light, 0xFCE100, 0x9D5D00, |c| c.text)
+    token(is_light, 0xFCE100, 0x9D5D00, 0x533100, |c| c.text)
 }
 
 /// Fluent's success colour. It means "running", and nothing else: the dot beside «Activo».
 pub fn success(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x6CCB5F, 0x0F7B0F, |c| c.text)
+    token(is_light, 0x6CCB5F, 0x0F7B0F, 0x08430A, |c| c.text)
 }
 
 /// The InfoBar's fill when it only has news: Fluent's secondary card, a step off the page.
 fn infobar_info(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x2D2D2D, 0xF6F6F6, |c| c.window)
+    token(is_light, 0x2D2D2D, 0xF6F6F6, 0xDDD2F7, |c| c.window)
 }
 
 /// The InfoBar's fill when something failed: Fluent's critical background, a tint and not a
 /// siren, so the words on it read as plainly as anywhere else.
 fn infobar_error(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x442726, 0xFDE7E9, |c| c.window)
+    token(is_light, 0x442726, 0xFDE7E9, 0xF0D4E4, |c| c.window)
 }
 
 pub struct KhipuApp {
@@ -2377,6 +2445,7 @@ impl KhipuApp {
         }
         crate::theme::refresh_animations();
         apply_motion(&cc.egui_ctx);
+        set_khipu_palette(ctx.settings.theme_mode == ThemeMode::Khipu);
         apply_theme(&cc.egui_ctx, window.as_deref(), is_light);
         // The title bar is the one strip of this window that Windows draws, and on Windows 11 it can
         // wear Mica — the wallpaper, blurred and tinted to the theme — as Explorer's and Settings'
@@ -2490,6 +2559,7 @@ impl KhipuApp {
             pending_transfer: None,
             pending_language_refresh: false,
             pending_theme_refresh: false,
+            khipu_spotlight: None,
             onboarding_probe: String::new(),
             onboarding_expanded: false,
             espanso_version: None,
@@ -3088,6 +3158,7 @@ impl eframe::App for KhipuApp {
             self.apply_language_change(ctx);
         }
         if std::mem::take(&mut self.state.pending_theme_refresh) {
+            set_khipu_palette(self.state.settings.theme_mode == ThemeMode::Khipu);
             refresh_contrast();
             self.is_light = contrast_is_light().unwrap_or(self.state.settings.theme_mode.is_light());
             self.last_accent = read_system_accent(self.is_light);
@@ -3217,5 +3288,77 @@ impl eframe::App for KhipuApp {
             }
             self.state.paused = self.tray.is_paused();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// WCAG's contrast ratio between two colours.
+    fn contrast_ratio(a: egui::Color32, b: egui::Color32) -> f32 {
+        let lum = |c: egui::Color32| {
+            let ch = |v: u8| {
+                let v = v as f32 / 255.0;
+                if v <= 0.03928 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+            };
+            0.2126 * ch(c.r()) + 0.7152 * ch(c.g()) + 0.0722 * ch(c.b())
+        };
+        let (x, y) = (lum(a), lum(b));
+        (x.max(y) + 0.05) / (x.min(y) + 0.05)
+    }
+
+    /// Every pair of the hidden theme that somebody has to read, held to the floors of Khipu's own
+    /// palette (`planes/tema-oculto-paleta.png`) — 6.68 for text on the window, 5.01 for the
+    /// quieter text, 14.96 for the primary button , 5.5 for a field's border — and to WCAG's 4.5 for every other piece of
+    /// text, 3 for an outline. A colour nudged later cannot quietly go under.
+    ///
+    /// The palette is read through the real tokens, with the theme's flag up for the length of the
+    /// test only. No other test reads a colour.
+    #[test]
+    fn khipu_palette_reads() {
+        set_khipu_palette(true);
+        let window = win_background(true);
+        let card = win_card(true);
+        let control = win_control(true);
+        let text = win_text(true);
+        let accent = read_system_accent(true);
+        let pairs = [
+            ("text / window", text, window, 6.68),
+            ("text / card", text, card, 6.68),
+            ("secondary / window", win_text_secondary(true), window, 5.01),
+            ("secondary / card", win_text_secondary(true), card, 5.01),
+            ("tertiary / window", text_tertiary(true), window, 4.5),
+            ("tertiary / selection", text_tertiary(true), selection_tint(true, accent), 4.5),
+            ("secondary / hover", win_text_secondary(true), hover_tint(true), 4.5),
+            ("secondary / chosen + hover", win_text_secondary(true), selection_hover_tint(true), 4.5),
+            ("text / field", text, control, 6.68),
+            ("button ink / button", readable_on(accent), accent, 14.96),
+            ("field border / field", line_strong(true), control, 5.5),
+            ("field border / card", line_strong(true), card, 5.5),
+            ("danger / window", danger(true), window, 4.5),
+            ("danger / error bar", danger(true), infobar_error(true), 4.5),
+            ("caution / window", caution(true), window, 4.5),
+            ("success / window", success(true), window, 4.5),
+            ("outline / card", khipu_outline(true), card, 3.0),
+        ];
+        set_khipu_palette(false);
+        let outlines = [
+            ("light outline / card", khipu_outline_off(true), 0xFBFBFB, 3.0),
+            ("dark outline / card", khipu_outline_off(false), 0x2B2B2B, 3.0),
+        ];
+        for (name, fg, bg, floor) in pairs {
+            let ratio = contrast_ratio(fg, bg);
+            assert!(ratio >= floor, "{name}: {ratio:.2} < {floor}");
+        }
+        for (name, fg, bg, floor) in outlines {
+            let ratio = contrast_ratio(fg, hex(bg));
+            assert!(ratio >= floor, "{name}: {ratio:.2} < {floor}");
+        }
+    }
+
+    /// The outline as the other two themes draw it, read once the flag is down again.
+    fn khipu_outline_off(is_light: bool) -> egui::Color32 {
+        token(is_light, 0xA99BE7, 0x8A78D6, 0x5B4878, |c| c.hotlight)
     }
 }
