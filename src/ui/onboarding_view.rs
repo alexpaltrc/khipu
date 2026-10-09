@@ -41,6 +41,7 @@
 use crate::app::{AppState, View};
 use crate::ui::controls::{self, Tone};
 use egui::{pos2, vec2, Color32, Rect, Stroke};
+use crate::ui::tips_view::TRAY_SIZE;
 
 /// What the trial expansion produces. The trigger is the app's own name, so the first expansion
 /// anybody sees says whose it is; the text is espanso's classic example.
@@ -411,7 +412,7 @@ fn paint_mark(painter: &egui::Painter, visuals: &egui::Visuals, rect: Rect) {
 }
 
 /// The tray's icon, as the notification area shows it: the bird alone, in the tone of the bar.
-fn paint_tray_mark(painter: &egui::Painter, visuals: &egui::Visuals, rect: Rect) {
+pub(crate) fn paint_tray_mark(painter: &egui::Painter, visuals: &egui::Visuals, rect: Rect) {
     let tint = if crate::app::contrast().is_some() {
         visuals.text_color()
     } else {
@@ -849,8 +850,6 @@ fn autostart(ui: &mut egui::Ui, state: &mut AppState, enter: &Enter, viewport: f
     });
 }
 
-/// The tray picture's own measure, the one it has in the tips.
-const TRAY_SIZE: egui::Vec2 = vec2(264.0, 112.0);
 /// How much larger than in the tips the tray is drawn here, when the page has the room.
 const TRAY_SCALE: f32 = 1.5;
 
@@ -878,13 +877,12 @@ fn enlarged(ui: &mut egui::Ui, room: f32, draw: impl FnOnce(&mut egui::Ui, Rect)
 /// One round of the tray demonstration, in seconds.
 const TRAY_ROUND: f64 = 5.2;
 
-/// The gesture the step asks for, acted out: the pointer opens the hidden icons, picks ours up,
-/// carries it down onto the taskbar and lets go; then the picture resets and does it again.
+/// The gesture the step asks for, acted out on Windows 11's own taskbar: the pointer clicks the
+/// chevron, the hidden icons' panel opens above it, the pointer picks ours up, carries it down
+/// onto the taskbar and lets go; then the picture resets and does it again.
 ///
-/// The same drawing as [`crate::ui::tips_view::tray_illustration`] — taskbar, clock, chevron,
-/// flyout, an outline where the icon belongs — with our icon drawn as the app's own mark.
+/// The scene is [`crate::ui::tips_view::paint_taskbar`]'s, the one the tips show still.
 fn tray_demo(ui: &mut egui::Ui, rect: Rect, clock: f64, frames: &mut Frames) {
-    let is_light = !ui.visuals().dark_mode;
     let accent = crate::app::accent(ui.visuals());
     let s = clock.max(0.0) % TRAY_ROUND;
     if clock < 0.0 {
@@ -895,62 +893,33 @@ fn tray_demo(ui: &mut egui::Ui, rect: Rect, clock: f64, frames: &mut Frames) {
         frames.now();
     }
 
-    let ink = crate::app::text_tertiary(is_light);
-    let quiet = ink.gamma_multiply(0.55);
-    let surface = crate::app::win_control_for(is_light);
-    let edge = crate::app::line_strong(is_light);
-    let painter = ui.painter();
-
-    // --- the taskbar ---------------------------------------------------------------------------
-    let bar = Rect::from_min_size(pos2(rect.left(), rect.bottom() - 34.0), vec2(rect.width(), 34.0));
-    painter.rect_filled(bar, 5.0, surface);
-    painter.rect_stroke(bar, 5.0, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
-    for (i, w) in [34.0_f32, 40.0].into_iter().enumerate() {
-        let y = bar.center().y - 5.0 + i as f32 * 10.0;
-        painter.rect_filled(Rect::from_min_size(pos2(bar.right() - 12.0 - w, y), vec2(w, 4.0)), 2.0, quiet);
-    }
-    let chevron_x = bar.left() + 34.0;
-    let landing_x = chevron_x + 34.0;
-    for i in 0..2 {
-        let slot = Rect::from_center_size(pos2(landing_x + 34.0 + i as f32 * 30.0, bar.center().y), vec2(15.0, 15.0));
-        painter.rect_filled(slot, 3.0, quiet);
-    }
-    let landing = Rect::from_center_size(pos2(landing_x, bar.center().y), vec2(17.0, 17.0));
-
     // The timeline.
     let open = ease_out(span(s, 0.75, 0.95)) * (1.0 - ease_out(span(s, 2.85, 3.05)));
     let lift = ease_out(span(s, 1.45, 1.6)) * (1.0 - ease_out(span(s, 2.6, 2.75)));
     let carry = ease_in_out(span(s, 1.6, 2.6));
     let reset = ease_out(span(s, 4.5, 5.0));
     let landed = s >= 2.6;
+    // The chevron's button lights as the pointer reaches it, and stays lit while its panel is open.
+    let pressed = ease_out(span(s, 0.55, 0.7)).max(open) * (1.0 - ease_out(span(s, 2.85, 3.05)));
 
+    let scene = crate::ui::tips_view::paint_taskbar(ui, rect, pressed);
+    let painter = ui.painter();
     let outline = if landed { reset } else { 1.0 };
     if outline > 0.0 {
-        painter.rect_stroke(landing, 3.0, Stroke::new(1.5, accent.gamma_multiply(outline)), egui::StrokeKind::Inside);
+        painter.rect_stroke(scene.landing, 3.0, Stroke::new(1.5, accent.gamma_multiply(outline)), egui::StrokeKind::Inside);
     }
-    let chevron = pos2(chevron_x, bar.center().y + 2.0);
-    let chevron_ink = crate::app::mix(ink, accent, open);
-    painter.line_segment([chevron + vec2(-5.0, 2.0), chevron + vec2(0.0, -3.0)], Stroke::new(1.8, chevron_ink));
-    painter.line_segment([chevron + vec2(0.0, -3.0), chevron + vec2(5.0, 2.0)], Stroke::new(1.8, chevron_ink));
 
-    // --- the flyout ----------------------------------------------------------------------------
+    // --- the panel -------------------------------------------------------------------------------
     let rise = (1.0 - open) * 6.0;
-    let flyout = Rect::from_min_size(pos2(chevron_x - 20.0, rect.top() + rise), vec2(104.0, 36.0));
-    let ours_home = pos2(flyout.left() + 52.0, flyout.center().y);
     if open > 0.0 {
         let mut fly = painter.clone();
         fly.set_opacity(open);
-        fly.rect_filled(flyout, 7.0, surface);
-        fly.rect_stroke(flyout, 7.0, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
-        for i in [0, 2] {
-            let x = flyout.left() + 22.0 + i as f32 * 30.0;
-            fly.rect_filled(Rect::from_center_size(pos2(x, flyout.center().y), vec2(16.0, 16.0)), 3.0, quiet);
-        }
+        crate::ui::tips_view::paint_flyout(&fly, ui.visuals(), scene.flyout.translate(vec2(0.0, rise)));
     }
 
     // --- our icon --------------------------------------------------------------------------------
-    let home = pos2(ours_home.x, rect.top() + 18.0);
-    let icon_at = home + (landing.center() - home) * carry;
+    let home = scene.ours;
+    let icon_at = home + (scene.landing.center() - home) * carry;
     let in_flyout = s < 1.45;
     let icon_alpha = if in_flyout { open } else if landed { 1.0 - reset } else { 1.0 };
     if icon_alpha > 0.0 {
@@ -962,8 +931,10 @@ fn tray_demo(ui: &mut egui::Ui, rect: Rect, clock: f64, frames: &mut Frames) {
     }
 
     // --- the pointer -----------------------------------------------------------------------------
-    let rest = pos2(bar.left() + 150.0, bar.center().y + 4.0);
-    let at_chevron = chevron + vec2(2.0, 0.0);
+    // The picture clips at the foot of the taskbar, so the pointer rests and clicks high enough to
+    // be seen whole.
+    let rest = scene.chevron + vec2(-38.0, -7.0);
+    let at_chevron = scene.chevron + vec2(0.0, -3.0);
     let pointer = if s < 0.75 {
         rest + (at_chevron - rest) * ease_in_out(span(s, 0.15, 0.7))
     } else if s < 1.45 {
@@ -973,13 +944,13 @@ fn tray_demo(ui: &mut egui::Ui, rect: Rect, clock: f64, frames: &mut Frames) {
     } else {
         icon_at + (rest - icon_at) * ease_in_out(span(s, 3.0, 3.6))
     };
-    let pressed = (0.7..0.85).contains(&s) || (1.45..2.6).contains(&s);
+    let held = (0.7..0.85).contains(&s) || (1.45..2.6).contains(&s);
     let pointer_alpha = 1.0 - reset;
-    paint_pointer(painter, pointer + vec2(2.0, 3.0), if pressed { 0.92 } else { 1.0 }, pointer_alpha);
+    paint_pointer(painter, pointer + vec2(2.0, 1.0), if held { 0.92 } else { 1.0 }, pointer_alpha);
 }
 
 /// Windows' arrow pointer: white, edged in black, whatever the theme — as it is on the real screen.
-fn paint_pointer(painter: &egui::Painter, tip: egui::Pos2, scale: f32, alpha: f32) {
+pub(crate) fn paint_pointer(painter: &egui::Painter, tip: egui::Pos2, scale: f32, alpha: f32) {
     if alpha <= 0.0 {
         return;
     }

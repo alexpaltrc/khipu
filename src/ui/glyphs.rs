@@ -57,6 +57,8 @@ pub enum Glyph {
     Info,
     Error,
     Undo,
+    Wifi,
+    Volume,
 }
 
 impl Glyph {
@@ -84,6 +86,8 @@ impl Glyph {
             Glyph::Info => '\u{E946}',
             Glyph::Error => '\u{EA39}',
             Glyph::Undo => '\u{E7A7}',
+            Glyph::Wifi => '\u{E701}',
+            Glyph::Volume => '\u{E767}',
         }
     }
 }

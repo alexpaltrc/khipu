@@ -26,6 +26,10 @@ was published.
   what you type (the trigger) and what appears (the text), says that together they make an
   expansion, and uses your own prefix. It is outside the sections, so nobody has to open
   anything to read it.
+- **The tray picture looks like your taskbar.** The welcome screen's animation and the picture in
+  Tips now draw Windows 11's own taskbar: Start, the network and volume icons, and the clock with
+  the time it is, in your format. The hidden icons open right above the arrow, the way they do on
+  screen, and the pointer clicks the arrow before it carries the Khipu icon down.
 - **Khipu speaks for itself.** Tips, the welcome screen, the tray tooltip, the status dot and the
   error messages used to say "Espanso" where they meant Khipu or your expansions. They now say
   Khipu, so nobody wonders which app they are using. The welcome screen's trial expansion is

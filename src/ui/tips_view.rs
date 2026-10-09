@@ -572,121 +572,131 @@ fn shortcut_table(ui: &mut egui::Ui, state: &AppState) {
     }
 }
 
-/// A drawing of the notification area: the overflow flyout above, the taskbar below, and the icon
-/// being dragged from one to the other — the gesture the tip is asking for.
+/// The tray picture's own measure, here and in the welcome, where it is drawn larger.
+pub const TRAY_SIZE: egui::Vec2 = egui::vec2(264.0, 112.0);
+
+/// Where everything in the tray picture is. [`paint_taskbar`] works it out as it draws the bar,
+/// so the welcome's animation and the still picture here cannot disagree about it.
+pub struct TrayScene {
+    /// The middle of the button that opens the hidden icons.
+    pub chevron: egui::Pos2,
+    /// The place on the taskbar our icon is heading for.
+    pub landing: egui::Rect,
+    /// The hidden icons' panel, open.
+    pub flyout: egui::Rect,
+    /// Our icon's place in that panel.
+    pub ours: egui::Pos2,
+}
+
+/// The taskbar as Windows 11 draws it, at the foot of `rect`: Start and two apps on the left; on
+/// the right the chevron, the place ours will take, network and volume, and the clock showing the
+/// time it is, in the user's own format. `pressed` lights the chevron's button, from 0 to 1, as it
+/// does under the pointer and while its panel is open.
 ///
 /// Painted rather than shipped as an image. A screenshot would be wrong the moment Windows changes
 /// its taskbar, wrong on a different accent colour, wrong in the other theme, and blurry on a scaled
-/// display. Forty lines of rectangles are right in all four cases and weigh nothing.
-///
-/// The clock is drawn too, and it earns its place: "next to the clock" is how everybody actually
-/// describes where the tray is, and it is the one landmark that makes the strip unmistakably the
-/// notification area rather than a generic bar. The flyout sits directly above the chevron it opens
-/// from, and the destination is an empty outline — a place waiting to be filled.
-pub fn tray_illustration(ui: &mut egui::Ui) {
+/// display. The clock earns its place: "next to the clock" is how everybody describes where the
+/// tray is.
+pub fn paint_taskbar(ui: &egui::Ui, rect: egui::Rect, pressed: f32) -> TrayScene {
     let is_light = !ui.visuals().dark_mode;
     let accent = crate::app::accent(ui.visuals());
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(264.0, 112.0), egui::Sense::hover());
+    let ink = crate::app::secondary_text(is_light);
+    let quiet = crate::app::text_tertiary(is_light).gamma_multiply(0.55);
+    let painter = ui.painter();
+
+    let bar = egui::Rect::from_min_size(egui::pos2(rect.left(), rect.bottom() - 34.0), egui::vec2(rect.width(), 34.0));
+    painter.rect_filled(bar, 5.0, crate::app::win_control_for(is_light));
+    painter.rect_stroke(bar, 5.0, egui::Stroke::new(1.0, crate::app::line_strong(is_light)), egui::StrokeKind::Inside);
+    let cy = bar.center().y;
+
+    // Start, in four panes, and two apps beside it.
+    let start = egui::pos2(bar.left() + 20.0, cy);
+    for (dx, dy) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+        let pane = egui::Rect::from_center_size(start + egui::vec2(dx * 3.25, dy * 3.25), egui::vec2(5.5, 5.5));
+        painter.rect_filled(pane, 1.0, accent);
+    }
+    for i in 0..2 {
+        let app = egui::Rect::from_center_size(egui::pos2(start.x + 26.0 + i as f32 * 26.0, cy), egui::vec2(15.0, 15.0));
+        painter.rect_filled(app, 3.0, quiet);
+    }
+
+    // The clock, right-aligned on two lines, the way the taskbar sets it.
+    let (time, date) = crate::datefmt::taskbar_clock();
+    let font = egui::FontId::proportional(9.0);
+    let right = bar.right() - 10.0;
+    let mut clock_left = right;
+    for (line, dy) in [(time, -6.0), (date, 6.0)] {
+        let galley = painter.layout_no_wrap(line, font.clone(), ink);
+        let at = egui::pos2(right - galley.size().x, cy + dy - galley.size().y / 2.0);
+        clock_left = clock_left.min(at.x);
+        painter.galley(at, galley, ink);
+    }
+
+    // Volume and network, as one group; then the empty place; then the chevron.
+    let volume = clock_left - 14.0;
+    let wifi = volume - 19.0;
+    for (x, glyph) in [(wifi, Glyph::Wifi), (volume, Glyph::Volume)] {
+        glyphs::paint(ui, egui::Rect::from_center_size(egui::pos2(x, cy), egui::vec2(12.0, 12.0)), glyph, 12.0, ink);
+    }
+    let landing = egui::Rect::from_center_size(egui::pos2(wifi - 29.0, cy), egui::vec2(17.0, 17.0));
+    let chevron = egui::pos2(landing.center().x - 25.0, cy);
+    if pressed > 0.0 {
+        let button = egui::Rect::from_center_size(chevron, egui::vec2(20.0, 26.0));
+        painter.rect_filled(button, 4.0, crate::app::text_tertiary(is_light).gamma_multiply(0.16 * pressed));
+    }
+    let stroke = egui::Stroke::new(1.3, ink);
+    painter.line_segment([chevron + egui::vec2(-4.0, 2.0), chevron + egui::vec2(0.0, -2.0)], stroke);
+    painter.line_segment([chevron + egui::vec2(0.0, -2.0), chevron + egui::vec2(4.0, 2.0)], stroke);
+
+    // The panel opens directly above the chevron: three icons to a row, ours the last one in.
+    let flyout = egui::Rect::from_center_size(
+        egui::pos2(chevron.x, bar.top() - 8.0 - 32.0),
+        egui::vec2(96.0, 64.0),
+    );
+    let ours = flyout_cell(flyout, 1, 1);
+    TrayScene { chevron, landing, flyout, ours }
+}
+
+/// The middle of the panel's icon at `column`, `row`.
+fn flyout_cell(flyout: egui::Rect, column: usize, row: usize) -> egui::Pos2 {
+    flyout.left_top() + egui::vec2(20.0 + column as f32 * 28.0, 18.0 + row as f32 * 28.0)
+}
+
+/// The hidden icons' panel at `flyout`, with the other icons in it but not ours, which is drawn by
+/// whoever is moving it.
+pub fn paint_flyout(painter: &egui::Painter, visuals: &egui::Visuals, flyout: egui::Rect) {
+    let is_light = !visuals.dark_mode;
+    let lift = egui::epaint::Shadow {
+        offset: [0, 2],
+        blur: 10,
+        spread: 0,
+        color: egui::Color32::from_black_alpha(if is_light { 28 } else { 80 }),
+    };
+    painter.add(lift.as_shape(flyout, 8.0));
+    painter.rect_filled(flyout, 8.0, crate::app::win_control_for(is_light));
+    painter.rect_stroke(flyout, 8.0, egui::Stroke::new(1.0, crate::app::line_strong(is_light)), egui::StrokeKind::Inside);
+    let quiet = crate::app::text_tertiary(is_light).gamma_multiply(0.55);
+    for (column, row) in [(0, 0), (1, 0), (2, 0), (0, 1)] {
+        let icon = egui::Rect::from_center_size(flyout_cell(flyout, column, row), egui::vec2(15.0, 15.0));
+        painter.rect_filled(icon, 3.0, quiet);
+    }
+}
+
+/// The still version of the welcome's demonstration: the panel open, our icon held by the pointer
+/// on its way down, and the place it is going outlined — the gesture the tip is asking for.
+pub fn tray_illustration(ui: &mut egui::Ui) {
+    let (rect, _) = ui.allocate_exact_size(TRAY_SIZE, egui::Sense::hover());
     if !ui.is_rect_visible(rect) {
         return;
     }
+    let accent = crate::app::accent(ui.visuals());
+    let scene = paint_taskbar(ui, rect, 1.0);
     let painter = ui.painter();
-
-    let ink = crate::app::text_tertiary(is_light);
-    let quiet = ink.gamma_multiply(0.55);
-    let surface = crate::app::win_control_for(is_light);
-    let edge = crate::app::line_strong(is_light);
-
-    // --- the taskbar, along the bottom -----------------------------------------------------------
-    let bar = egui::Rect::from_min_size(
-        egui::pos2(rect.left(), rect.bottom() - 34.0),
-        egui::vec2(rect.width(), 34.0),
-    );
-    painter.rect_filled(bar, egui::CornerRadius::same(5), surface);
-    painter.rect_stroke(
-        bar,
-        egui::CornerRadius::same(5),
-        egui::Stroke::new(1.0, edge),
-        egui::StrokeKind::Inside,
-    );
-
-    // The clock: two stacked bars standing in for the time and the date, at the right-hand end.
-    for (i, w) in [34.0_f32, 40.0].into_iter().enumerate() {
-        let y = bar.center().y - 5.0 + i as f32 * 10.0;
-        painter.rect_filled(
-            egui::Rect::from_min_size(egui::pos2(bar.right() - 12.0 - w, y), egui::vec2(w, 4.0)),
-            egui::CornerRadius::same(2),
-            quiet,
-        );
-    }
-
-    // Two icons that are already pinned, then the empty slot ours is heading for, then the chevron.
-    let chevron_x = bar.left() + 34.0;
-    let landing_x = chevron_x + 34.0;
-    for i in 0..2 {
-        let slot = egui::Rect::from_center_size(
-            egui::pos2(landing_x + 34.0 + i as f32 * 30.0, bar.center().y),
-            egui::vec2(15.0, 15.0),
-        );
-        painter.rect_filled(slot, egui::CornerRadius::same(3), quiet);
-    }
-    let landing = egui::Rect::from_center_size(
-        egui::pos2(landing_x, bar.center().y),
-        egui::vec2(17.0, 17.0),
-    );
-    painter.rect_stroke(
-        landing,
-        egui::CornerRadius::same(3),
-        egui::Stroke::new(1.5, accent),
-        egui::StrokeKind::Inside,
-    );
-
-    // The chevron that opens the flyout, pointing up at it.
-    let chevron = egui::pos2(chevron_x, bar.center().y + 2.0);
-    painter.line_segment(
-        [chevron + egui::vec2(-5.0, 2.0), chevron + egui::vec2(0.0, -3.0)],
-        egui::Stroke::new(1.8, ink),
-    );
-    painter.line_segment(
-        [chevron + egui::vec2(0.0, -3.0), chevron + egui::vec2(5.0, 2.0)],
-        egui::Stroke::new(1.8, ink),
-    );
-
-    // --- the flyout, directly above the chevron it belongs to ------------------------------------
-    let flyout = egui::Rect::from_min_size(
-        egui::pos2(chevron_x - 20.0, rect.top()),
-        egui::vec2(104.0, 36.0),
-    );
-    painter.rect_filled(flyout, egui::CornerRadius::same(7), surface);
-    painter.rect_stroke(
-        flyout,
-        egui::CornerRadius::same(7),
-        egui::Stroke::new(1.0, edge),
-        egui::StrokeKind::Inside,
-    );
-    let ours_x = flyout.left() + 52.0;
-    for i in 0..3 {
-        let x = flyout.left() + 22.0 + i as f32 * 30.0;
-        let slot = egui::Rect::from_center_size(egui::pos2(x, flyout.center().y), egui::vec2(16.0, 16.0));
-        let mine = (x - ours_x).abs() < 1.0;
-        painter.rect_filled(
-            slot,
-            egui::CornerRadius::same(3),
-            if mine { accent } else { quiet },
-        );
-    }
-
-    // --- the drag ---------------------------------------------------------------------------------
-    let from = egui::pos2(ours_x, flyout.bottom() + 5.0);
-    let to = egui::pos2(landing.center().x, landing.top() - 8.0);
-    painter.line_segment([from, to], egui::Stroke::new(1.8, accent));
-    let dir = (to - from).normalized();
-    let side = egui::vec2(-dir.y, dir.x) * 4.0;
-    painter.add(egui::Shape::convex_polygon(
-        vec![to + dir * 4.0, to - dir * 3.0 + side, to - dir * 3.0 - side],
-        accent,
-        egui::Stroke::NONE,
-    ));
+    painter.rect_stroke(scene.landing, 3.0, egui::Stroke::new(1.5, accent), egui::StrokeKind::Inside);
+    paint_flyout(painter, ui.visuals(), scene.flyout);
+    let held = scene.ours + (scene.landing.center() - scene.ours) * 0.55;
+    super::onboarding_view::paint_tray_mark(painter, ui.visuals(), egui::Rect::from_center_size(held, egui::vec2(19.0, 19.0)));
+    super::onboarding_view::paint_pointer(painter, held + egui::vec2(2.0, 3.0), 0.92, 1.0);
 }
 
 #[cfg(test)]

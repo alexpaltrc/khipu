@@ -382,6 +382,21 @@ pub fn sample(fmt: &str, tz: Option<&str>, lang: Lang) -> String {
     format(fmt, now, lang)
 }
 
+/// The time and the date as the taskbar's clock shows them right now, in the user's own formats:
+/// Windows formats them, so a 12-hour clock or a month-first date comes out as it does down there.
+/// Empty strings if Windows declines, which the drawing survives.
+pub fn taskbar_clock() -> (String, String) {
+    use windows::Win32::Globalization::{GetDateFormatEx, GetTimeFormatEx, DATE_SHORTDATE, TIME_NOSECONDS};
+    use windows::core::PCWSTR;
+    let mut time = [0u16; 64];
+    let mut date = [0u16; 64];
+    // A null locale is the user's; a null moment is now.
+    let t = unsafe { GetTimeFormatEx(PCWSTR::null(), TIME_NOSECONDS, None, PCWSTR::null(), Some(&mut time)) };
+    let d = unsafe { GetDateFormatEx(PCWSTR::null(), DATE_SHORTDATE, None, PCWSTR::null(), Some(&mut date), PCWSTR::null()) };
+    let text = |buf: &[u16], len: i32| String::from_utf16_lossy(&buf[..(len.max(1) - 1) as usize]);
+    (text(&time, t), text(&date, d))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
