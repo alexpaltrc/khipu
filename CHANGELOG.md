@@ -33,8 +33,9 @@ was published.
 - **Khipu speaks for itself.** Tips, the welcome screen, the tray tooltip, the status dot and the
   error messages used to say "Espanso" where they meant Khipu or your expansions. They now say
   Khipu, so nobody wonders which app they are using. The welcome screen's trial expansion is
-  now `;khipu`. Espanso is still named where it is due: the credits, the version line in
-  Settings, the licences, and the two rare messages about Espanso's own icon showing up.
+  now `;khipu`, and it greets you in Khipu's language: «¡Hola!» in Spanish, not "Hi there!".
+  Espanso is still named where it is due: the credits, the version line in Settings, the
+  licences, and the two rare messages about Espanso's own icon showing up.
 
 ## 0.0.6 — 2026-10-06
 

@@ -44,9 +44,19 @@ use egui::{pos2, vec2, Color32, Rect, Stroke};
 use crate::ui::tips_view::TRAY_SIZE;
 
 /// What the trial expansion produces. The trigger is the app's own name, so the first expansion
-/// anybody sees says whose it is; the text is espanso's classic example.
+/// anybody sees says whose it is; the text is a greeting in the language Khipu speaks, so the first
+/// thing it types for somebody is in their own words.
 pub const PROBE_TRIGGER: &str = ";khipu";
-pub const PROBE_REPLACE: &str = "Hi there!";
+
+pub fn probe_reply(lang: crate::i18n::Lang) -> &'static str {
+    use crate::i18n::Lang;
+    match lang {
+        Lang::Es => "¡Hola!",
+        Lang::En => "Hi there!",
+        Lang::Fil => "Kumusta!",
+        Lang::Hi => "नमस्ते!",
+    }
+}
 
 const STEPS: usize = 4;
 /// The column every step keeps to. Narrow on purpose: four short steps read as one calm page, not
@@ -729,7 +739,7 @@ fn try_it(ui: &mut egui::Ui, state: &mut AppState, enter: &Enter, focus_pending:
     // Espanso replaces the trigger wherever the cursor happens to be, including in this field —
     // which is the whole point: nothing here is simulated. The moment the replacement text turns
     // up, it worked.
-    if state.onboarding_probe.contains(PROBE_REPLACE) {
+    if state.onboarding_probe.contains(probe_reply(state.settings.lang)) {
         state.onboarding_expanded = true;
     }
     let stuck = typing_went_astray(ui.ctx(), &state.onboarding_probe, state.onboarding_expanded);

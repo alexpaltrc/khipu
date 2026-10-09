@@ -544,9 +544,9 @@ impl AppState {
         let body = format!(
             "# Temporary — created by Khipu for its first-run screen and deleted as soon\n\
              # as that screen is finished with. Nothing here is yours; edit base.yml instead.\n\
-             matches:\n- trigger: '{}'\n  replace: {}\n",
+             matches:\n- trigger: '{}'\n  replace: '{}'\n",
             crate::ui::onboarding_view::PROBE_TRIGGER,
-            crate::ui::onboarding_view::PROBE_REPLACE,
+            crate::ui::onboarding_view::probe_reply(self.settings.lang),
         );
         let _ = std::fs::write(path, body);
     }
