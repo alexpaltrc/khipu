@@ -85,6 +85,26 @@ expansions from one to the other.
 
 There is more than this in there. It is meant to be found by using it.
 
+<details>
+<summary>🤫 Can't wait? Open this for a hint.</summary>
+
+<br>
+
+There is a fourth theme hidden in Khipu. It is not in Settings until you find it, and you find it
+in **Tips**, with the arrow keys, the way an old game would ask for a cheat code.
+
+<details>
+<summary>🎤 Still nothing? Open this for the answer.</summary>
+
+<br>
+
+Open **Tips** and press <kbd>↑</kbd> <kbd>↑</kbd> <kbd>↓</kbd> <kbd>↓</kbd> <kbd>←</kbd>
+<kbd>→</kbd> <kbd>←</kbd> <kbd>→</kbd>. Settings opens by itself on **I got chiiills**, in
+Khipu's own violet, title bar included. Once found, it stays there for good.
+
+</details>
+</details>
+
 > 📏 Those two numbers are measured, not estimated, on version 0.0.3 with the app hidden in the
 > tray: 69.9–70.5 MB of working set, and 0–47 ms of CPU per 150 seconds across five samples,
 > handle count 332–340. Taken on the author's machine, so yours will read
