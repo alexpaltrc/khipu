@@ -1193,10 +1193,10 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
         ui.label(controls::muted(
             studio::text(
                 state,
-                "Solo sirve para encontrarla aquí. Espanso no usa las carpetas.",
-                "Only for finding it here. Espanso itself does not use folders.",
-                "Para lang mahanap ito rito. Hindi gumagamit ng folder ang Espanso.",
-                "यह केवल इसे यहाँ खोजने के लिए है। Espanso फ़ोल्डर का उपयोग नहीं करता।",
+                "Solo sirve para encontrarla aquí: la expansión funciona igual en cualquier carpeta.",
+                "Only for finding it here: the expansion works the same in any folder.",
+                "Para lang mahanap ito rito: pareho ang gana ng expansion sa kahit anong folder.",
+                "यह केवल इसे यहाँ खोजने के लिए है: विस्तार किसी भी फ़ोल्डर में एक जैसा काम करता है।",
             ),
             is_light,
         ));

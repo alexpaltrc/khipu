@@ -769,10 +769,10 @@ fn status(ui: &mut egui::Ui, state: &AppState, is_light: bool) {
         let t = state.t();
         let why = studio::text(
             state,
-            "Espanso no contestó la última vez que se le habló. «{pause}» o «{resume}» vuelve a intentarlo.",
-            "Espanso did not answer the last time it was asked. “{pause}” or “{resume}” tries again.",
-            "Hindi sumagot ang Espanso noong huling tanungin. Susubok muli ang “{pause}” o “{resume}”.",
-            "पिछली बार पूछने पर Espanso ने जवाब नहीं दिया। “{pause}” या “{resume}” फिर से कोशिश करता है।",
+            "Khipu no logró confirmar que las expansiones estén activas. «{pause}» o «{resume}» vuelve a intentarlo.",
+            "Khipu could not confirm that expansions are on. “{pause}” or “{resume}” tries again.",
+            "Hindi makumpirma ng Khipu na aktibo ang mga expansion. Susubok muli ang “{pause}” o “{resume}”.",
+            "Khipu पुष्टि नहीं कर सका कि विस्तार सक्रिय हैं। “{pause}” या “{resume}” फिर से कोशिश करता है।",
         );
         response.on_hover_text(fill(why, &[("pause", t.tray_pause), ("resume", t.tray_resume)]));
     }

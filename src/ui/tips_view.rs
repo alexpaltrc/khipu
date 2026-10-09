@@ -201,10 +201,10 @@ fn lead(ui: &mut egui::Ui, state: &mut AppState) {
     );
     let body = text(
         state,
-        "Eliges un activador corto, escribes el texto una sola vez y, a partir de ahí, Espanso lo completa por ti en cualquier programa.",
-        "You pick a short trigger, write the text once, and from then on Espanso completes it for you in any program.",
-        "Pumili ka ng maikling trigger, isulat ang teksto nang minsanan, at mula noon ay kukumpletuhin ito ng Espanso para sa iyo sa kahit anong programa.",
-        "एक छोटा ट्रिगर चुनें, टेक्स्ट एक बार लिखें, और उसके बाद Espanso उसे किसी भी प्रोग्राम में आपके लिए पूरा कर देगा।",
+        "Eliges un activador corto, escribes el texto una sola vez y, a partir de ahí, Khipu lo completa por ti en cualquier programa.",
+        "You pick a short trigger, write the text once, and from then on Khipu completes it for you in any program.",
+        "Pumili ka ng maikling trigger, isulat ang teksto nang minsanan, at mula noon ay kukumpletuhin ito ng Khipu para sa iyo sa kahit anong programa.",
+        "एक छोटा ट्रिगर चुनें, टेक्स्ट एक बार लिखें, और उसके बाद Khipu उसे किसी भी प्रोग्राम में आपके लिए पूरा कर देगा।",
     );
     let trigger = text(state, ":hola", ":hi", ":kumusta", ":namaste");
     let result = text(
@@ -401,10 +401,10 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
         let pause_body = crate::i18n::fill(
             text(
                 state,
-                "El botón {pause} de la biblioteca detiene las expansiones sin cerrar nada, y el mismo botón las vuelve a activar. El punto de estado, a la izquierda del título, dice si Espanso está activo, en pausa o sin responder.",
-                "The {pause} button in the library stops expansions without closing anything, and the same button turns them back on. The status dot to the left of the title says whether Espanso is active, paused or not responding.",
-                "Pinapatigil ng {pause} na button sa aklatan ang mga expansion nang walang isinasara, at ibinabalik din ito ng parehong button. Sinasabi ng status dot sa kaliwa ng pamagat kung aktibo, naka-pause o hindi tumutugon ang Espanso.",
-                "लाइब्रेरी का {pause} बटन बिना कुछ बंद किए विस्तार रोक देता है, और वही बटन उन्हें फिर चालू करता है। शीर्षक के बाईं ओर का स्थिति बिंदु बताता है कि Espanso सक्रिय है, रुका हुआ है या जवाब नहीं दे रहा।",
+                "El botón {pause} de la biblioteca detiene las expansiones sin cerrar nada, y el mismo botón las vuelve a activar. El punto de estado, a la izquierda del título, dice si las expansiones están activas, en pausa o sin responder.",
+                "The {pause} button in the library stops expansions without closing anything, and the same button turns them back on. The status dot to the left of the title says whether expansions are on, paused or not responding.",
+                "Pinapatigil ng {pause} na button sa aklatan ang mga expansion nang walang isinasara, at ibinabalik din ito ng parehong button. Sinasabi ng status dot sa kaliwa ng pamagat kung aktibo, naka-pause o hindi tumutugon ang mga expansion.",
+                "लाइब्रेरी का {pause} बटन बिना कुछ बंद किए विस्तार रोक देता है, और वही बटन उन्हें फिर चालू करता है। शीर्षक के बाईं ओर का स्थिति बिंदु बताता है कि विस्तार सक्रिय हैं, रुके हुए हैं या जवाब नहीं दे रहे।",
             ),
             &[("pause", t.tray_pause)],
         );

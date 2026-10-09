@@ -42,9 +42,9 @@ use crate::app::{AppState, View};
 use crate::ui::controls::{self, Tone};
 use egui::{pos2, vec2, Color32, Rect, Stroke};
 
-/// What the trial expansion produces. Espanso's own wording, kept deliberately: someone who later
-/// reads espanso's documentation should meet the same example.
-pub const PROBE_TRIGGER: &str = ":espanso";
+/// What the trial expansion produces. The trigger is the app's own name, so the first expansion
+/// anybody sees says whose it is; the text is espanso's classic example.
+pub const PROBE_TRIGGER: &str = ":khipu";
 pub const PROBE_REPLACE: &str = "Hi there!";
 
 const STEPS: usize = 4;

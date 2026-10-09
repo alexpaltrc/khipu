@@ -3,6 +3,16 @@
 All notable changes to Khipu, called Espanso Manager until 0.0.5. Dates are the day the work was finished, not the day it
 was published.
 
+## Unreleased
+
+### Changed
+
+- **Khipu speaks for itself.** Tips, the welcome screen, the tray tooltip, the status dot and the
+  error messages used to say "Espanso" where they meant Khipu or your expansions. They now say
+  Khipu, so nobody wonders which app they are using. The welcome screen's trial expansion is
+  now `:khipu`. Espanso is still named where it is due: the credits, the version line in
+  Settings, the licences, and the two rare messages about Espanso's own icon showing up.
+
 ## 0.0.6 — 2026-10-06
 
 ### Added
