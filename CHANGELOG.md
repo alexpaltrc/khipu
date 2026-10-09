@@ -67,6 +67,10 @@ was published.
   now `;khipu`, and it greets you in Khipu's language: «¡Hola!» in Spanish, not "Hi there!".
   Espanso is still named where it is due: the credits, the version line in Settings, the
   licences, and the two rare messages about Espanso's own icon showing up.
+- **A new folder is one click away.** When you create or edit an expansion, a **+** now sits
+  right beside the folder list. With many folders, **New folder…** was at the bottom of that
+  list and you had to scroll to find it; the **+** opens the box for the new folder's name
+  straight away. **New folder…** is still in the list too.
 
 ### Fixed
 

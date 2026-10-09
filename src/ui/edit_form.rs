@@ -64,6 +64,7 @@ use crate::datefmt;
 use crate::i18n::{fill, Lang, Strings};
 use crate::yaml::model::{SimpleMatch, VarEntry};
 use crate::ui::controls::{self, Tone};
+use crate::ui::glyphs::Glyph;
 use crate::ui::keys;
 use crate::ui::studio;
 use crate::yaml::presets::{build_custom_date_var, month_lang_of, DatePreset};
@@ -1260,6 +1261,11 @@ fn name_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light
     });
 }
 
+/// The box for a new folder's name, so the «+» beside the folder list can put the cursor in it.
+fn new_folder_field_id() -> egui::Id {
+    egui::Id::new("edit-new-folder-name")
+}
+
 fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
     let t = state.t();
     ui.vertical(|ui| {
@@ -1291,38 +1297,51 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
                 .clone()
                 .unwrap_or_else(|| t.no_folder.to_string())
         };
-        // Truncating rather than extending: a long folder name may not push the control out past
-        // the edge of the card it is in.
-        egui::ComboBox::from_id_salt("edit_folder_combo")
-            .selected_text(selected_text)
-            .truncate()
-            .width(ui.available_width())
-            .show_ui(ui, |ui| {
-                if ui
-                    .selectable_label(
-                        edit.folder.is_none() && !edit.choosing_new_folder,
-                        t.no_folder,
-                    )
-                    .clicked()
-                {
-                    edit.folder = None;
-                    edit.choosing_new_folder = false;
-                }
-                for name in &folder_names {
-                    let selected =
-                        !edit.choosing_new_folder && edit.folder.as_deref() == Some(name.as_str());
-                    if ui.selectable_label(selected, name).clicked() {
-                        edit.folder = Some(name.clone());
+        // «Nueva carpeta» has a button of its own beside the list: at the foot of a long list of
+        // folders it was out of sight until the list was scrolled.
+        let new_tip = t.add_new_folder.trim_start_matches(['+', ' ']).trim_end_matches('…');
+        let add_clicked = ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
+            let combo_w = ui.available_width() - controls::GAP_TIGHT - controls::FIELD_HEIGHT;
+            // Truncating rather than extending: a long folder name may not push the control out past
+            // the edge of the card it is in.
+            egui::ComboBox::from_id_salt("edit_folder_combo")
+                .selected_text(selected_text)
+                .truncate()
+                .width(combo_w)
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(
+                            edit.folder.is_none() && !edit.choosing_new_folder,
+                            t.no_folder,
+                        )
+                        .clicked()
+                    {
+                        edit.folder = None;
                         edit.choosing_new_folder = false;
                     }
-                }
-                if ui
-                    .selectable_label(edit.choosing_new_folder, t.add_new_folder)
-                    .clicked()
-                {
-                    edit.choosing_new_folder = true;
-                }
-            });
+                    for name in &folder_names {
+                        let selected =
+                            !edit.choosing_new_folder && edit.folder.as_deref() == Some(name.as_str());
+                        if ui.selectable_label(selected, name).clicked() {
+                            edit.folder = Some(name.clone());
+                            edit.choosing_new_folder = false;
+                        }
+                    }
+                    if ui
+                        .selectable_label(edit.choosing_new_folder, t.add_new_folder)
+                        .clicked()
+                    {
+                        edit.choosing_new_folder = true;
+                    }
+                });
+            controls::icon_button(ui, Glyph::Add, new_tip, true).clicked()
+        })
+        .inner;
+        if add_clicked {
+            edit.choosing_new_folder = true;
+            ui.memory_mut(|m| m.request_focus(new_folder_field_id()));
+        }
         // The box for the new name appears next to the choice that asked for it, which is the
         // plan's rule about creating a folder from here rather than going somewhere else to do it.
         if edit.choosing_new_folder {
@@ -1332,6 +1351,7 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
                 ui.label(controls::field_label(t.name_label));
                 ui.add(
                     controls::text_field(&mut edit.new_folder_input)
+                        .id(new_folder_field_id())
                         .desired_width(ui.available_width().max(120.0))
                         .hint_text(t.new_folder_placeholder),
                 );
