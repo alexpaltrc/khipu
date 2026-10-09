@@ -243,7 +243,7 @@ pub struct ListRow {
     pub preview: String,
     /// Switched off: kept, drawn dimmer, and absent from espanso and from the launcher.
     pub off: bool,
-    /// Starred: a filled star on its row, and ahead of the rest in the launcher.
+    /// Starred: a filled star on its row, and ahead of the rest in the list and the launcher.
     pub favorite: bool,
 }
 
@@ -719,10 +719,12 @@ impl AppState {
             });
         }
 
-        // What is switched off goes to the bottom: of the whole list, and so of every folder too,
-        // since the buckets below are filled in this order. The sort is stable, so each half keeps
-        // the file's order.
-        rows.sort_by_key(|row| row.off);
+        // Starred ones go to the top and what is switched off to the bottom: of the whole list, and
+        // so of every folder too, since the buckets below are filled in this order. Always, unlike
+        // the launcher, where Ajustes can turn the star's lift off. Off outranks the star: an
+        // expansion that does not fire is not one to keep at hand. The sort is stable, so each band
+        // keeps the file's order.
+        rows.sort_by_key(|row| (row.off, !row.favorite));
 
         // Grouped in one pass (O(n)) rather than re-scanning the rows once per folder name
         // (O(folders × n)). `BTreeMap` also gives the A→Z folder ordering for free.

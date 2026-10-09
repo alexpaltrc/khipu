@@ -198,26 +198,79 @@ pub fn muted(text: impl Into<String>, is_light: bool) -> egui::RichText {
 /// then the text as given, one gap after it. With no name it is the text alone, exactly as before
 /// names existed. One line, laid out as a single run so the row's truncation cuts the whole thing
 /// at the edge rather than dropping the text and keeping the name.
+///
+/// Whatever a search found in either is drawn in the accent — see [`marked`].
 pub fn named_text(
     ui: &egui::Ui,
     name: Option<&str>,
     name_color: egui::Color32,
-    text: egui::RichText,
-) -> egui::WidgetText {
-    let Some(name) = name else {
-        return text.into();
-    };
+    text: &str,
+    text_color: egui::Color32,
+    needle: &str,
+) -> egui::text::LayoutJob {
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let hit = accent(ui.visuals());
     let mut job = egui::text::LayoutJob::default();
-    let font = egui::FontSelection::Style(egui::TextStyle::Body);
-    egui::RichText::new(name)
-        .color(name_color)
-        .append_to(&mut job, ui.style(), font.clone(), egui::Align::Center);
-    let start = job.sections.len();
-    text.append_to(&mut job, ui.style(), font, egui::Align::Center);
-    if let Some(first) = job.sections.get_mut(start) {
-        first.leading_space = GAP;
+    if let Some(name) = name {
+        marked(&mut job, name, needle, &font, name_color, hit);
+        let start = job.sections.len();
+        marked(&mut job, text, needle, &font, text_color, hit);
+        if let Some(first) = job.sections.get_mut(start) {
+            first.leading_space = GAP;
+        }
+    } else {
+        marked(&mut job, text, needle, &font, text_color, hit);
     }
-    job.into()
+    job
+}
+
+/// Where `needle`, already lowercased, turns up in `text` when case is ignored: byte ranges of
+/// `text`, in order and never overlapping. The same test the lists filter by, so a row that a search
+/// kept shows where it was found.
+///
+/// Lowercasing can change a letter's length in bytes, so the search runs on a lowercased copy that
+/// remembers, for each of its bytes, which of the original's characters it came from.
+pub fn find_ignoring_case(text: &str, needle: &str) -> Vec<std::ops::Range<usize>> {
+    if needle.is_empty() {
+        return Vec::new();
+    }
+    let mut lower = String::with_capacity(text.len());
+    let mut from: Vec<(usize, usize)> = Vec::with_capacity(text.len());
+    for (at, c) in text.char_indices() {
+        for l in c.to_lowercase() {
+            lower.push(l);
+            from.extend(std::iter::repeat_n((at, at + c.len_utf8()), l.len_utf8()));
+        }
+    }
+    lower
+        .match_indices(needle)
+        .map(|(at, found)| from[at].0..from[at + found.len() - 1].1)
+        .collect()
+}
+
+/// Appends `text` to `job` in `ink`, with every place a search found `needle` in `hit` instead.
+pub fn marked(
+    job: &mut egui::text::LayoutJob,
+    text: &str,
+    needle: &str,
+    font: &egui::FontId,
+    ink: egui::Color32,
+    hit: egui::Color32,
+) {
+    let format = |color| egui::TextFormat { font_id: font.clone(), color, valign: egui::Align::Center, ..Default::default() };
+    let mut done = 0;
+    for found in find_ignoring_case(text, needle) {
+        // A match that only starts where the last ended still begins a new section; an empty run
+        // before it is skipped, not appended.
+        if found.start > done {
+            job.append(&text[done..found.start], 0.0, format(ink));
+        }
+        job.append(&text[found.clone()], 0.0, format(hit));
+        done = found.end;
+    }
+    if done < text.len() || text.is_empty() {
+        job.append(&text[done..], 0.0, format(ink));
+    }
 }
 
 /// The same, one size down — for counts and captions, never for anything that names a thing.
@@ -1430,4 +1483,27 @@ pub fn field_underline(ui: &egui::Ui, rect: egui::Rect) {
         egui::CornerRadius { nw: 0, ne: 0, sw: RADIUS_CONTROL, se: RADIUS_CONTROL },
         fill,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_ignoring_case;
+
+    #[test]
+    fn finds_every_match_ignoring_case() {
+        assert_eq!(find_ignoring_case("Firma: firma", "firma"), vec![0..5, 7..12]);
+        assert_eq!(find_ignoring_case("abc", ""), Vec::<std::ops::Range<usize>>::new());
+        assert_eq!(find_ignoring_case("abc", "x"), Vec::<std::ops::Range<usize>>::new());
+    }
+
+    #[test]
+    fn ranges_land_on_the_original_text_when_lowercasing_changes_lengths() {
+        // «İ» is two bytes and lowercases to three: the range must still cut the original cleanly.
+        let text = "İstanbul Ñandú";
+        let found = find_ignoring_case(text, "ñandú");
+        assert_eq!(found.len(), 1);
+        assert_eq!(&text[found[0].clone()], "Ñandú");
+        let found = find_ignoring_case(text, "stan");
+        assert_eq!(&text[found[0].clone()], "stan");
+    }
 }

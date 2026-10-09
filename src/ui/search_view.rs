@@ -624,6 +624,8 @@ fn show(ui: &mut egui::Ui, l: &mut Launcher) -> Outcome {
                 egui::RichText::new("x").monospace(),
             );
             let columns = Columns { trigger: l.trigger_width, drop };
+            // Lowercased and trimmed the way [`hits`] searched.
+            let needle = l.query.trim().to_lowercase();
             let glide = &mut l.glide;
             let mut pointed = None;
             egui::ScrollArea::vertical()
@@ -633,7 +635,7 @@ fn show(ui: &mut egui::Ui, l: &mut Launcher) -> Outcome {
                     ui.spacing_mut().item_spacing.y = 0.0;
                     let band = glide_selection(ui, glide, selected, jump, animate, is_light);
                     for (i, hit) in results.iter().enumerate() {
-                        let response = row(ui, hit, i == 0, columns, band, is_light);
+                        let response = row(ui, hit, &needle, i == 0, columns, band, is_light);
                         if follow && i == selected {
                             // `None`: scroll the least that brings it into view, which keeps the
                             // list still when the row is already on screen.
@@ -709,6 +711,7 @@ struct Columns {
 fn row(
     ui: &mut egui::Ui,
     hit: &Hit,
+    needle: &str,
     first: bool,
     columns: Columns,
     band: egui::Rect,
@@ -732,23 +735,23 @@ fn row(
     let left = rect.left() + controls::ROW_PAD_X;
     let preview_left = left + columns.trigger;
     let strong = ui.visuals().strong_text_color();
-    let line = |text: egui::RichText, width: f32| {
-        egui::WidgetText::from(text).into_galley(
-            ui,
-            Some(egui::TextWrapMode::Truncate),
-            width.max(1.0),
-            egui::TextStyle::Body,
-        )
-    };
-    let trigger = line(
-        egui::RichText::new(&hit.trigger).monospace().color(strong),
-        columns.trigger - controls::GAP_WIDE,
+    // What was typed, wherever it turns up, in the accent: the same mark as in the library.
+    let mut trigger = egui::text::LayoutJob::default();
+    let mono = egui::TextStyle::Monospace.resolve(ui.style());
+    controls::marked(&mut trigger, &hit.trigger, needle, &mono, strong, accent(ui.visuals()));
+    let trigger = egui::WidgetText::from(trigger).into_galley(
+        ui,
+        Some(egui::TextWrapMode::Truncate),
+        (columns.trigger - controls::GAP_WIDE).max(1.0),
+        egui::TextStyle::Body,
     );
     let preview = egui::WidgetText::from(controls::named_text(
         ui,
         hit.name.as_deref(),
         strong,
-        controls::muted(&hit.preview, is_light),
+        &hit.preview,
+        crate::app::secondary_text(is_light),
+        needle,
     ))
     .into_galley(
         ui,

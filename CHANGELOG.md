@@ -25,8 +25,9 @@ was published.
   erases it.
 - **Favorites.** The star at the top of an expansion's detail, or at the top of its edit screen,
   marks it as a favorite. Favorites wear a star at the end of their row. The star beside the
-  folder picker shows only the favorites, inside whatever folder is showing. In the launcher,
-  favorites come first; **Favorites first in search**, in Settings, turns that off. A renamed
+  folder picker shows only the favorites, inside whatever folder is showing. Favorites always
+  come first in your list, and in every folder. In the launcher they come first too, unless you
+  turn off **Favorites first in search** in Settings. A renamed
   expansion keeps its star, and stars travel with export and import.
 
 ### Changed
@@ -67,6 +68,8 @@ was published.
   now `;khipu`, and it greets you in Khipu's language: «¡Hola!» in Spanish, not "Hi there!".
   Espanso is still named where it is due: the credits, the version line in Settings, the
   licences, and the two rare messages about Espanso's own icon showing up.
+  The welcome screen's tip under the example of an expansion now begins with Khipu's name
+  («Khipu is extremely light»), so it no longer reads as if it described the expansion above it.
 - **Two views of your list: Comfortable and Compact.** The **…** menu now has a **View** line with
   both choices side by side, and the list changes behind the menu as you pick. **Comfortable**,
   the new default, shows each expansion as a small card: its name in bold, its trigger on the
@@ -77,6 +80,10 @@ was published.
   right beside the folder list. With many folders, **New folder…** was at the bottom of that
   list and you had to scroll to find it; the **+** opens the box for the new folder's name
   straight away. **New folder…** is still in the list too.
+- **Search shows where it found your words.** As you type in the search box of the main window
+  or of the launcher, the letters you typed light up in your accent colour wherever they appear in
+  the results: in the trigger, the name and the text. A trigger, already in the accent in the
+  Comfortable view, dims around the match so the match is what stands out.
 
 ### Fixed
 

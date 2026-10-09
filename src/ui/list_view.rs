@@ -453,6 +453,9 @@ struct RowPass<'a> {
     /// Where the hover wash stands — see [`glide_band`]. Filled in inside the scroll area, the
     /// only place that knows where the list's content starts.
     glide: Option<egui::Rangef>,
+    /// What the search box holds, lowercased: drawn in the accent wherever a row contains it, so
+    /// the list shows where each row matched.
+    needle: &'a str,
 }
 
 fn row_pass<'a>(
@@ -461,6 +464,7 @@ fn row_pass<'a>(
     select_mode: bool,
     trigger_w: f32,
     baseline_drop: &'a std::cell::Cell<Option<f32>>,
+    needle: &'a str,
 ) -> RowPass<'a> {
     RowPass {
         dragged_id: ui.ctx().dragged_id(),
@@ -474,6 +478,7 @@ fn row_pass<'a>(
         trigger_w,
         flash: flash_now(ui.ctx()),
         glide: None,
+        needle,
     }
 }
 
@@ -1523,7 +1528,9 @@ fn show_list(
     let t = state.t();
     let trigger_w = trigger_column(ui.available_width());
     let baseline_drop = std::cell::Cell::new(None);
-    let pass = row_pass(ui, state.settings.compact_view, picking, trigger_w, &baseline_drop);
+    // Lowercased the way the list was filtered, in [`AppState::build_list`].
+    let needle = state.search.to_lowercase();
+    let pass = row_pass(ui, state.settings.compact_view, picking, trigger_w, &baseline_drop, &needle);
     let open = open_row(ui.ctx());
     let height = ui.available_height().max(LIST_MIN_HEIGHT);
     // The one row Tab stops on: the chosen one, or the first. The arrows do the rest, as in every
@@ -2159,7 +2166,10 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                 // Laid out and truncated the way a label would be, but painted by hand, a hair
                 // below centre: centred, the smaller monospace stood a point above the
                 // replacement. See [`controls::baseline_drop`].
-                let trigger = egui::WidgetText::from(trigger_text()).into_galley(
+                let mono = egui::TextStyle::Monospace.resolve(ui.style());
+                let mut job = egui::text::LayoutJob::default();
+                controls::marked(&mut job, &row.trigger, pass.needle, &mono, strong, accent(ui.visuals()));
+                let trigger = egui::WidgetText::from(job).into_galley(
                     ui,
                     Some(egui::TextWrapMode::Truncate),
                     (pass.trigger_w - spacing).max(1.0),
@@ -2188,10 +2198,10 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                 if padding > 0.0 {
                     ui.add_space(padding);
                 }
-                let text = if row.off {
-                    egui::RichText::new(&row.preview).color(crate::app::disabled_text(is_light))
+                let quiet = if row.off {
+                    crate::app::disabled_text(is_light)
                 } else {
-                    controls::muted(&row.preview, is_light)
+                    crate::app::secondary_text(is_light)
                 };
                 // A favourite wears its star at the far end, in the accent; the text stops short of
                 // it rather than running underneath.
@@ -2199,8 +2209,10 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                 let label = ui
                     .scope(|ui| {
                         ui.set_max_width((ui.available_width() - star_room).max(1.0));
+                        let text =
+                            controls::named_text(ui, row.name.as_deref(), strong, &row.preview, quiet, pass.needle);
                         ui.add(
-                            egui::Label::new(controls::named_text(ui, row.name.as_deref(), strong, text))
+                            egui::Label::new(text)
                                 .truncate()
                                 .selectable(false),
                         )
@@ -2255,11 +2267,12 @@ fn comfortable_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selec
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing.y = controls::GAP_TIGHT;
                     comfortable_first_line(ui, row, pass, is_light);
-                    let text = if row.off {
-                        egui::RichText::new(&row.preview).color(crate::app::disabled_text(is_light))
+                    let quiet = if row.off {
+                        crate::app::disabled_text(is_light)
                     } else {
-                        controls::muted(&row.preview, is_light)
+                        crate::app::secondary_text(is_light)
                     };
+                    let text = controls::named_text(ui, None, quiet, &row.preview, quiet, pass.needle);
                     ui.add(egui::Label::new(text).truncate().selectable(false));
                 });
             });
@@ -2277,8 +2290,20 @@ fn comfortable_first_line(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, i
     let star_room = if row.favorite { ROW_STAR + controls::GAP } else { 0.0 };
     let gap = controls::GAP_WIDE;
     let trigger_text = || egui::RichText::new(&row.trigger).monospace().color(code_ink);
-    let galley = |ui: &egui::Ui, text: egui::RichText, room: f32| {
-        egui::WidgetText::from(text).into_galley(
+    let hit = accent(ui.visuals());
+    let body = egui::TextStyle::Body.resolve(ui.style());
+    // A trigger is already in the accent, so where a search found something in it, the rest of it
+    // steps back instead and the find is what stays lit.
+    let trigger_job = || {
+        let found = !row.off && !controls::find_ignoring_case(&row.trigger, pass.needle).is_empty();
+        let ink = if found { crate::app::secondary_text(is_light) } else { code_ink };
+        let mut job = egui::text::LayoutJob::default();
+        let mono = egui::TextStyle::Monospace.resolve(ui.style());
+        controls::marked(&mut job, &row.trigger, pass.needle, &mono, ink, hit);
+        job
+    };
+    let galley = |ui: &egui::Ui, job: egui::text::LayoutJob, room: f32| {
+        egui::WidgetText::from(job).into_galley(
             ui,
             Some(egui::TextWrapMode::Truncate),
             room.max(1.0),
@@ -2288,12 +2313,14 @@ fn comfortable_first_line(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, i
     // With a name, the trigger goes to the right; without one, it is what names the row.
     let (left, right) = match row.name.as_deref() {
         Some(name) => {
-            let trigger = galley(ui, trigger_text(), width * COMFORTABLE_TRIGGER_SHARE - star_room);
+            let trigger = galley(ui, trigger_job(), width * COMFORTABLE_TRIGGER_SHARE - star_room);
             let room = width - trigger.size().x - star_room - gap;
-            let name = egui::RichText::new(name).family(crate::fonts::semibold_family()).color(strong);
-            (galley(ui, name, room), Some(trigger))
+            let semibold = egui::FontId::new(body.size, crate::fonts::semibold_family());
+            let mut job = egui::text::LayoutJob::default();
+            controls::marked(&mut job, name, pass.needle, &semibold, strong, hit);
+            (galley(ui, job, room), Some(trigger))
         }
-        None => (galley(ui, trigger_text(), width - star_room - gap), None),
+        None => (galley(ui, trigger_job(), width - star_room - gap), None),
     };
     let drop = pass.baseline_drop.get().unwrap_or_else(|| {
         let drop = controls::baseline_drop(ui, egui::RichText::new("x"), egui::RichText::new("x").monospace());
