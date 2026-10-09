@@ -16,6 +16,13 @@ was published.
   like any other app, so you can switch to it, minimize it and find it again. Closing the window
   still leaves it working in the system tray, without a button. Starting with Windows, it stays in
   the tray, and no button flashes on the taskbar at login.
+- **Expansions can have a name.** The edit screen has a new **Name (optional)** field. In the
+  list and in the launcher, the name leads the row, in stronger type, before the text. The
+  triggers stay lined up in their own column. The detail shows it under the trigger. Search in
+  the list and in the launcher finds the name too. It is saved in `base.yml` as espanso's own
+  `label`, and travels with export and import. An expansion without a name looks as it did. If
+  you had already written a `label` into `base.yml` by hand, editing that expansion no longer
+  erases it.
 
 ### Changed
 
@@ -55,6 +62,13 @@ was published.
   now `;khipu`, and it greets you in Khipu's language: «¡Hola!» in Spanish, not "Hi there!".
   Espanso is still named where it is due: the credits, the version line in Settings, the
   licences, and the two rare messages about Espanso's own icon showing up.
+
+### Fixed
+
+- **Edit is always reachable in an expansion's detail.** On a short window, the detail beside
+  the list could run past the bottom edge and hide **Edit** and the **⋯** menu. Now its text box
+  gives up lines first, down to three whole ones, and if that is still not enough, the detail
+  scrolls.
 
 ## 0.0.6 — 2026-10-06
 

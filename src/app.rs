@@ -234,6 +234,8 @@ pub struct Banner {
 /// One expansion as the list draws it.
 pub struct ListRow {
     pub trigger: String,
+    /// What the user calls it, if they named it: drawn ahead of the text, and searched like it.
+    pub name: Option<String>,
     /// The replacement, already shortened. Hard-capped here rather than at the widget:
     /// `Label::truncate` does the final width-aware trim, but it has to lay the text out to know
     /// where to cut, so handing it a multi-kilobyte replacement would make the row pay for glyphs
@@ -562,16 +564,20 @@ impl AppState {
         let _ = std::fs::remove_file(self.onboarding_match_path());
     }
 
-    /// Every expansion this app manages, as (trigger, one-line preview), for the search window.
+    /// Every expansion this app manages, as trigger, name and one-line preview, for the search window.
     /// The ones switched off are left out: the launcher fires expansions, and these do not fire.
-    pub fn list_all(&self) -> Vec<(String, String)> {
+    pub fn list_all(&self) -> Vec<crate::ui::search_view::Hit> {
         let t = self.t();
         self.match_file
             .entries
             .iter()
             .filter_map(|entry| match entry {
                 MatchEntry::Simple(m) if !self.match_file.is_off(&m.trigger) => {
-                    Some((m.trigger.clone(), entry.preview(t)))
+                    Some(crate::ui::search_view::Hit {
+                        trigger: m.trigger.clone(),
+                        name: entry.name().map(str::to_owned),
+                        preview: entry.preview(t),
+                    })
                 }
                 MatchEntry::Simple(_) => None,
                 MatchEntry::Advanced(_) => None,
@@ -649,6 +655,7 @@ impl AppState {
             let preview = entry.preview(t);
             if !query.is_empty() {
                 let matches = entry.trigger_str().to_lowercase().contains(&query)
+                    || entry.name().is_some_and(|name| name.to_lowercase().contains(&query))
                     || preview.to_lowercase().contains(&query);
                 if !matches {
                     continue;
@@ -656,6 +663,7 @@ impl AppState {
             }
             rows.push(ListRow {
                 trigger: entry.trigger_label(),
+                name: entry.name().map(str::to_owned),
                 preview: truncate(&preview, PREVIEW_MAX_CHARS),
                 off: self.match_file.is_off(entry.trigger_str()),
             });

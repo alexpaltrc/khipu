@@ -86,6 +86,8 @@ const APPEAR: f32 = 0.12;
 
 pub struct Hit {
     pub trigger: String,
+    /// The name the user gave it, if any: drawn ahead of the text and searched like the trigger.
+    pub name: Option<String>,
     pub preview: String,
 }
 
@@ -188,7 +190,7 @@ impl SearchWindow {
     pub fn open(
         &self,
         ctx: &egui::Context,
-        entries: Vec<(String, String)>,
+        entries: Vec<Hit>,
         t: &'static Strings,
         over: windows::Win32::Foundation::HWND,
     ) {
@@ -202,7 +204,7 @@ impl SearchWindow {
     pub fn open_for_studio(
         &self,
         ctx: &egui::Context,
-        entries: Vec<(String, String)>,
+        entries: Vec<Hit>,
         t: &'static Strings,
         query: &str,
         at: egui::Pos2,
@@ -214,16 +216,13 @@ impl SearchWindow {
     fn put_up(
         &self,
         ctx: &egui::Context,
-        entries: Vec<(String, String)>,
+        entries: Vec<Hit>,
         t: &'static Strings,
         over: windows::Win32::Foundation::HWND,
         studio: Option<(&str, egui::Pos2)>,
     ) {
         let mut l = self.lock();
-        l.entries = entries
-            .into_iter()
-            .map(|(trigger, preview)| Hit { trigger, preview })
-            .collect();
+        l.entries = entries;
         l.t = Some(t);
         l.query = studio.map_or(String::new(), |(query, _)| query.to_owned());
         l.selected = 0;
@@ -438,22 +437,27 @@ fn set_cloaked(hwnd: isize, cloaked: bool) -> bool {
 
 /// The expansions matching the query, best first.
 ///
-/// Matches on the trigger *and* on the replacement text, because half the time you remember what
-/// the expansion says rather than what you named it. A trigger match sorts first: if you typed
-/// something that looks like a trigger, that is almost certainly what you meant.
+/// Matches on the trigger, on the name *and* on the replacement text, because half the time you
+/// remember what the expansion says or what it is for rather than what you type. A trigger match
+/// sorts first: if you typed something that looks like a trigger, that is almost certainly what you
+/// meant. A name comes next, because you chose it to find this by.
 fn hits<'a>(entries: &'a [Hit], query: &str) -> Vec<&'a Hit> {
     let needle = query.trim().to_lowercase();
     let mut by_trigger = Vec::new();
+    let mut by_name = Vec::new();
     let mut by_text = Vec::new();
 
     for hit in entries {
         if needle.is_empty() || hit.trigger.to_lowercase().contains(&needle) {
             by_trigger.push(hit);
+        } else if hit.name.as_ref().is_some_and(|name| name.to_lowercase().contains(&needle)) {
+            by_name.push(hit);
         } else if hit.preview.to_lowercase().contains(&needle) {
             by_text.push(hit);
         }
     }
 
+    by_trigger.extend(by_name);
     by_trigger.extend(by_text);
     by_trigger.truncate(MAX_RESULTS);
     by_trigger
@@ -740,9 +744,17 @@ fn row(
         egui::RichText::new(&hit.trigger).monospace().color(strong),
         columns.trigger - controls::GAP_WIDE,
     );
-    let preview = line(
+    let preview = egui::WidgetText::from(controls::named_text(
+        ui,
+        hit.name.as_deref(),
+        strong,
         controls::muted(&hit.preview, is_light),
-        rect.right() - controls::ROW_PAD_X - preview_left,
+    ))
+    .into_galley(
+        ui,
+        Some(egui::TextWrapMode::Truncate),
+        (rect.right() - controls::ROW_PAD_X - preview_left).max(1.0),
+        egui::TextStyle::Body,
     );
     let middle = rect.center().y;
     let painter = ui.painter();

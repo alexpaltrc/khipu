@@ -194,6 +194,32 @@ pub fn muted(text: impl Into<String>, is_light: bool) -> egui::RichText {
     egui::RichText::new(text).color(secondary_text(is_light))
 }
 
+/// What a row says an expansion writes, led by its name when it has one: the name in `name_color`,
+/// then the text as given, one gap after it. With no name it is the text alone, exactly as before
+/// names existed. One line, laid out as a single run so the row's truncation cuts the whole thing
+/// at the edge rather than dropping the text and keeping the name.
+pub fn named_text(
+    ui: &egui::Ui,
+    name: Option<&str>,
+    name_color: egui::Color32,
+    text: egui::RichText,
+) -> egui::WidgetText {
+    let Some(name) = name else {
+        return text.into();
+    };
+    let mut job = egui::text::LayoutJob::default();
+    let font = egui::FontSelection::Style(egui::TextStyle::Body);
+    egui::RichText::new(name)
+        .color(name_color)
+        .append_to(&mut job, ui.style(), font.clone(), egui::Align::Center);
+    let start = job.sections.len();
+    text.append_to(&mut job, ui.style(), font, egui::Align::Center);
+    if let Some(first) = job.sections.get_mut(start) {
+        first.leading_space = GAP;
+    }
+    job.into()
+}
+
 /// The same, one size down — for counts and captions, never for anything that names a thing.
 pub fn small_muted(text: impl Into<String>, is_light: bool) -> egui::RichText {
     egui::RichText::new(text).small().color(secondary_text(is_light))

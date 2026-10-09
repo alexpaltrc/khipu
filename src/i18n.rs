@@ -431,7 +431,7 @@ pub struct Strings {
 pub static EN: Strings = Strings {
     settings_button: "Settings",
     tips_button_tip: "Tips",
-    tip_search_body: "Press {keys} in any program and a search box appears. Type part of a trigger or of its text, pick one with the arrows and Enter — or a click — and it is written where your cursor was. Esc closes it.",
+    tip_search_body: "Press {keys} in any program and a search box appears. Type part of a trigger, its name or its text, pick one with the arrows and Enter — or a click — and it is written where your cursor was. Esc closes it.",
     onboarding_version: "Version {version}",
     onboarding_welcome_tip: "Free forever and private: no account, no internet, and everything stays on this computer.",
     onboarding_what_title: "What is an expansion?",
@@ -641,7 +641,7 @@ pub static EN: Strings = Strings {
 pub static ES: Strings = Strings {
     settings_button: "Ajustes",
     tips_button_tip: "Consejos",
-    tip_search_body: "Presiona {keys} en cualquier programa y aparece un buscador. Escribe parte del activador o de su texto, elige con las flechas y Entrar —o con un clic— y se escribe donde estaba tu cursor. Esc lo cierra.",
+    tip_search_body: "Presiona {keys} en cualquier programa y aparece un buscador. Escribe parte del activador, de su nombre o de su texto, elige con las flechas y Entrar —o con un clic— y se escribe donde estaba tu cursor. Esc lo cierra.",
     onboarding_version: "Versión {version}",
     onboarding_welcome_tip: "Gratis para siempre y privada: sin cuentas, sin internet, y todo se queda en tu equipo.",
     onboarding_what_title: "¿Qué es una expansión?",
@@ -851,7 +851,7 @@ pub static ES: Strings = Strings {
 pub static FIL: Strings = Strings {
     settings_button: "Mga setting",
     tips_button_tip: "Mga tip",
-    tip_search_body: "Pindutin ang {keys} sa kahit anong programa at lilitaw ang isang search box. I-type ang bahagi ng trigger o ng teksto nito, pumili gamit ang mga arrow at Enter — o isang click — at isusulat ito kung nasaan ang cursor mo. Isinasara ito ng Esc.",
+    tip_search_body: "Pindutin ang {keys} sa kahit anong programa at lilitaw ang isang search box. I-type ang bahagi ng trigger, ng pangalan nito o ng teksto nito, pumili gamit ang mga arrow at Enter — o isang click — at isusulat ito kung nasaan ang cursor mo. Isinasara ito ng Esc.",
     onboarding_version: "Bersyon {version}",
     onboarding_welcome_tip: "Libre magpakailanman at pribado: walang account, walang internet, at nananatili ang lahat sa computer na ito.",
     onboarding_what_title: "Ano ang expansion?",
@@ -1061,7 +1061,7 @@ pub static FIL: Strings = Strings {
 pub static HI: Strings = Strings {
     settings_button: "सेटिंग्स",
     tips_button_tip: "सुझाव",
-    tip_search_body: "किसी भी प्रोग्राम में {keys} दबाएँ और एक खोज बॉक्स आ जाएगा। ट्रिगर का या उसके टेक्स्ट का कुछ हिस्सा लिखें, तीर कुंजियों और Enter से — या एक क्लिक से — एक चुनें, और वह वहीं लिख दिया जाएगा जहाँ आपका कर्सर था। Esc उसे बंद करता है।",
+    tip_search_body: "किसी भी प्रोग्राम में {keys} दबाएँ और एक खोज बॉक्स आ जाएगा। ट्रिगर का, उसके नाम का या उसके टेक्स्ट का कुछ हिस्सा लिखें, तीर कुंजियों और Enter से — या एक क्लिक से — एक चुनें, और वह वहीं लिख दिया जाएगा जहाँ आपका कर्सर था। Esc उसे बंद करता है।",
     onboarding_version: "संस्करण {version}",
     onboarding_welcome_tip: "हमेशा मुफ़्त और निजी: न कोई खाता, न इंटरनेट, और सब कुछ इसी कंप्यूटर पर रहता है।",
     onboarding_what_title: "विस्तार क्या है?",

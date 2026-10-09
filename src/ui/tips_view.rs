@@ -293,10 +293,10 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
             |ui| {
                 para(ui, text(
                     state,
-                    "Busca por el activador o por el texto que inserta; Ctrl+F lleva el cursor al buscador. Abre una fila para leer el texto completo: Editar y Eliminar están dentro de ese detalle, no en cada fila.",
-                    "Search by the trigger or by the text it inserts; Ctrl+F puts the cursor in the search box. Open a row to read the whole text: Edit and Delete live inside that detail, not on every row.",
-                    "Maghanap gamit ang trigger o ang tekstong ipinapasok nito; dinadala ng Ctrl+F ang cursor sa paghahanap. Buksan ang isang row para mabasa ang buong teksto: nasa loob ng detalye ang I-edit at Tanggalin, hindi sa bawat row.",
-                    "ट्रिगर से या उसके डाले जाने वाले टेक्स्ट से खोजें; Ctrl+F कर्सर को खोज बॉक्स में ले जाता है। पूरा टेक्स्ट पढ़ने के लिए पंक्ति खोलें: संपादित करें और हटाएँ उसी विवरण के अंदर हैं, हर पंक्ति पर नहीं।",
+                    "Busca por el activador, por su nombre o por el texto que inserta; Ctrl+F lleva el cursor al buscador. Abre una fila para leer el texto completo: Editar y Eliminar están dentro de ese detalle, no en cada fila.",
+                    "Search by the trigger, by its name or by the text it inserts; Ctrl+F puts the cursor in the search box. Open a row to read the whole text: Edit and Delete live inside that detail, not on every row.",
+                    "Maghanap gamit ang trigger, ang pangalan nito o ang tekstong ipinapasok nito; dinadala ng Ctrl+F ang cursor sa paghahanap. Buksan ang isang row para mabasa ang buong teksto: nasa loob ng detalye ang I-edit at Tanggalin, hindi sa bawat row.",
+                    "ट्रिगर से, उसके नाम से या उसके डाले जाने वाले टेक्स्ट से खोजें; Ctrl+F कर्सर को खोज बॉक्स में ले जाता है। पूरा टेक्स्ट पढ़ने के लिए पंक्ति खोलें: संपादित करें और हटाएँ उसी विवरण के अंदर हैं, हर पंक्ति पर नहीं।",
                 ));
             },
         );

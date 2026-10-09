@@ -142,6 +142,16 @@ impl MatchEntry {
         }
     }
 
+    /// The name the user gave it, kept in espanso's own `label` key. `None` for one without a name,
+    /// and for a name that is only spaces: shown, that would be a gap where the text should start.
+    pub fn name(&self) -> Option<&str> {
+        let label = match self {
+            MatchEntry::Simple(m) => m.label.as_deref(),
+            MatchEntry::Advanced(v) => v.get("label").and_then(Value::as_str),
+        };
+        label.map(str::trim).filter(|name| !name.is_empty())
+    }
+
     /// Owned form of [`trigger_str`], for the places that need to keep it past the borrow.
     pub fn trigger_label(&self) -> String {
         self.trigger_str().to_string()

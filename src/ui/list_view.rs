@@ -2131,12 +2131,13 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                 if padding > 0.0 {
                     ui.add_space(padding);
                 }
+                let text = if row.off {
+                    egui::RichText::new(&row.preview).color(crate::app::disabled_text(is_light))
+                } else {
+                    controls::muted(&row.preview, is_light)
+                };
                 ui.add(
-                    egui::Label::new(if row.off {
-                        egui::RichText::new(&row.preview).color(crate::app::disabled_text(is_light))
-                    } else {
-                        controls::muted(&row.preview, is_light)
-                    })
+                    egui::Label::new(controls::named_text(ui, row.name.as_deref(), strong, text))
                         .truncate()
                         .selectable(false),
                 );
@@ -2149,8 +2150,9 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
 // ---------------------------------------------------------------------------------------------
 
 /// Room kept under the text box for what follows it: the gap, the folder's caption and line, the
-/// gap, the status's caption and switch, the gap, the row of actions, and the card's own
-/// bottom margin and edge.
+/// gap, the status's caption and switch, the gap and the row of actions, with egui's spacing
+/// after each of the five. Only an estimate for the first frame: from then on the inspector uses
+/// the foot it measured.
 const INSPECTOR_FOOT: f32 = controls::GAP_SECTION
     + 18.0
     + controls::GAP_TIGHT
@@ -2161,10 +2163,13 @@ const INSPECTOR_FOOT: f32 = controls::GAP_SECTION
     + 24.0
     + controls::GAP_SECTION
     + controls::FIELD_HEIGHT
-    + controls::GAP_SECTION
-    + 2.0;
+    + 5.0 * 8.0;
 /// What the sunken text box adds around its text: its margin above and below, and its edge.
 const INSET_CHROME: f32 = 2.0 * 10.0 + 2.0;
+/// Of the side card's 16-point margin, what goes inside its scroll area: at the sides, room for
+/// the scroll bar at its widest and a gap; above and below, room for a focus ring.
+const CARD_BAR_ROOM: i8 = 14;
+const CARD_RING_ROOM: i8 = 4;
 
 /// Everything about one expansion: its whole trigger, its whole text, its folder, and what can be
 /// done to it. Beside the list on a wide window (`side`), or as the whole screen on a narrow one,
@@ -2181,12 +2186,9 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
     // The list's own preview is capped so a multi-kilobyte replacement never costs the list
     // anything. Here there is exactly one row to look up, so it can show the whole thing — with
     // its line breaks, which the list's preview turns into spaces.
-    let full = state
-        .match_file
-        .entries
-        .iter()
-        .find(|e| e.trigger_str() == trigger)
-        .map(|e| e.full_text(t));
+    let entry = state.match_file.entries.iter().find(|e| e.trigger_str() == trigger);
+    let full = entry.map(|e| e.full_text(t));
+    let name = entry.and_then(|e| e.name().map(str::to_owned));
     let folder = state.settings.folder_of(trigger).map(str::to_owned);
     let was_off = state.match_file.is_off(trigger);
     let mut switch_to: Option<bool> = None;
@@ -2196,8 +2198,14 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
         lang,
     );
 
+    // How tall the card can be before it has to scroll: its own height beside the list, and no
+    // limit as a page, where the page itself scrolls and the text is shown whole.
+    let side_height = ui.available_height() - 2.0 * (controls::GAP_SECTION - f32::from(CARD_RING_ROOM)) - 2.0;
+    let limit = if side { side_height - 2.0 * f32::from(CARD_RING_ROOM) } else { f32::INFINITY };
+
     let mut body = |ui: &mut egui::Ui| {
         ui.set_width(ui.available_width());
+        let start = ui.cursor().top();
         if !side {
             let back = studio::text(state, "Volver", "Back", "Bumalik", "वापस");
             controls::quiet_row(ui, |ui| {
@@ -2226,6 +2234,12 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
                 trigger_heading(ui, trigger);
             }
         });
+        // Its name, under it: the trigger is what you type, so it stays the heading; the name is
+        // what you call it, and reads as the line that explains the heading.
+        if let Some(name) = &name {
+            ui.add_space(controls::GAP_TIGHT);
+            ui.add(egui::Label::new(controls::muted(name, is_light)).wrap().selectable(true));
+        }
         ui.add_space(controls::GAP_SECTION);
 
         let text = full.clone().unwrap_or_default();
@@ -2241,17 +2255,29 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
             });
         });
         ui.add_space(controls::GAP_TIGHT);
-        let room = (ui.available_height() - INSPECTOR_FOOT - INSET_CHROME).max(3.0 * controls::FIELD_HEIGHT);
-        controls::inset_frame(ui).show(ui, |ui| {
+        // The foot as last drawn, spacing between its widgets included; the estimate only stands
+        // in for the very first frame, before there is a foot to measure.
+        let foot_id = egui::Id::new("inspector-foot");
+        let foot = ui.ctx().data(|d| d.get_temp::<f32>(foot_id)).unwrap_or(INSPECTOR_FOOT);
+        let used = ui.cursor().top() - start;
+        let room = (limit - used - foot - INSET_CHROME).max(0.0);
+        let foot_top = controls::inset_frame(ui).show(ui, |ui| {
             ui.set_width(ui.available_width());
             // Capped at a whole number of lines rather than at a round number of points: a box
             // whose height falls mid-glyph shows a sliced line at every scroll position except the
             // last one, which reads as damage rather than as "there is more below".
-            let line = ui.text_style_height(&egui::TextStyle::Body);
+            // Measured off two laid-out lines: laying out rounds each row to the pixel grid, so
+            // `text_style_height` is a fraction off, and the fraction adds up line by line.
+            let body = egui::TextStyle::Body.resolve(ui.style());
+            let probe = ui.painter().layout_no_wrap("A\nA".to_owned(), body, egui::Color32::WHITE);
+            let line = probe.size().y / 2.0;
             let cap = (room / line).floor().max(3.0) * line;
             egui::ScrollArea::vertical()
                 .id_salt(("inspector-text", trigger))
                 .max_height(cap)
+                // egui keeps a scrolled box at least 64 points tall, which beats `max_height` and
+                // would bring back the sliced line the cap is there to avoid.
+                .min_scrolled_height(cap)
                 .auto_shrink([false, true])
                 .show(ui, |ui| match &full {
                     Some(text) => {
@@ -2261,7 +2287,10 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
                         ui.label(controls::muted(t.no_matches, is_light));
                     }
                 });
-        });
+        })
+        .response
+        .rect
+        .bottom();
 
         ui.add_space(controls::GAP_SECTION);
         ui.label(controls::small_muted(
@@ -2306,7 +2335,7 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
         });
 
         ui.add_space(controls::GAP_SECTION);
-        ui.horizontal(|ui| {
+        let actions = ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = controls::GAP;
             if controls::button(ui, t.edit_button, Tone::Primary, true)
                 .on_hover_text(keys::tip(t.edit_button, keys::OPEN, lang))
@@ -2358,15 +2387,29 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
                     }
                 });
         });
+        let measured = actions.response.rect.bottom() - foot_top;
+        if (measured - foot).abs() > 0.5 {
+            ui.ctx().data_mut(|d| d.insert_temp(foot_id, measured));
+            ui.ctx().request_discard("inspector foot measured");
+        }
     };
 
     if side {
-        let height = ui.available_height();
+        // The text box gives up lines down to three; on a window shorter than that still leaves
+        // room for, the card scrolls rather than lose its actions under the bottom edge. The
+        // card's margin is split so the same 16 points stand round the content: most of it goes
+        // inside the scroll area, where the bar draws at the side and focus rings are not clipped.
+        let gap = controls::GAP_SECTION as i8;
         controls::section_frame(is_light)
-            .inner_margin(egui::Margin::same(controls::GAP_SECTION as i8))
+            .inner_margin(egui::Margin::symmetric(gap - CARD_BAR_ROOM, gap - CARD_RING_ROOM))
             .show(ui, |ui| {
-                ui.set_min_height(height - 2.0 * controls::GAP_SECTION - 2.0);
-                body(ui);
+                ui.set_min_height(side_height);
+                egui::ScrollArea::vertical()
+                    .id_salt(("inspector-card", trigger))
+                    .auto_shrink([false, false])
+                    .max_height(side_height)
+                    .content_margin(egui::Margin::symmetric(CARD_BAR_ROOM, CARD_RING_ROOM))
+                    .show(ui, |ui| body(ui));
             });
     } else {
         controls::page_scroll(ui, ("inspector-page", trigger), body);

@@ -38,11 +38,12 @@
 //! deliberately does not warn about the pair the prefix box itself produces. Read its own comment
 //! before adding a case to it; espanso's matcher makes most of the pairs that look dangerous safe.
 //!
-//! ## Three parts, no cards and no numbers
+//! ## Four parts, no cards and no numbers
 //!
-//! The form reads **Cuando escribes**, **Aparece este texto** and then the folder, in that order,
-//! each under a plain heading on the window itself. They were once numbered cards; the order already
-//! says which comes first, and a card around every part is a frame around nothing.
+//! The form reads **Cuando escribes**, **Aparece este texto**, then the name and the folder, both
+//! optional, in that order, each under a plain heading on the window itself. They were once
+//! numbered cards; the order already says which comes first, and a card around every part is a
+//! frame around nothing.
 //!
 //! ## Leaving is asked about only when there is something to lose
 //!
@@ -144,6 +145,9 @@ pub struct EditState {
     pub prefix: String,
     pub word: String,
     pub kind: Kind,
+    /// What the user calls it, if anything. Written as espanso's `label`, which espanso itself
+    /// shows in its own search bar; empty means no `label` at all.
+    pub name: String,
     /// The half of the Texto/Fecha switch that is not on screen, kept so that crossing the switch
     /// cannot destroy work. Until Guardar is pressed, the replacement text — or a date format built
     /// block by block — exists nowhere else, and one mis-click used to be enough to lose it with no
@@ -166,6 +170,7 @@ impl EditState {
             kind: Kind::Text {
                 replace: String::new(),
             },
+            name: String::new(),
             stashed_kind: None,
             folder: None,
             choosing_new_folder: false,
@@ -192,6 +197,7 @@ impl EditState {
             prefix,
             word,
             kind,
+            name: m.label.clone().unwrap_or_default(),
             stashed_kind: None,
             folder,
             choosing_new_folder: false,
@@ -234,13 +240,19 @@ impl EditState {
         format!("{}{}", self.prefix.trim(), word)
     }
 
+    /// The name as it is written to `label`: trimmed, and absent rather than empty.
+    fn label(&self) -> Option<String> {
+        let name = self.name.trim();
+        (!name.is_empty()).then(|| name.to_string())
+    }
+
     pub fn build_match(&self) -> SimpleMatch {
         match &self.kind {
             Kind::Text { replace } => SimpleMatch {
                 trigger: self.trigger(),
                 replace: replace.clone(),
                 vars: Vec::new(),
-                label: None,
+                label: self.label(),
             },
             Kind::Date {
                 preset,
@@ -261,7 +273,7 @@ impl EditState {
                     trigger: self.trigger(),
                     replace: format!("{{{{{DATE_VAR_NAME}}}}}"),
                     vars: vec![var],
-                    label: None,
+                    label: self.label(),
                 }
             }
         }
@@ -1183,6 +1195,44 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light:
 
 /// Where this expansion is filed. Last, and quieter than the other two: it changes nothing about
 /// what espanso does.
+/// What it is called, if the trigger alone does not say. Laid out like the folder below it: both
+/// are optional, both are for finding it again, and neither changes what gets written.
+fn name_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
+    ui.vertical(|ui| {
+        ui.set_width(ui.available_width());
+        ui.label(controls::h3(studio::text(
+            state,
+            "Nombre (opcional)",
+            "Name (optional)",
+            "Pangalan (opsyonal)",
+            "नाम (वैकल्पिक)",
+        )));
+        ui.add_space(controls::GAP_TIGHT);
+        ui.label(controls::muted(
+            studio::text(
+                state,
+                "Para reconocerla de un vistazo en la lista y encontrarla en el buscador.",
+                "To recognise it at a glance in the list and find it in the search window.",
+                "Para makilala ito agad sa listahan at mahanap sa paghahanap.",
+                "ताकि सूची में इसे एक नज़र में पहचान सकें और खोज में ढूँढ सकें।",
+            ),
+            is_light,
+        ));
+        ui.add_space(controls::GAP_ROW);
+        ui.add(
+            controls::text_field(&mut edit.name)
+                .desired_width(ui.available_width())
+                .hint_text(studio::text(
+                    state,
+                    "Por ejemplo: Firma del correo",
+                    "For example: Email signature",
+                    "Halimbawa: Pirma sa email",
+                    "उदाहरण: ईमेल हस्ताक्षर",
+                )),
+        );
+    });
+}
+
 fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
     let t = state.t();
     ui.vertical(|ui| {
@@ -1263,7 +1313,7 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
     });
 }
 
-/// The form itself: what you type, what appears, and the folder. The title sits above it, outside
+/// The form itself: what you type, what appears, its name and its folder. The title sits above it, outside
 /// the scroll.
 ///
 /// It takes `edit` by value and puts it back at the end, which is what lets the parts hold
@@ -1279,6 +1329,8 @@ fn show_form(
     when_you_type(ui, state, &mut edit, problem, is_light);
     ui.add_space(PART_GAP);
     appears_here(ui, state, &mut edit, is_light);
+    ui.add_space(PART_GAP);
+    name_card(ui, state, &mut edit, is_light);
     ui.add_space(PART_GAP);
     folder_card(ui, state, &mut edit, is_light);
     ui.add_space(controls::GAP);
@@ -1391,5 +1443,27 @@ mod tests {
             assert_eq!(edit.trigger(), trigger);
             assert_eq!(edit.build_match().trigger, trigger);
         }
+    }
+
+    /// Editing used to write `label: None` whatever the file said, so saving any change to an
+    /// expansion with a name threw the name away.
+    #[test]
+    fn a_name_survives_the_editor_and_an_empty_one_is_not_written() {
+        let stored = SimpleMatch {
+            trigger: ";firma".to_string(),
+            replace: "Saludos".to_string(),
+            vars: Vec::new(),
+            label: Some("Firma del correo".to_string()),
+        };
+        let edit = EditState::new_for_edit(0, &stored, None);
+        assert_eq!(edit.build_match(), stored);
+
+        let mut cleared = edit.clone();
+        cleared.name = "   ".to_string();
+        assert_eq!(cleared.build_match().label, None);
+
+        let mut padded = edit;
+        padded.name = "  Firma  ".to_string();
+        assert_eq!(padded.build_match().label.as_deref(), Some("Firma"));
     }
 }

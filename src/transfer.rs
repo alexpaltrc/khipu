@@ -63,6 +63,10 @@ pub struct ExportEntry {
     pub replace: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub vars: Vec<VarEntry>,
+    /// Its name, under espanso's own key. Left out when it has none, so an older build reads the
+    /// file as it always did, and simply leaves the name behind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     /// The folder it was filed under, if any. Recreated on import, so a shared set arrives
     /// organised the way its author left it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -107,6 +111,7 @@ pub fn build_export(
                 trigger: m.trigger.clone(),
                 replace: m.replace.clone(),
                 vars: m.vars.clone(),
+                label: e.name().map(str::to_owned),
                 folder: folder_of(&m.trigger),
                 off: is_off(&m.trigger),
             }),
@@ -289,7 +294,7 @@ pub fn merge(existing: &[MatchEntry], export: Export) -> Merged {
             trigger: trigger.clone(),
             replace: entry.replace,
             vars: entry.vars,
-            label: None,
+            label: entry.label,
         });
         if !candidate.is_safely_editable() {
             skipped += 1;
@@ -328,6 +333,7 @@ mod tests {
             trigger: trigger.to_string(),
             replace: "texto".to_string(),
             vars,
+            label: None,
             folder: None,
             off: false,
         }
@@ -538,5 +544,19 @@ mod tests {
         let merged = merge(&[], read);
         assert_eq!(merged.added.len(), 2);
         assert_eq!(merged.off, vec![":dos".to_string()]);
+    }
+
+    /// A name goes out with its expansion and comes back on it; one without a name writes no key.
+    #[test]
+    fn the_name_travels_and_is_absent_when_there_is_none() {
+        let mut named = entry(":dos", Vec::new());
+        named.label = Some("Firma del correo".to_string());
+        let text = serde_norway::to_string(&doc(vec![entry(":uno", Vec::new()), named])).unwrap();
+        assert_eq!(text.matches("label:").count(), 1);
+
+        let read: Export = serde_norway::from_str(&text).unwrap();
+        let merged = merge(&[], read);
+        let names: Vec<Option<&str>> = merged.added.iter().map(MatchEntry::name).collect();
+        assert_eq!(names, vec![None, Some("Firma del correo")]);
     }
 }
