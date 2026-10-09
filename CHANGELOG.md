@@ -22,8 +22,8 @@ was published.
 - **New installs start with Windows.** An expander that is not running does nothing, so the first
   run turns on **Start Khipu with Windows** by itself. The last step of the welcome screen no
   longer asks: it explains that closing Khipu leaves it in the system tray, among the hidden
-  icons, and shows how to drag it onto the taskbar. Its tip says where to turn starting with
-  Windows off. **Nothing changes for anyone who already uses Khipu**: your choice stays as it is.
+  icons, shows how to drag it onto the taskbar, and says how to quit for good: right-click the
+  icon and choose **Quit**. Its tip says where to turn starting with Windows off. **Nothing changes for anyone who already uses Khipu**: your choice stays as it is.
 
 - **New installs use `;` as the prefix, not `:`.** Outlook, Teams, WhatsApp, Discord and Slack
   read a colon followed by a word as the start of an emoji, and open their emoji picker over

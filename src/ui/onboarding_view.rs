@@ -824,6 +824,10 @@ fn on_close(ui: &mut egui::Ui, state: &mut AppState, enter: &Enter, viewport: f3
     enter.reveal(ui, 0, |ui| title(ui, t.onboarding_close_title));
     ui.add_space(controls::GAP_STACK + controls::GAP_ROW);
     enter.reveal(ui, 1, |ui| lead(ui, t.onboarding_where_body));
+    ui.add_space(controls::GAP_ROW);
+    // Closing is not quitting, so the way to quit is said right where that is explained, in the
+    // tray menu's own word.
+    enter.reveal(ui, 1, |ui| lead(ui, &crate::i18n::fill(t.onboarding_quit_body, &[("quit", t.tray_quit)])));
     ui.add_space(controls::GAP_STACK);
     // The picture is last, so what is above it is already laid out: it takes what is left of the
     // page, up to its full size — a short window gets a smaller tray, never a cut-off one.
