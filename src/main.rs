@@ -162,6 +162,14 @@ fn main() {
 
     install_panic_hook(t);
 
+    // Espanso asking for a form's blanks: a window of its own, before the mutex, because the copy
+    // in the tray is very likely running. See `ui::form_view`.
+    let mut args = std::env::args().skip(1);
+    if args.next().as_deref() == Some("--form") {
+        ui::form_view::run(&layout, &settings, &args.next().unwrap_or_default());
+        return;
+    }
+
     // Warnings gathered before the window exists, shown together once it does. Nothing here is
     // worth refusing to start over, and nothing here should be lost either.
     let mut startup_warnings: Vec<String> = Vec::new();
@@ -228,6 +236,13 @@ fn main() {
     };
 
     let config_path = layout.espanso_config().join("config").join("default.yml");
+
+    // The helper a form runs, naming this copy of Khipu wherever it now is. Written on every start
+    // because the folder may have moved since the last one. A failure only matters to forms, and
+    // espanso itself says so the moment one is used, so it is not raised here as well.
+    if !EXPERIMENTAL {
+        let _ = yaml::form::write_helper(&layout.espanso_config(), &exe_path);
+    }
 
     let match_file_path = layout.espanso_config().join("match").join("base.yml");
     // Set when there are bytes on disk that could not be turned into a model. While it is set the

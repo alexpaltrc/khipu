@@ -170,6 +170,9 @@ impl MatchEntry {
                         super::presets::month_lang_of(var),
                     );
                     crate::i18n::fill(t.preview_date, &[("example", &example)])
+                } else if let Some(form) = m.as_form() {
+                    // The text with its blanks showing, so a form reads as the message it writes.
+                    form.template.chars().map(|c| if c == '\n' { ' ' } else { c }).collect()
                 } else if !m.vars.is_empty() {
                     t.preview_advanced_vars.to_string()
                 } else {
@@ -191,17 +194,24 @@ impl MatchEntry {
     pub fn full_text(&self, t: &'static Strings) -> String {
         match self {
             MatchEntry::Simple(m) if m.vars.is_empty() => m.replace.clone(),
+            MatchEntry::Simple(m) => match m.as_form() {
+                Some(form) => form.template,
+                None => self.preview(t),
+            },
             _ => self.preview(t),
         }
     }
 
     /// Whether the simple form can safely rewrite this match's `replace`/`vars` without losing
-    /// anything. A plain text match or one of our own date presets qualifies; a match with other
-    /// kinds of `vars` (shell commands, clipboard, ...) round-trips fine when left untouched, but
-    /// our form doesn't model those, so it must not be allowed to silently drop them on save.
+    /// anything. A plain text match, one of our own date presets or one of our own forms (see
+    /// [`super::form`]) qualifies; a match with other kinds of `vars` (shell commands, clipboard,
+    /// ...) round-trips fine when left untouched, but our form doesn't model those, so it must not
+    /// be allowed to silently drop them on save.
     pub fn is_safely_editable(&self) -> bool {
         match self {
-            MatchEntry::Simple(m) => m.vars.is_empty() || m.as_date_var().is_some(),
+            MatchEntry::Simple(m) => {
+                m.vars.is_empty() || m.as_date_var().is_some() || m.as_form().is_some()
+            }
             MatchEntry::Advanced(_) => false,
         }
     }
@@ -238,11 +248,14 @@ fn classify(value: &Value) -> MatchEntry {
 fn to_value(entry: &MatchEntry) -> Value {
     match entry {
         MatchEntry::Simple(m) => {
+            // A form's argument is re-derived from its trigger here, the one door every match
+            // leaves by. See [`super::form`].
+            let m = m.normalized();
             let raw = SimpleMatchRaw {
-                trigger: m.trigger.clone(),
-                replace: m.replace.clone(),
-                vars: m.vars.clone(),
-                label: m.label.clone(),
+                trigger: m.trigger,
+                replace: m.replace,
+                vars: m.vars,
+                label: m.label,
                 extra: Mapping::new(),
             };
             serde_norway::to_value(&raw).expect("SimpleMatchRaw always serializes")

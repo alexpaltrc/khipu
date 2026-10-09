@@ -17,9 +17,10 @@
  * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//! `base.yml`: its shape (`model`), its reading and writing (`io`), and the date variables the
-//! form knows how to build (`presets`).
+//! `base.yml`: its shape (`model`), its reading and writing (`io`), the date variables the
+//! form knows how to build (`presets`), and the expansions with blanks to fill in (`form`).
 
+pub mod form;
 pub mod io;
 pub mod model;
 pub mod presets;

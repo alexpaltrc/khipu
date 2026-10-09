@@ -62,6 +62,7 @@
 use crate::app::{AppState, View};
 use crate::datefmt;
 use crate::i18n::{fill, Lang, Strings};
+use crate::yaml::form::{self, FieldKind, FormField, FormSpec};
 use crate::yaml::model::{SimpleMatch, VarEntry};
 use crate::ui::controls::{self, Tone};
 use crate::ui::glyphs::Glyph;
@@ -163,6 +164,11 @@ pub struct EditState {
     /// Whether it is a favourite. Ours, like the folder, and saved with Guardar like the rest of
     /// the form: a star changed here and then cancelled stays as it was.
     pub favorite: bool,
+    /// What each blank in the text is: its kind, its starting value, a list's options. Keyed by
+    /// name, and only for the names someone has set something on; a blank with no entry here is a
+    /// short text that starts empty. Kept when its marker leaves the text, so cutting a marker and
+    /// putting it back does not lose what was set on it. See [`EditState::form`].
+    pub fields: Vec<FormField>,
 }
 
 impl EditState {
@@ -180,11 +186,18 @@ impl EditState {
             choosing_new_folder: false,
             new_folder_input: String::new(),
             favorite: false,
+            fields: Vec::new(),
         }
     }
 
     pub fn new_for_edit(index: usize, m: &SimpleMatch, folder: Option<String>) -> Self {
-        let kind = if let Some(var) = m.as_date_var() {
+        let form = m.as_form();
+        let kind = if let Some(form) = &form {
+            // A form is edited as the text it fills in, markers and all.
+            Kind::Text {
+                replace: form.template.clone(),
+            }
+        } else if let Some(var) = m.as_date_var() {
             Kind::Date {
                 preset: DatePreset::detect(var),
                 custom_format: var.param_str("format").unwrap_or("").to_string(),
@@ -208,7 +221,39 @@ impl EditState {
             choosing_new_folder: false,
             new_folder_input: String::new(),
             favorite: false,
+            fields: form.map(|f| f.fields).unwrap_or_default(),
         }
+    }
+
+    /// The form the text makes, if it has any `[[name]]` in it: one field per name, in the order the
+    /// names first appear, each as set here or a short text if nothing was.
+    pub fn form(&self, text: &str) -> Option<FormSpec> {
+        let names = form::names(text);
+        (!names.is_empty()).then(|| FormSpec {
+            template: text.to_string(),
+            fields: names
+                .into_iter()
+                .map(|name| {
+                    self.fields
+                        .iter()
+                        .find(|f| f.name == name)
+                        .cloned()
+                        .unwrap_or(FormField { name, ..Default::default() })
+                })
+                .collect(),
+        })
+    }
+
+    /// The settings of the field called `name`, made on first touch.
+    fn field_mut(&mut self, name: &str) -> &mut FormField {
+        let at = match self.fields.iter().position(|f| f.name == name) {
+            Some(at) => at,
+            None => {
+                self.fields.push(FormField { name: name.to_string(), ..Default::default() });
+                self.fields.len() - 1
+            }
+        };
+        &mut self.fields[at]
     }
 
     /// Resolves the effective folder, taking the "escribiendo una carpeta nueva" text box into
@@ -254,11 +299,24 @@ impl EditState {
 
     pub fn build_match(&self) -> SimpleMatch {
         match &self.kind {
-            Kind::Text { replace } => SimpleMatch {
-                trigger: self.trigger(),
-                replace: replace.clone(),
-                vars: Vec::new(),
-                label: self.label(),
+            Kind::Text { replace } => match self.form(replace) {
+                // Any blank makes it a form: one variable that opens Khipu's window. See
+                // [`crate::yaml::form`].
+                Some(spec) => {
+                    let trigger = self.trigger();
+                    SimpleMatch {
+                        vars: vec![spec.to_var(&trigger)],
+                        replace: format!("{{{{{}}}}}", form::VAR_NAME),
+                        trigger,
+                        label: self.label(),
+                    }
+                }
+                None => SimpleMatch {
+                    trigger: self.trigger(),
+                    replace: replace.clone(),
+                    vars: Vec::new(),
+                    label: self.label(),
+                },
             },
             Kind::Date {
                 preset,
@@ -493,6 +551,8 @@ enum Problem {
     /// Some other expansion already answers to this trigger. Espanso keeps the first match it finds
     /// for a trigger, so the second one would never fire.
     Duplicate(String),
+    /// A blank set to be a list, with nothing in the list. The window would offer no choice at all.
+    EmptyList(String),
 }
 
 fn problem_with(state: &AppState, edit: &EditState) -> Option<Problem> {
@@ -511,7 +571,17 @@ fn problem_with(state: &AppState, edit: &EditState) -> Option<Problem> {
         .iter()
         .enumerate()
         .any(|(i, e)| Some(i) != edit.editing_index && e.trigger_str() == trigger);
-    taken.then_some(Problem::Duplicate(trigger))
+    if taken {
+        return Some(Problem::Duplicate(trigger));
+    }
+    let Kind::Text { replace } = &edit.kind else {
+        return None;
+    };
+    edit.form(replace)?
+        .fields
+        .into_iter()
+        .find(|f| f.kind == FieldKind::Choice && f.options.iter().all(|o| o.trim().is_empty()))
+        .map(|f| Problem::EmptyList(f.name))
 }
 
 fn problem_text(state: &AppState, t: &'static Strings, problem: &Problem) -> String {
@@ -533,6 +603,16 @@ fn problem_text(state: &AppState, t: &'static Strings, problem: &Problem) -> Str
         )
         .to_string(),
         Problem::Duplicate(trigger) => fill(t.trigger_duplicate, &[("name", trigger)]),
+        Problem::EmptyList(name) => fill(
+            studio::text(
+                state,
+                "La lista «{name}» necesita al menos una opción.",
+                "The list «{name}» needs at least one option.",
+                "Kailangan ng listahang «{name}» ng kahit isang pagpipilian.",
+                "सूची «{name}» में कम से कम एक विकल्प चाहिए।",
+            ),
+            &[("name", name)],
+        ),
     }
 }
 
@@ -566,6 +646,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
     // Read before anything here draws a popup: the folder list closes itself on this frame's Esc,
     // and that Esc must not also close the form behind it.
     let popup_was_open = egui::Popup::is_any_open(&ctx);
+    // «Probar» answers its own Esc, like the discard question.
+    let trying = ctx.data(|d| d.get_temp::<bool>(trying_key())).unwrap_or(false);
 
     let frame = ctx.cumulative_frame_nr();
     let arriving = ctx
@@ -576,6 +658,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
         ctx.data_mut(|d| {
             d.insert_temp(original_key(), edit.clone());
             d.remove::<bool>(confirm_discard_key());
+            d.remove::<bool>(trying_key());
         });
     }
     let dirty = ctx
@@ -706,11 +789,11 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
     // Read on every frame so the key never falls through to another screen, and acted on only when
     // the button beside it could have been pressed: the shortcut is the button, not a way past it.
     let ctrl_s = keys::pressed(&ctx, keys::SAVE);
-    save |= ctrl_s && can_save && !confirming;
+    save |= ctrl_s && can_save && !confirming && !trying;
 
     // Esc is Cancelar. Not while a list is open over the form — that Esc closes the list — nor
     // while a dialog is up, which answers its own Esc.
-    let blocked = popup_was_open || confirming || state.pending_confirm.is_some();
+    let blocked = popup_was_open || confirming || trying || state.pending_confirm.is_some();
     if !blocked && keys::pressed(&ctx, keys::BACK) {
         cancel = true;
     }
@@ -887,7 +970,7 @@ fn when_you_type(
         ui.add_space(controls::GAP_ROW);
         trigger_line(ui, t, &edit.trigger(), is_light);
 
-        if let Some(problem) = problem {
+        if let Some(problem) = problem.filter(|p| !matches!(p, Problem::EmptyList(_))) {
             ui.add_space(controls::GAP_ROW);
             let message = problem_text(state, t, problem);
             match problem {
@@ -975,14 +1058,13 @@ fn appears_here(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_li
         ui.add_space(controls::GAP_WIDE);
         match &mut edit.kind {
             Kind::Text { replace } => {
-                // A floor, not a box: `add_sized` gives the field at least this much and the field
-                // grows past it as the text does, with the page scrolling rather than the words
-                // being cut off.
-                let height = ui.text_style_height(&egui::TextStyle::Body) * TEXT_AREA_ROWS + 16.0;
-                ui.add_sized(
-                    egui::vec2(ui.available_width(), height),
-                    controls::multiline_field(replace),
-                );
+                // Out of the draft while it is drawn, so the field list below can reach the rest
+                // of the draft at the same time.
+                let mut text = std::mem::take(replace);
+                text_with_blanks(ui, state, edit, &mut text, is_light);
+                if let Kind::Text { replace } = &mut edit.kind {
+                    *replace = text;
+                }
             }
             Kind::Date {
                 preset,
@@ -994,6 +1076,322 @@ fn appears_here(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_li
 
         ui.add_space(controls::GAP_STACK);
         preview_pair(ui, state, edit, is_light);
+    });
+}
+
+// --- Blanks: a text with fields to fill in ------------------------------------------------------
+
+fn replace_id() -> egui::Id {
+    egui::Id::new("editor-replace")
+}
+
+/// Set while «Probar» is on screen, with the answers typed into it.
+fn trying_key() -> egui::Id {
+    egui::Id::new("editor-try")
+}
+
+fn try_answers_key() -> egui::Id {
+    egui::Id::new("editor-try-answers")
+}
+
+/// The text with every `[[name]]` in the accent, so the blanks stand out from what is fixed.
+fn highlighted(ui: &egui::Ui, text: &str, ink: egui::Color32, wrap: f32) -> egui::text::LayoutJob {
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let blank = crate::app::accent(ui.visuals());
+    let mut job = egui::text::LayoutJob::default();
+    job.wrap.max_width = wrap;
+    let mut last = 0;
+    for (range, _) in form::markers(text) {
+        job.append(&text[last..range.start], 0.0, egui::TextFormat::simple(font.clone(), ink));
+        job.append(&text[range.clone()], 0.0, egui::TextFormat::simple(font.clone(), blank));
+        last = range.end;
+    }
+    job.append(&text[last..], 0.0, egui::TextFormat::simple(font, ink));
+    job
+}
+
+/// What a new blank is called before it is renamed: «campo 1», «campo 2»…
+fn new_blank_name(state: &AppState, text: &str) -> String {
+    let word = studio::text(state, "campo", "field", "field", "फ़ील्ड");
+    let taken = form::names(text);
+    (1..)
+        .map(|n| format!("{word} {n}"))
+        .find(|name| !taken.contains(name))
+        .unwrap_or_default()
+}
+
+/// Puts a new `[[campo N]]` where the cursor was in the text, or at its end if it never had one,
+/// and leaves the cursor after it.
+fn insert_blank(ctx: &egui::Context, state: &AppState, text: &mut String) {
+    let marker = format!("[[{}]]", new_blank_name(state, text));
+    let mut field = egui::TextEdit::load_state(ctx, replace_id()).unwrap_or_default();
+    let chars = text.chars().count();
+    let at = field
+        .cursor
+        .char_range()
+        .map_or(chars, |range| range.primary.index.0.max(range.secondary.index.0).min(chars));
+    let byte = text.char_indices().nth(at).map_or(text.len(), |(b, _)| b);
+    text.insert_str(byte, &marker);
+    let after = egui::text::CCursor::new(at + marker.chars().count());
+    field.cursor.set_char_range(Some(egui::text::CCursorRange::one(after)));
+    field.store(ctx, replace_id());
+    ctx.memory_mut(|m| m.request_focus(replace_id()));
+}
+
+/// The text box, the buttons that add a blank and try the form out, and one row per blank.
+fn text_with_blanks(
+    ui: &mut egui::Ui,
+    state: &AppState,
+    edit: &mut EditState,
+    text: &mut String,
+    is_light: bool,
+) {
+    // A floor, not a box: `add_sized` gives the field at least this much and the field grows past
+    // it as the text does, with the page scrolling rather than the words being cut off.
+    let height = ui.text_style_height(&egui::TextStyle::Body) * TEXT_AREA_ROWS + 16.0;
+    let ink = ui.visuals().widgets.inactive.text_color();
+    let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, wrap: f32| {
+        ui.painter().layout_job(highlighted(ui, buffer.as_str(), ink, wrap))
+    };
+    ui.add_sized(
+        egui::vec2(ui.available_width(), height),
+        controls::multiline_field(text).id(replace_id()).layouter(&mut layouter),
+    );
+
+    ui.add_space(controls::GAP);
+    let spec = edit.form(text);
+    let mut open_try = false;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = controls::GAP;
+        let label = studio::text(state, "Insertar campo", "Insert field", "Magdagdag ng field", "फ़ील्ड जोड़ें");
+        let tip = studio::text(
+            state,
+            "Un hueco que rellenas al usar la expansión",
+            "A blank you fill in each time you use it",
+            "Isang patlang na pupunan mo tuwing gagamitin ito",
+            "एक खाली जगह जिसे हर बार उपयोग पर भरते हैं",
+        );
+        if controls::button(ui, label, Tone::Normal, true).on_hover_text(tip).clicked() {
+            insert_blank(ui.ctx(), state, text);
+        }
+        if spec.is_some() {
+            let label = studio::text(state, "Probar", "Try it", "Subukan", "आज़माएँ");
+            open_try = controls::button(ui, label, Tone::Normal, true).clicked();
+        }
+    });
+
+    let Some(spec) = spec else {
+        return;
+    };
+    if open_try {
+        let answers = crate::ui::form_view::initial_answers(&spec);
+        ui.ctx().data_mut(|d| {
+            d.insert_temp(trying_key(), true);
+            d.insert_temp(try_answers_key(), answers);
+        });
+    }
+
+    ui.add_space(controls::GAP_STACK);
+    field_label(
+        ui,
+        studio::text(state, "Campos por completar", "Fields to fill in", "Mga field na pupunan", "भरने वाले फ़ील्ड"),
+    );
+    ui.add_space(controls::GAP_TIGHT);
+    for (i, field) in spec.fields.iter().enumerate() {
+        if i > 0 {
+            ui.add_space(controls::GAP);
+        }
+        blank_row(ui, state, edit, text, i, field, is_light);
+    }
+
+    try_dialog(ui.ctx(), state, edit, &spec);
+}
+
+/// One blank: its name, what kind it is, and what it starts with.
+fn blank_row(
+    ui: &mut egui::Ui,
+    state: &AppState,
+    edit: &mut EditState,
+    text: &mut String,
+    index: usize,
+    field: &FormField,
+    is_light: bool,
+) {
+    let kinds = [
+        studio::text(state, "Texto corto", "Short text", "Maikling teksto", "छोटा टेक्स्ट"),
+        studio::text(state, "Texto largo", "Long text", "Mahabang teksto", "लंबा टेक्स्ट"),
+        studio::text(state, "Lista", "List", "Listahan", "सूची"),
+    ];
+    let selected = match field.kind {
+        FieldKind::Short => 0,
+        FieldKind::Long => 1,
+        FieldKind::Choice => 2,
+    };
+    controls::inset_frame(ui).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+
+        // The name is typed into a copy and written back only while it is a name the text can
+        // hold: not empty, not another blank's, nothing that would end the marker early.
+        let name_id = egui::Id::new(("editor-blank-name", index));
+        let draft_id = name_id.with("draft");
+        let ctx = ui.ctx().clone();
+        let mut draft = if ctx.memory(|m| m.has_focus(name_id)) {
+            ctx.data(|d| d.get_temp::<String>(draft_id)).unwrap_or_else(|| field.name.clone())
+        } else {
+            field.name.clone()
+        };
+        let kinds_width = controls::segmented_natural_width(ui, &kinds);
+        let room = ui.available_width() - kinds_width - controls::GAP;
+        let side_by_side = room >= 160.0;
+        let mut picked = None;
+        let mut name_row = |ui: &mut egui::Ui, width: f32| {
+            ui.add(controls::text_field(&mut draft).id(name_id).desired_width(width))
+        };
+        let name_changed = if side_by_side {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = controls::GAP;
+                let changed = name_row(ui, room).changed();
+                picked = controls::segmented(ui, ("editor-blank-kind", index), &kinds, Some(selected));
+                changed
+            })
+            .inner
+        } else {
+            let changed = name_row(ui, ui.available_width()).changed();
+            ui.add_space(controls::GAP);
+            picked = controls::segmented(ui, ("editor-blank-kind", index), &kinds, Some(selected));
+            changed
+        };
+        if name_changed {
+            ctx.data_mut(|d| d.insert_temp(draft_id, draft.clone()));
+            let new = draft.trim();
+            let valid = !new.is_empty()
+                && new.chars().count() <= form::NAME_MAX
+                && !new.contains(['[', ']', '\n', '\r'])
+                && !form::names(text).iter().any(|n| n == new);
+            if valid {
+                *text = form::rename(text, &field.name, new);
+                edit.fields.retain(|f| f.name != new);
+                if let Some(f) = edit.fields.iter_mut().find(|f| f.name == field.name) {
+                    f.name = new.to_string();
+                }
+            }
+        }
+        if let Some(picked) = picked {
+            edit.field_mut(&field.name).kind = match picked {
+                0 => FieldKind::Short,
+                1 => FieldKind::Long,
+                _ => FieldKind::Choice,
+            };
+        }
+
+        ui.add_space(controls::GAP);
+        match field.kind {
+            FieldKind::Short | FieldKind::Long => {
+                let mut value = field.default.clone();
+                let hint = studio::text(
+                    state,
+                    "Valor inicial (opcional)",
+                    "Starting value (optional)",
+                    "Panimulang halaga (opsyonal)",
+                    "शुरुआती मान (वैकल्पिक)",
+                );
+                let input = if field.kind == FieldKind::Short {
+                    controls::text_field(&mut value)
+                } else {
+                    controls::multiline_field(&mut value).desired_rows(2)
+                };
+                if ui.add(input.desired_width(f32::INFINITY).hint_text(hint)).changed() {
+                    edit.field_mut(&field.name).default = value;
+                }
+            }
+            FieldKind::Choice => {
+                let mut options = field.options.join("\n");
+                let hint = studio::text(
+                    state,
+                    "Una opción por línea. La primera aparece elegida.",
+                    "One option per line. The first one starts selected.",
+                    "Isang pagpipilian bawat linya. Ang una ang nakapili sa simula.",
+                    "हर पंक्ति में एक विकल्प। पहला पहले से चुना रहता है।",
+                );
+                let response = ui.add(
+                    controls::multiline_field(&mut options)
+                        .desired_rows(3)
+                        .desired_width(f32::INFINITY)
+                        .hint_text(hint),
+                );
+                if response.changed() {
+                    edit.field_mut(&field.name).options = options.split('\n').map(str::to_string).collect();
+                }
+                if field.options.iter().all(|o| o.trim().is_empty()) {
+                    ui.add_space(controls::GAP_TIGHT);
+                    let missing = studio::text(
+                        state,
+                        "Añade al menos una opción para poder guardar.",
+                        "Add at least one option to be able to save.",
+                        "Magdagdag ng kahit isang pagpipilian para makapag-save.",
+                        "सहेजने के लिए कम से कम एक विकल्प जोड़ें।",
+                    );
+                    ui.label(egui::RichText::new(missing).color(crate::app::caution(is_light)));
+                }
+            }
+        }
+    });
+}
+
+/// «Probar»: the window the form opens when used, in a dialog, without espanso. Nothing typed here
+/// is kept, and nothing is inserted anywhere.
+fn try_dialog(ctx: &egui::Context, state: &AppState, edit: &EditState, spec: &FormSpec) {
+    if !ctx.data(|d| d.get_temp::<bool>(trying_key())).unwrap_or(false) {
+        return;
+    }
+    let lang = state.settings.lang;
+    let mut answers = ctx
+        .data(|d| d.get_temp::<Vec<String>>(try_answers_key()))
+        .filter(|a| a.len() == spec.fields.len())
+        .unwrap_or_else(|| crate::ui::form_view::initial_answers(spec));
+    let first = ctx.data(|d| d.get_temp::<bool>(try_answers_key().with("focused"))).is_none();
+    let mut close = false;
+    let modal = controls::dialog(ctx, "editor-try-dialog").show(ctx, |ui| {
+        let is_light = !ui.visuals().dark_mode;
+        ui.set_width(controls::dialog_width(ctx, 460.0));
+        let title = edit.name.trim();
+        let title = if title.is_empty() { edit.trigger() } else { title.to_string() };
+        ui.label(controls::h3(title));
+        ui.add_space(controls::GAP_TIGHT);
+        ui.label(controls::muted(
+            studio::text(
+                state,
+                "Así se ve al usar la expansión. Aquí no se escribe nada.",
+                "This is how it looks when you use it. Nothing is typed from here.",
+                "Ganito ang itsura kapag ginamit mo. Walang ita-type mula rito.",
+                "उपयोग करने पर यह ऐसा दिखता है। यहाँ से कुछ नहीं लिखा जाता।",
+            ),
+            is_light,
+        ));
+        ui.add_space(controls::GAP_SECTION);
+        crate::ui::form_view::fields(ui, "editor-try", spec, &mut answers, first);
+        ui.add_space(controls::GAP_SECTION);
+        ui.label(controls::small_muted(crate::ui::form_view::preview_label(lang), is_light));
+        ui.add_space(controls::GAP_TIGHT);
+        crate::ui::form_view::result_preview(ui, spec, &answers);
+        ui.add_space(controls::GAP_SECTION);
+        controls::dialog_buttons(ui, |ui| {
+            let done = studio::text(state, "Listo", "Done", "Tapos na", "हो गया");
+            close = controls::button(ui, done, Tone::Primary, true).clicked();
+        });
+    });
+    // Asked outside `data_mut`: `should_close` reads the context itself, and egui's lock does not
+    // let a closure that holds it ask again. Inside, the second frame of the dialog hung.
+    let close = close || modal.should_close();
+    ctx.data_mut(|d| {
+        if close {
+            d.remove::<bool>(trying_key());
+            d.remove::<Vec<String>>(try_answers_key());
+            d.remove::<bool>(try_answers_key().with("focused"));
+        } else {
+            d.insert_temp(try_answers_key(), answers);
+            d.insert_temp(try_answers_key().with("focused"), true);
+        }
     });
 }
 
@@ -1184,6 +1582,10 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light:
                         ),
                         is_light,
                     ));
+                } else if matches!(edit.kind, Kind::Text { .. }) {
+                    // The blanks in the accent here too, so the preview reads like the box above.
+                    let job = highlighted(ui, &result, ui.visuals().text_color(), ui.available_width());
+                    ui.add(egui::Label::new(job).wrap().selectable(true));
                 } else {
                     ui.add(egui::Label::new(&result).wrap().selectable(true));
                 }
@@ -1205,7 +1607,14 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light:
                     "{n} अक्षर",
                 ),
             );
-            fill(template, &[("n", &n.to_string())])
+            let characters = fill(template, &[("n", &n.to_string())]);
+            match &edit.kind {
+                Kind::Text { replace } => match edit.form(replace) {
+                    Some(spec) => format!("{} · {characters}", studio::blanks_to_fill(state, spec.fields.len())),
+                    None => characters,
+                },
+                Kind::Date { .. } => characters,
+            }
         }
         // Said out loud because the preview shows *today*, and a date expansion that wrote today's
         // date for ever would be a bug rather than a feature.

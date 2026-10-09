@@ -29,6 +29,15 @@ was published.
   come first in your list, and in every folder. In the launcher they come first too, unless you
   turn off **Favorites first in search** in Settings. A renamed
   expansion keeps its star, and stars travel with export and import.
+- **Forms: expansions with blanks to fill in.** In the edit screen, **Insert field** puts a blank
+  where the cursor is. It shows in the text as `[[name]]`, in the accent color. Under the text,
+  each blank gets its name and its kind: short text, long text, or a list to pick from. Short and
+  long text can start with a value, and the first option of a list starts picked. **Try** shows
+  the form and the text it will write, without writing anything. When you type the trigger, a
+  small Khipu window asks for the blanks, in Khipu's own look and theme, and writes the finished
+  text where you were typing; Esc or **Cancel** leaves the trigger as you typed it. The edit screen
+  and the launcher say how many fields an expansion asks for. Note: an existing expansion whose
+  text already contains `[[…]]` becomes a form the next time you save it in the edit screen.
 
 ### Changed
 

@@ -28,6 +28,7 @@ pub mod glide;
 pub mod glyphs;
 pub mod keys;
 pub mod folder_view;
+pub mod form_view;
 pub mod list_view;
 pub mod onboarding_view;
 pub mod search_view;

@@ -583,7 +583,12 @@ impl AppState {
                     Some(crate::ui::search_view::Hit {
                         trigger: m.trigger.clone(),
                         name: entry.name().map(str::to_owned),
-                        preview: entry.preview(t),
+                        // A form says how many blanks it will ask for: its text, with the
+                        // blanks still empty, is not what it writes.
+                        preview: match m.as_form() {
+                            Some(form) => crate::ui::studio::blanks_to_fill(self, form.fields.len()),
+                            None => entry.preview(t),
+                        },
                     })
                 }
                 MatchEntry::Simple(_) => None,
@@ -696,9 +701,9 @@ impl AppState {
         let t = self.t();
         let query = self.search.to_lowercase();
 
-        // Only text/date expansions are ever surfaced — anything else (shell commands, regex
+        // Only text, date and form expansions are ever surfaced — anything else (shell commands, regex
         // matches, per-app conditionals, ...) stays untouched in the YAML file but out of this
-        // list, by design, so coworkers only ever see the two kinds they're meant to use.
+        // list, by design, so coworkers only ever see the kinds they are meant to use.
         let mut rows: Vec<ListRow> = Vec::new();
         for entry in self.match_file.entries.iter().filter(|e| e.is_safely_editable()) {
             let preview = entry.preview(t);
@@ -1958,7 +1963,7 @@ pub fn accent_fill(visuals: &egui::Visuals) -> (egui::Color32, egui::Color32) {
 /// banner sliding, the list scrolling to a row. Off, all of it happens at once. What the app
 /// animates itself — the hover wash, the switch, the saved row's tint — asks
 /// [`crate::theme::animations_enabled`] directly.
-fn apply_motion(ctx: &egui::Context) {
+pub(crate) fn apply_motion(ctx: &egui::Context) {
     let on = crate::theme::animations_enabled();
     let defaults = egui::Style::default();
     ctx.all_styles_mut(|style| {
@@ -1971,7 +1976,7 @@ fn apply_motion(ctx: &egui::Context) {
     });
 }
 
-fn apply_layout_style(ctx: &egui::Context, text_scale: f32) {
+pub(crate) fn apply_layout_style(ctx: &egui::Context, text_scale: f32) {
     // Windows 11's own ramp, in the same units egui measures in, rather than egui's defaults
     // multiplied by some factor:
     //
@@ -2266,7 +2271,7 @@ fn fit_window_to(window: &winit::window::Window, area: crate::display::WorkArea)
 }
 
 /// The native handle behind the winit window, for the few things winit cannot do itself.
-fn hwnd_of(window: &winit::window::Window) -> Option<windows::Win32::Foundation::HWND> {
+pub(crate) fn hwnd_of(window: &winit::window::Window) -> Option<windows::Win32::Foundation::HWND> {
     use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
     match window.window_handle().ok()?.as_raw() {
         RawWindowHandle::Win32(handle) => Some(windows::Win32::Foundation::HWND(
@@ -3173,7 +3178,7 @@ pub fn infobar(ui: &mut egui::Ui, banner: &Banner, t: &Strings) -> (bool, bool) 
 /// deliver them: off-screen, the real cursor is never over the window, every synthetic move is
 /// followed by a leave, and winit drops a press that arrives without a position. Each click is
 /// spread over frames as a hand would make it: move and press, release, then away.
-fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+pub(crate) fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput) {
     use std::collections::VecDeque;
     use std::sync::Mutex;
     static QUEUE: Mutex<VecDeque<Vec<egui::Event>>> = Mutex::new(VecDeque::new());

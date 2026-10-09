@@ -70,7 +70,12 @@ pub fn prefix_error(state: &AppState, error: &crate::folders::PrefixError) -> St
 }
 
 pub fn text<'a>(state: &AppState, es: &'a str, en: &'a str, fil: &'a str, hi: &'a str) -> &'a str {
-    match state.settings.lang {
+    in_lang(state.settings.lang, es, en, fil, hi)
+}
+
+/// [`text`] for the one window that has no [`AppState`]: the form espanso opens.
+pub fn in_lang<'a>(lang: Lang, es: &'a str, en: &'a str, fil: &'a str, hi: &'a str) -> &'a str {
+    match lang {
         Lang::Es => es,
         Lang::En => en,
         Lang::Fil => fil,
@@ -123,4 +128,15 @@ pub(super) fn set_filter(ctx: &egui::Context, state: &mut AppState, folder: Opti
     state.search.clear();
     state.view = View::List;
     ctx.request_repaint();
+}
+
+/// «3 campos por completar»: how a form is described wherever its blanks are counted — the
+/// editor's footnote and the launcher.
+pub fn blanks_to_fill(state: &AppState, n: usize) -> String {
+    let template = plural(
+        n,
+        text(state, "{n} campo por completar", "{n} field to fill in", "{n} field na pupunan", "{n} फ़ील्ड भरना है"),
+        text(state, "{n} campos por completar", "{n} fields to fill in", "{n} field na pupunan", "{n} फ़ील्ड भरने हैं"),
+    );
+    crate::i18n::fill(template, &[("n", &n.to_string())])
 }
