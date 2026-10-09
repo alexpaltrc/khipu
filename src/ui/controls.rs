@@ -1262,6 +1262,78 @@ fn menu_line(
     response
 }
 
+/// How far a flyout line's segmented choices stand in from its right edge: the track carries an
+/// edge of its own, so it sits closer to the side than words would.
+const MENU_CHOICE_INSET: f32 = 4.0;
+/// A segmented track's height: the segments, the track's margin either side and its edge.
+const MENU_CHOICE_TRACK: f32 = SEGMENT_HEIGHT + 2.0 * 2.0 + 2.0;
+
+/// How wide a [`menu_choice`] line has to be for its words and its choices to fit uncut. A flyout
+/// that holds one is opened at least this wide.
+pub fn menu_choice_width<S: AsRef<str>>(ui: &egui::Ui, label: &str, options: &[S]) -> f32 {
+    let words = ui.painter().layout_no_wrap(
+        label.to_owned(),
+        egui::TextStyle::Button.resolve(ui.style()),
+        egui::Color32::PLACEHOLDER,
+    );
+    MENU_PAD_X
+        + MENU_ICON_COLUMN
+        + words.size().x
+        + MENU_KEYS_GAP
+        + segmented_natural_width(ui, options)
+        + MENU_CHOICE_INSET
+}
+
+/// A flyout line that is a setting rather than a command: the icon and the words where every line
+/// has them, and the choices at the far end in a segmented track — the way a browser's menu sets
+/// its sidebar or its zoom without sending anyone to its settings. Returns the choice just picked.
+///
+/// It does not close the flyout: the change shows at once behind it, which is the point of making
+/// it here.
+pub fn menu_choice<S: AsRef<str>>(
+    ui: &mut egui::Ui,
+    glyph: Option<Glyph>,
+    label: &str,
+    id_salt: impl std::hash::Hash + std::fmt::Debug,
+    options: &[S],
+    selected: Option<usize>,
+) -> Option<usize> {
+    let ink = ui.visuals().text_color();
+    let words = ui.painter().layout_no_wrap(
+        label.to_owned(),
+        egui::TextStyle::Button.resolve(ui.style()),
+        ink,
+    );
+    let width = menu_choice_width(ui, label, options).max(ui.available_width());
+    let height = MENU_ROW.max(MENU_CHOICE_TRACK + 2.0 * GAP_TIGHT);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    if ui.is_rect_visible(rect) {
+        if let Some(glyph) = glyph {
+            let icon = egui::Rect::from_min_size(
+                egui::pos2(rect.left() + MENU_PAD_X, rect.center().y - glyphs::SIZE * 0.5),
+                egui::Vec2::splat(glyphs::SIZE),
+            );
+            glyphs::paint(ui, icon, glyph, glyphs::SIZE, ink);
+        }
+        let at = egui::pos2(
+            rect.left() + MENU_PAD_X + MENU_ICON_COLUMN,
+            rect.center().y - words.size().y * 0.5,
+        );
+        ui.painter().galley(at, words, ink);
+    }
+    // Laid out from the right, so the track ends the same distance from the edge whatever the
+    // words beside it take.
+    let mut track = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(egui::Rect::from_min_max(
+                rect.left_top(),
+                egui::pos2(rect.right() - MENU_CHOICE_INSET, rect.bottom()),
+            ))
+            .layout(egui::Layout::right_to_left(egui::Align::Center)),
+    );
+    segmented(&mut track, id_salt, options, selected)
+}
+
 /// The faint line between two groups of a flyout.
 pub fn menu_separator(ui: &mut egui::Ui) {
     let is_light = !ui.visuals().dark_mode;

@@ -61,6 +61,7 @@ pub enum Glyph {
     Volume,
     Star,
     StarFilled,
+    View,
 }
 
 impl Glyph {
@@ -92,6 +93,7 @@ impl Glyph {
             Glyph::Volume => '\u{E767}',
             Glyph::Star => '\u{E734}',
             Glyph::StarFilled => '\u{E735}',
+            Glyph::View => '\u{E8FD}',
         }
     }
 }

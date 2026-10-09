@@ -67,6 +67,12 @@ was published.
   now `;khipu`, and it greets you in Khipu's language: «¡Hola!» in Spanish, not "Hi there!".
   Espanso is still named where it is due: the credits, the version line in Settings, the
   licences, and the two rare messages about Espanso's own icon showing up.
+- **Two views of your list: Comfortable and Compact.** The **…** menu now has a **View** line with
+  both choices side by side, and the list changes behind the menu as you pick. **Comfortable**,
+  the new default, shows each expansion as a small card: its name in bold, its trigger on the
+  right in your accent colour, and what it writes on a second line. An expansion without a name
+  shows its trigger in the name's place. **Compact** is the one-line list you already know, so
+  if you had picked it, nothing changes for you.
 - **A new folder is one click away.** When you create or edit an expansion, a **+** now sits
   right beside the folder list. With many folders, **New folder…** was at the bottom of that
   list and you had to scroll to find it; the **+** opens the box for the new folder's name

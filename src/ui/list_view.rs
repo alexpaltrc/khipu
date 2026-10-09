@@ -866,11 +866,13 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
     );
     let picking = select_mode(ui.ctx());
     let compact = state.settings.compact_view;
+    let views = [t.view_comfortable, t.view_compact];
+    let width = MENU_WIDTH.max(controls::menu_choice_width(ui, t.view_label, &views));
     let mut toggle_picking = false;
-    let mut toggle_compact = false;
+    let mut pick_compact: Option<bool> = None;
     let mut go: Option<View> = None;
     let mut settings = false;
-    menu(&more, MENU_WIDTH, |ui| {
+    menu(&more, width, |ui| {
         let label = if picking {
             studio::text(state, "Terminar selección", "Stop selecting", "Tapusin ang pagpili", "चयन समाप्त करें")
         } else {
@@ -879,9 +881,12 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
         if controls::menu_item(ui, Some(Glyph::MultiSelect), label, None, Tone::Normal, true).clicked() {
             toggle_picking = true;
         }
-        let dense = t.view_compact_tip;
-        if controls::menu_check_item(ui, dense, None, compact).clicked() {
-            toggle_compact = true;
+        controls::menu_separator(ui);
+        let current = Some(usize::from(compact));
+        if let Some(picked) =
+            controls::menu_choice(ui, Some(Glyph::View), t.view_label, "list-view", &views, current)
+        {
+            pick_compact = Some(picked == 1);
         }
         controls::menu_separator(ui);
         let guide = t.tips_button_tip;
@@ -901,8 +906,8 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
         }
         set_open_row(ui.ctx(), None);
     }
-    if toggle_compact {
-        state.set_compact_view(!compact);
+    if let Some(compact) = pick_compact {
+        state.set_compact_view(compact);
     }
     if let Some(view) = go {
         state.view = view;
@@ -924,6 +929,9 @@ const MENU_FOLDERS_MAX_HEIGHT: f32 = 320.0;
 fn menu(button: &egui::Response, width: f32, add: impl FnOnce(&mut egui::Ui)) {
     let by_keyboard = button.clicked() && button.has_focus();
     egui::Popup::menu(button)
+        // Each command closes the flyout itself (see [`controls::menu_item`]); a click on the
+        // choice of view must not, so the list can be seen changing behind it.
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
         .align(egui::RectAlign::BOTTOM_END)
         .gap(controls::GAP_TIGHT)
         .width(width)
@@ -2109,11 +2117,11 @@ fn show_row_inner(
 
 /// The row: a tick box when picking, the trigger in its column, and what it writes, quietly.
 fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: bool, is_light: bool) {
-    let pad_y = if pass.compact {
-        controls::ROW_PAD_DENSE
-    } else {
-        controls::ROW_PAD_COMFORTABLE
-    };
+    if !pass.compact {
+        comfortable_row(ui, row, pass, is_selected, is_light);
+        return;
+    }
+    let pad_y = controls::ROW_PAD_DENSE;
 
     egui::Frame::default()
         .inner_margin(egui::Margin {
@@ -2212,6 +2220,126 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                 }
             });
         });
+}
+
+/// The share of a comfortable row's first line a trigger may take before it is cut short; the name
+/// beside it gets the rest.
+const COMFORTABLE_TRIGGER_SHARE: f32 = 0.45;
+
+/// The comfortable row: an expansion as a small card of two lines. The first says what it is — its
+/// name, and the trigger at the far end in the accent, the way a trigger is always written — and
+/// the second, quietly, what it writes. Without a name, the trigger takes the name's place.
+///
+/// Every row is exactly two lines tall, whatever it holds, because the list stands rows it has not
+/// drawn in for gaps of the height of one it has: see [`show_row`].
+fn comfortable_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: bool, is_light: bool) {
+    let pad_y = controls::ROW_PAD_COMFORTABLE as i8;
+    egui::Frame::default()
+        .inner_margin(egui::Margin {
+            left: controls::ROW_PAD_X as i8,
+            right: controls::ROW_PAD_X as i8,
+            top: pad_y,
+            bottom: pad_y,
+        })
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = controls::GAP_WIDE;
+                if pass.select_mode {
+                    let (rect, _) = ui.allocate_exact_size(
+                        egui::Vec2::splat(controls::CHECKBOX),
+                        egui::Sense::hover(),
+                    );
+                    controls::paint_checkbox(ui, rect, is_selected);
+                }
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = controls::GAP_TIGHT;
+                    comfortable_first_line(ui, row, pass, is_light);
+                    let text = if row.off {
+                        egui::RichText::new(&row.preview).color(crate::app::disabled_text(is_light))
+                    } else {
+                        controls::muted(&row.preview, is_light)
+                    };
+                    ui.add(egui::Label::new(text).truncate().selectable(false));
+                });
+            });
+        });
+}
+
+/// The name on the left, the trigger on the right, and a favourite's star just before the trigger.
+/// Painted by hand rather than laid out as labels, for the same reason as the compact row's trigger:
+/// the smaller monospace has to sit a hair low to share a baseline with the words.
+fn comfortable_first_line(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_light: bool) {
+    let width = ui.available_width();
+    let off = crate::app::disabled_text(is_light);
+    let strong = if row.off { off } else { ui.visuals().strong_text_color() };
+    let code_ink = if row.off { off } else { accent(ui.visuals()) };
+    let star_room = if row.favorite { ROW_STAR + controls::GAP } else { 0.0 };
+    let gap = controls::GAP_WIDE;
+    let trigger_text = || egui::RichText::new(&row.trigger).monospace().color(code_ink);
+    let galley = |ui: &egui::Ui, text: egui::RichText, room: f32| {
+        egui::WidgetText::from(text).into_galley(
+            ui,
+            Some(egui::TextWrapMode::Truncate),
+            room.max(1.0),
+            egui::TextStyle::Body,
+        )
+    };
+    // With a name, the trigger goes to the right; without one, it is what names the row.
+    let (left, right) = match row.name.as_deref() {
+        Some(name) => {
+            let trigger = galley(ui, trigger_text(), width * COMFORTABLE_TRIGGER_SHARE - star_room);
+            let room = width - trigger.size().x - star_room - gap;
+            let name = egui::RichText::new(name).family(crate::fonts::semibold_family()).color(strong);
+            (galley(ui, name, room), Some(trigger))
+        }
+        None => (galley(ui, trigger_text(), width - star_room - gap), None),
+    };
+    let drop = pass.baseline_drop.get().unwrap_or_else(|| {
+        let drop = controls::baseline_drop(ui, egui::RichText::new("x"), egui::RichText::new("x").monospace());
+        pass.baseline_drop.set(Some(drop));
+        drop
+    });
+    // As tall as a name would make it, name or not: a row without one may not come out shorter.
+    let name_font = egui::FontId::new(
+        egui::TextStyle::Body.resolve(ui.style()).size,
+        crate::fonts::semibold_family(),
+    );
+    let height = ui
+        .fonts_mut(|f| f.row_height(&name_font))
+        .max(left.size().y)
+        .max(right.as_ref().map_or(0.0, |g| g.size().y));
+    let (rect, hover) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+
+    let left_is_trigger = right.is_none();
+    let left_top = rect.center().y - left.size().y * 0.5 + if left_is_trigger { drop } else { 0.0 };
+    let left_rect = egui::Rect::from_min_size(egui::pos2(rect.left(), left_top), left.size());
+    let mut cut_trigger = left_is_trigger && left.elided;
+    let mut trigger_rect = if left_is_trigger { left_rect } else { egui::Rect::NOTHING };
+    ui.painter().galley(left_rect.min, left, egui::Color32::PLACEHOLDER);
+
+    let mut star_right = rect.right();
+    if let Some(trigger) = right {
+        let at = egui::pos2(
+            rect.right() - trigger.size().x,
+            rect.center().y - trigger.size().y * 0.5 + drop,
+        );
+        trigger_rect = egui::Rect::from_min_size(at, trigger.size());
+        cut_trigger = trigger.elided;
+        star_right = at.x - controls::GAP;
+        ui.painter().galley(at, trigger, egui::Color32::PLACEHOLDER);
+    }
+    if row.favorite {
+        let star = egui::Rect::from_center_size(
+            egui::pos2(star_right - ROW_STAR * 0.5, rect.center().y),
+            egui::Vec2::splat(ROW_STAR),
+        );
+        let ink = if row.off { off } else { accent(ui.visuals()) };
+        glyphs::paint(ui, star, Glyph::StarFilled, ROW_STAR, ink);
+    }
+    if cut_trigger && hover.hover_pos().is_some_and(|p| trigger_rect.contains(p)) {
+        hover.on_hover_text(trigger_text());
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
