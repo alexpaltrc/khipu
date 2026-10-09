@@ -12,8 +12,18 @@ was published.
   and type the trigger in one go: correcting a typo half way through can make Khipu lose track of
   it. The tip at the bottom of that step now points to the launcher, the way out for any trigger
   that is forgotten or does not fire.
+- **Khipu has a button on the taskbar.** While its window is open, Khipu shows on the taskbar
+  like any other app, so you can switch to it, minimize it and find it again. Closing the window
+  still leaves it working in the system tray, without a button. Starting with Windows, it stays in
+  the tray, and no button flashes on the taskbar at login.
 
 ### Changed
+
+- **New installs start with Windows.** An expander that is not running does nothing, so the first
+  run turns on **Start Khipu with Windows** by itself. The last step of the welcome screen no
+  longer asks: it explains that closing Khipu leaves it in the system tray, among the hidden
+  icons, and shows how to drag it onto the taskbar. Its tip says where to turn starting with
+  Windows off. **Nothing changes for anyone who already uses Khipu**: your choice stays as it is.
 
 - **New installs use `;` as the prefix, not `:`.** Outlook, Teams, WhatsApp, Discord and Slack
   read a colon followed by a word as the start of an emoji, and open their emoji picker over

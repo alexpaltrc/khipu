@@ -172,7 +172,10 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
                 &[("keys", state.search_shortcut.label(state.settings.lang).as_str())],
             ),
             2 => t.onboarding_try_tip.to_owned(),
-            _ => crate::i18n::fill(t.onboarding_autostart_note, &[("settings", t.settings_title)]),
+            // Said only once the switch is known to be on: the first run turns it on, but a veto
+            // from Windows can keep it off, and then the tip says where to try again.
+            _ if state.autostart_enabled => crate::i18n::fill(t.onboarding_autostart_note, &[("settings", t.settings_title)]),
+            _ => crate::i18n::fill(t.onboarding_autostart_off_note, &[("settings", t.settings_title)]),
         };
         tip_line(ui, &tip, left, width, &enter, &mut frames);
         ui.add_space(controls::GAP_SECTION);
@@ -202,7 +205,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
                                 0 => welcome(ui, state, &enter),
                                 1 => what(ui, state, &enter, &mut frames),
                                 2 => try_it(ui, state, &enter, &mut flow.focus_pending),
-                                _ => autostart(ui, state, &enter, viewport, &mut frames),
+                                _ => on_close(ui, state, &enter, viewport, &mut frames),
                             }
                         },
                     )
@@ -811,45 +814,23 @@ fn typing_went_astray(ctx: &egui::Context, probe: &str, expanded: bool) -> bool 
     true
 }
 
-// --- 4. start with Windows ------------------------------------------------------------------
+// --- 4. where it goes when closed ---------------------------------------------------------
 
-fn autostart(ui: &mut egui::Ui, state: &mut AppState, enter: &Enter, viewport: f32, frames: &mut Frames) {
+/// Closing the window does not quit — it leaves Khipu in the tray, where Windows hides it. The
+/// step says so, and shows the one gesture that keeps it in sight. Starting with Windows is no
+/// longer asked here: the first run turns it on, and the tip above says where to change it.
+fn on_close(ui: &mut egui::Ui, state: &mut AppState, enter: &Enter, viewport: f32, frames: &mut Frames) {
     let t = state.t();
-    let is_light = !ui.visuals().dark_mode;
-    enter.reveal(ui, 0, |ui| title(ui, t.onboarding_autostart_title));
+    enter.reveal(ui, 0, |ui| title(ui, t.onboarding_close_title));
     ui.add_space(controls::GAP_STACK + controls::GAP_ROW);
-    enter.reveal(ui, 1, |ui| {
-        figure(ui, FIGURE_WIDTH, |ui| {
-            controls::section_frame(is_light)
-                .inner_margin(egui::Margin::symmetric(controls::SECTION_PAD, 12))
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    let mut autostart = state.autostart_enabled;
-                    let mut changed = false;
-                    ui.horizontal(|ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            changed = controls::toggle(ui, &mut autostart).changed();
-                            ui.add_space(controls::GAP_WIDE);
-                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                ui.add(egui::Label::new(t.autostart_checkbox).wrap());
-                            });
-                        });
-                    });
-                    if changed {
-                        state.set_autostart(autostart);
-                    }
-                });
-        });
-    });
-    ui.add_space(controls::GAP_STACK + controls::GAP_ROW);
-    enter.reveal(ui, 2, |ui| lead(ui, t.onboarding_where_body));
+    enter.reveal(ui, 1, |ui| lead(ui, t.onboarding_where_body));
     ui.add_space(controls::GAP_STACK);
     // The picture is last, so what is above it is already laid out: it takes what is left of the
     // page, up to its full size — a short window gets a smaller tray, never a cut-off one.
     let above = ui.cursor().top() - ui.min_rect().top();
     let room = viewport - above;
     let animate = crate::theme::animations_enabled();
-    enter.reveal(ui, 3, |ui| {
+    enter.reveal(ui, 2, |ui| {
         enlarged(ui, room, |ui, rect| {
             if animate {
                 tray_demo(ui, rect, enter.elapsed - ENTER_SECONDS, frames);

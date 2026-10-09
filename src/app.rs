@@ -2631,6 +2631,12 @@ impl KhipuApp {
         if state.settings.onboarding_done && !replay {
             state.clear_onboarding_match();
         } else {
+            // Starting with Windows is on from the first run: an expander that is not running is
+            // one that does nothing, and the last step of the welcome says where to turn it off.
+            // A first run only — whoever already has a settings file has already chosen.
+            if !replay {
+                state.set_autostart(true);
+            }
             state.begin_onboarding();
             state.view = View::Onboarding;
         }
@@ -2696,8 +2702,12 @@ impl KhipuApp {
         let Some(window) = &self.window else {
             return;
         };
-        // Only ever set by a start hidden in the tray; clearing it is harmless every other time.
+        // Only ever set by a start hidden in the tray; clearing both is harmless every other time.
         set_cloaked(window, false);
+        {
+            use winit::platform::windows::WindowExtWindows as _;
+            window.set_skip_taskbar(false);
+        }
         window.set_visible(true);
         if let Some(area) = work_area_for(window) {
             fit_window_to(window, area);

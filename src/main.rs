@@ -320,8 +320,8 @@ fn main() {
     let icon = icons::window_fallback();
 
     // Never larger than the screen it is opening on. The generous defaults suit a desktop monitor;
-    // on a laptop panel they would put the buttons below the bottom edge, which on a window with no
-    // taskbar button is genuinely hard to recover from.
+    // on a laptop panel they would put the buttons below the bottom edge, which on a window started in
+    // the tray, with no taskbar button yet, is genuinely hard to recover from.
     let work_area = display::work_area(display::system_scale());
     let fit = |desired: [f32; 2]| match work_area {
         Some(area) => area.fits(desired),
@@ -335,7 +335,11 @@ fn main() {
         // a small primary monitor ends up licensing a window too small to use on a large one.
         .with_min_inner_size(display::MIN_SIZE)
         .with_visible(!start_hidden)
-        .with_taskbar(EXPERIMENTAL);
+        // A button on the taskbar like any other app's, while the window is open; a hidden window
+        // has none. A start in the tray leaves it off until the window is first shown
+        // (`show_and_focus`), so logging in does not flash a button for the moment eframe shows
+        // the cloaked window before hiding it.
+        .with_taskbar(!start_hidden);
     if let Some(icon) = icon {
         viewport = viewport.with_icon(icon);
     }
