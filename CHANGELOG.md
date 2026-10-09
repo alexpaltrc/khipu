@@ -36,6 +36,10 @@ was published.
   what you type (the trigger) and what appears (the text), says that together they make an
   expansion, and uses your own prefix. It is outside the sections, so nobody has to open
   anything to read it.
+- **The welcome screen names the two halves too.** In the typing demonstration, a small
+  **Trigger** label sits above what is being typed and turns into **Text** when it becomes the
+  full text. With Windows' animation effects off, the still list of examples has the same two
+  words as column heads.
 - **The tray picture looks like your taskbar.** The welcome screen's animation and the picture in
   Tips now draw Windows 11's own taskbar: Start, the network and volume icons, and the clock with
   the time it is, in your format. The hidden icons open right above the arrow, the way they do on

@@ -502,13 +502,14 @@ fn examples(state: &AppState) -> [Example; 3] {
             trigger: trigger("fecha", "date", "petsa", "tarikh"),
             result: date,
         },
+        // Two blank lines before the signature: its caption takes the second.
         Example {
             before: text(
                 state,
-                "Gracias por tu ayuda con el informe.\n\n",
-                "Thanks for your help with the report.\n\n",
-                "Salamat sa tulong mo sa ulat.\n\n",
-                "रिपोर्ट में मदद के लिए धन्यवाद।\n\n",
+                "Gracias por tu ayuda con el informe.\n\n\n",
+                "Thanks for your help with the report.\n\n\n",
+                "Salamat sa tulong mo sa ulat.\n\n\n",
+                "रिपोर्ट में मदद के लिए धन्यवाद।\n\n\n",
             ),
             trigger: trigger("firma", "sig", "pirma", "sign"),
             result: text(
@@ -530,12 +531,17 @@ fn what(ui: &mut egui::Ui, state: &AppState, enter: &Enter, frames: &mut Frames)
     enter.reveal(ui, 1, |ui| lead(ui, t.onboarding_what_body));
     ui.add_space(controls::GAP_STACK + controls::GAP_ROW);
     let examples = examples(state);
+    // The two halves named the way Tips names them, so the word the body uses has a thing to point at.
+    let captions = [
+        crate::ui::studio::text(state, "Activador", "Trigger", "Trigger", "ट्रिगर"),
+        crate::ui::studio::text(state, "Texto", "Text", "Teksto", "टेक्स्ट"),
+    ];
     enter.reveal(ui, 2, |ui| {
         figure(ui, FIGURE_WIDTH, |ui| {
             if crate::theme::animations_enabled() {
-                typing_demo(ui, &examples, enter.elapsed - ENTER_SECONDS, frames);
+                typing_demo(ui, &examples, captions, enter.elapsed - ENTER_SECONDS, frames);
             } else {
-                still_examples(ui, &examples);
+                still_examples(ui, &examples, captions);
             }
         });
     });
@@ -549,11 +555,13 @@ const BEAT: f64 = 0.45;
 const FADE_OUT: f64 = 0.35;
 const BLINK: f64 = 0.53;
 const SURFACE_PAD: f32 = 18.0;
+/// Between a caption and the line it names.
+const CAPTION_GAP: f32 = 4.0;
 
 /// A page that types each trigger, waits a beat, and has it become the text — over and over, one
 /// example after another. The text that arrives is lit in the accent for a moment, which is the
 /// one thing the eye should follow, and the caret blinks where a caret would.
-fn typing_demo(ui: &mut egui::Ui, examples: &[Example; 3], clock: f64, frames: &mut Frames) {
+fn typing_demo(ui: &mut egui::Ui, examples: &[Example; 3], captions: [&str; 2], clock: f64, frames: &mut Frames) {
     let is_light = !ui.visuals().dark_mode;
     let accent = crate::app::accent(ui.visuals());
     let ink = ui.visuals().text_color();
@@ -591,11 +599,18 @@ fn typing_demo(ui: &mut egui::Ui, examples: &[Example; 3], clock: f64, frames: &
     // How far the trigger's own top sits above the body row it is typed into.
     let drop = controls::baseline(&typesetter.layout_no_wrap("A".into(), body.clone(), ink))
         - controls::baseline(&typed_line("A".into()));
+    // Each half named just above itself, small and grey like the captions in Tips: the trigger while
+    // it is typed, then, in the same place, the text it became. An example typed on the first line
+    // gets a row of room above it; one typed further down has a blank line for its caption.
+    let small = egui::TextStyle::Small.resolve(ui.style());
+    let caption = |word: &str, alpha: f32| typesetter.layout_no_wrap(word.to_owned(), small.clone(), quiet.gamma_multiply(alpha));
+    let caption_room = caption("A", 1.0).size().y + CAPTION_GAP;
+    let room_above = |e: &Example| if e.before.contains('\n') { 0.0 } else { caption_room };
 
     // The page is as tall as the tallest example once it has become text, so it never resizes.
     let tallest = examples
         .iter()
-        .map(|e| layout(e.before, Some((&e.result, 1.0, 0.0))).size().y)
+        .map(|e| room_above(e) + layout(e.before, Some((&e.result, 1.0, 0.0))).size().y)
         .fold(0.0_f32, f32::max);
     let (rect, _) = ui.allocate_exact_size(vec2(width, tallest + 2.0 * SURFACE_PAD), egui::Sense::hover());
     let painter = ui.painter();
@@ -624,7 +639,11 @@ fn typing_demo(ui: &mut egui::Ui, examples: &[Example; 3], clock: f64, frames: &
     let scene_in = ease_out(span(s, 0.0, 0.3));
     let scene_out = 1.0 - ease_out(span(s, leaving, SCENE));
     painter.set_opacity(scene_in.min(scene_out));
-    let origin = rect.min + vec2(SURFACE_PAD, SURFACE_PAD);
+    let origin = rect.min + vec2(SURFACE_PAD, SURFACE_PAD + room_above(example));
+    let start = {
+        let page = layout(example.before, None);
+        page.pos_from_cursor(page.end()).translate(origin.to_vec2())
+    };
 
     let caret = if s < turns_at {
         let n = if s < TYPE_FROM { 0 } else { (((s - TYPE_FROM) / PER_KEY) as usize + 1).min(keys) };
@@ -644,6 +663,17 @@ fn typing_demo(ui: &mut egui::Ui, examples: &[Example; 3], clock: f64, frames: &
         caret
     };
 
+    let typed_in = ease_out(span(s, TYPE_FROM, TYPE_FROM + 0.3));
+    let turned = ease_out(span(s, turns_at, turns_at + 0.22));
+    for (word, alpha) in [(captions[0], typed_in * (1.0 - turned)), (captions[1], turned)] {
+        if alpha > 0.0 {
+            let label = caption(word, alpha);
+            // Kept inside the page when the trigger starts near its right edge.
+            let x = start.left().min(rect.right() - SURFACE_PAD - label.size().x);
+            painter.galley(pos2(x, start.top() - caption_room), label, quiet);
+        }
+    }
+
     // The caret: solid while keys are going down, blinking while the page waits.
     let typing = (TYPE_FROM..typed_by).contains(&s);
     let blink_on = ((s / BLINK) as i64) % 2 == 0;
@@ -656,7 +686,7 @@ fn typing_demo(ui: &mut egui::Ui, examples: &[Example; 3], clock: f64, frames: &
 
     // Frames: continuously while something fades, otherwise at the next key or the next blink.
     let next_blink = ((s / BLINK).floor() + 1.0) * BLINK - s;
-    if s < 0.3 || (turns_at..turns_at + 1.5).contains(&s) || s >= leaving {
+    if s < 0.3 || (TYPE_FROM..TYPE_FROM + 0.3).contains(&s) || (turns_at..turns_at + 1.5).contains(&s) || s >= leaving {
         frames.now();
     } else if typing {
         frames.after(TYPE_FROM + (((s - TYPE_FROM) / PER_KEY).floor() + 1.0) * PER_KEY - s);
@@ -668,7 +698,7 @@ fn typing_demo(ui: &mut egui::Ui, examples: &[Example; 3], clock: f64, frames: &
 }
 
 /// The same three examples with nothing moving: each trigger, and what it becomes.
-fn still_examples(ui: &mut egui::Ui, examples: &[Example; 3]) {
+fn still_examples(ui: &mut egui::Ui, examples: &[Example; 3], captions: [&str; 2]) {
     let is_light = !ui.visuals().dark_mode;
     controls::section_frame(is_light).show(ui, |ui| {
         ui.set_width(ui.available_width());
@@ -676,6 +706,21 @@ fn still_examples(ui: &mut egui::Ui, examples: &[Example; 3]) {
             .iter()
             .map(|e| controls::widget_line(ui, controls::code(&e.trigger, ui.visuals()), egui::TextStyle::Body).size().x)
             .fold(0.0_f32, f32::max);
+        // Wide enough for its caption too, or the caption would push the arrow out of line.
+        let key_width = key_width.max(controls::widget_line(ui, controls::small_muted(captions[0], is_light), egui::TextStyle::Small).size().x);
+        let arrow_width = controls::widget_line(ui, controls::muted("→", is_light), egui::TextStyle::Body).size().x;
+        // The same two captions as the animation, as column heads.
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = controls::GAP_WIDE;
+            let small = ui.text_style_height(&egui::TextStyle::Small);
+            ui.allocate_ui_with_layout(vec2(key_width, small), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.label(controls::small_muted(captions[0], is_light));
+            });
+            ui.allocate_exact_size(vec2(arrow_width, small), egui::Sense::hover());
+            ui.label(controls::small_muted(captions[1], is_light));
+        });
+        // As close to the first row as in the animation, not a row's distance away.
+        ui.add_space(CAPTION_GAP - ui.spacing().item_spacing.y);
         for (i, example) in examples.iter().enumerate() {
             if i > 0 {
                 ui.add_space(controls::GAP_ROW);
