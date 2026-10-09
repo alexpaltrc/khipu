@@ -159,6 +159,9 @@ pub struct EditState {
     pub folder: Option<String>,
     pub choosing_new_folder: bool,
     pub new_folder_input: String,
+    /// Whether it is a favourite. Ours, like the folder, and saved with Guardar like the rest of
+    /// the form: a star changed here and then cancelled stays as it was.
+    pub favorite: bool,
 }
 
 impl EditState {
@@ -175,6 +178,7 @@ impl EditState {
             folder: None,
             choosing_new_folder: false,
             new_folder_input: String::new(),
+            favorite: false,
         }
     }
 
@@ -202,6 +206,7 @@ impl EditState {
             folder,
             choosing_new_folder: false,
             new_folder_input: String::new(),
+            favorite: false,
         }
     }
 
@@ -552,7 +557,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
     let View::Edit(edit) = &state.view else {
         return;
     };
-    let edit = edit.clone();
+    let mut edit = edit.clone();
     let t = state.t();
     let lang = state.settings.lang;
     let is_light = !ui.visuals().dark_mode;
@@ -608,6 +613,28 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             ui.vertical_centered(|ui| {
                 ui.add(egui::Label::new(controls::h1(title)).wrap());
             });
+            // The star, at the right edge of the form's own column, level with the title.
+            let full = ui.max_rect();
+            let margin = ((full.width() - full.width().min(FORM_MAX_WIDTH)) * 0.5).max(0.0);
+            let star = egui::Rect::from_min_size(
+                egui::pos2(full.right() - margin - controls::FIELD_HEIGHT, full.top()),
+                egui::Vec2::splat(controls::FIELD_HEIGHT),
+            );
+            let tip = if edit.favorite {
+                studio::text(state, "Quitar de favoritos", "Remove from favorites", "Alisin sa mga paborito", "पसंदीदा से हटाएँ")
+            } else {
+                studio::text(state, "Añadir a favoritos", "Add to favorites", "Idagdag sa mga paborito", "पसंदीदा में जोड़ें")
+            };
+            let on = edit.favorite;
+            if ui
+                .scope_builder(egui::UiBuilder::new().max_rect(star), |ui| {
+                    controls::star_button(ui, on, tip)
+                })
+                .inner
+                .clicked()
+            {
+                edit.favorite = !on;
+            }
         });
 
     // The actions get a strip of their own at the foot of the window, in the same place whatever

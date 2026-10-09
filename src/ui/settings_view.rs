@@ -40,6 +40,7 @@ use crate::theme::ThemeMode;
 use crate::ui::controls::{self, Tone};
 use crate::ui::glyphs::Glyph;
 use crate::ui::keys;
+use crate::ui::studio;
 
 /// The widest the dialog's contents get. Enough for the language row and the prefix row on one
 /// line each; less on a small window, through [`controls::dialog_width`].
@@ -280,6 +281,24 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     if state.hotkey.is_some() {
         label(ui, t.launcher_shortcut_section);
         launcher_shortcut(ui, state);
+        ui.add_space(controls::GAP_ROW);
+        let mut first = state.settings.favorites_first;
+        let mut changed = false;
+        ui.horizontal(|ui| {
+            ui.label(studio::text(
+                state,
+                "Favoritos primero en el buscador",
+                "Favorites first in search",
+                "Mga paborito muna sa paghahanap",
+                "खोज में पसंदीदा पहले",
+            ));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                changed = controls::toggle(ui, &mut first).changed();
+            });
+        });
+        if changed {
+            state.set_favorites_first(first);
+        }
         ui.add_space(GROUP_GAP);
     }
 

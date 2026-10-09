@@ -103,6 +103,13 @@ pub struct Settings {
     /// the default keeps its fallback to Alt+Shift+Space, which a shortcut somebody chose does not
     /// get. Something unreadable here also starts with the default.
     pub launcher_shortcut: Option<String>,
+    /// The expansions marked with a star, by trigger — kept here for the same reason folders are:
+    /// espanso has nowhere to put it. Every operation that changes a trigger carries its star along,
+    /// exactly as it carries its folder.
+    pub favorites: BTreeSet<String>,
+    /// Whether the launcher lists starred expansions ahead of the rest. On unless switched off,
+    /// which is also what a file written before the field existed reads back as.
+    pub favorites_first: bool,
 }
 
 impl Default for Settings {
@@ -120,6 +127,8 @@ impl Default for Settings {
             khipu_theme_found: false,
             onboarding_done: false,
             launcher_shortcut: None,
+            favorites: BTreeSet::new(),
+            favorites_first: true,
         }
     }
 }
@@ -171,10 +180,26 @@ impl Settings {
         if let Some(folder) = self.folder_by_trigger.remove(old) {
             self.folder_by_trigger.insert(new.to_string(), folder);
         }
+        if self.favorites.remove(old) {
+            self.favorites.insert(new.to_string());
+        }
     }
 
     pub fn remove_trigger(&mut self, trigger: &str) {
         self.folder_by_trigger.remove(trigger);
+        self.favorites.remove(trigger);
+    }
+
+    pub fn is_favorite(&self, trigger: &str) -> bool {
+        self.favorites.contains(trigger)
+    }
+
+    pub fn set_favorite(&mut self, trigger: &str, on: bool) {
+        if on {
+            self.favorites.insert(trigger.to_owned());
+        } else {
+            self.favorites.remove(trigger);
+        }
     }
 
     /// Drops every folder assignment whose trigger is not in `live`, and says how many went.
@@ -190,10 +215,13 @@ impl Settings {
     /// so the orphan keeps its folder in the edit form's picker, offering a folder that holds
     /// nothing, and keeps that name reserved against a real folder being renamed onto it.
     pub fn drop_folders_not_in(&mut self, live: &std::collections::HashSet<String>) -> usize {
-        let before = self.folder_by_trigger.len();
+        let before = self.folder_by_trigger.len() + self.favorites.len();
         self.folder_by_trigger
             .retain(|trigger, _| live.contains(trigger));
-        before - self.folder_by_trigger.len()
+        // A star on a trigger that is gone would come back, unasked, on whatever expansion is
+        // given that trigger next.
+        self.favorites.retain(|trigger| live.contains(trigger));
+        before - self.folder_by_trigger.len() - self.favorites.len()
     }
 
     /// Every folder there is: the ones somebody made, plus the ones implied by an assignment.
@@ -363,6 +391,26 @@ mod tests {
                 .insert(trigger.to_string(), folder.to_string());
         }
         s
+    }
+
+    /// The star follows its expansion: renamed with it, gone with it, and never left behind on a
+    /// trigger nothing has any more. An old settings file, written before stars, has none.
+    #[test]
+    fn the_star_follows_its_trigger() {
+        let mut s = Settings::default();
+        s.set_favorite(":firma", true);
+        s.set_favorite(":hola", true);
+        s.rename_trigger(":firma", ";firma");
+        assert!(s.is_favorite(";firma") && !s.is_favorite(":firma"));
+        s.remove_trigger(":hola");
+        assert!(!s.is_favorite(":hola"));
+        s.set_favorite(":suelta", true);
+        assert_eq!(s.drop_folders_not_in(&live(&[";firma"])), 1);
+        assert_eq!(s.favorites.iter().collect::<Vec<_>>(), [";firma"]);
+        s.set_favorite(";firma", false);
+        assert!(s.favorites.is_empty());
+        let old: Settings = serde_json::from_str("{}").unwrap();
+        assert!(old.favorites.is_empty() && old.favorites_first);
     }
 
     /// A new install starts with `;`; a file that says nothing about the prefix keeps the `:` its

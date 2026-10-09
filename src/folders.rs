@@ -102,6 +102,9 @@ pub fn apply_assignments(settings: &mut Settings, renames: &[Rename]) {
     settings.folder_by_trigger = settings.folder_by_trigger.iter().map(|(trigger, folder)| {
         (map.get(trigger.as_str()).copied().unwrap_or(trigger).to_owned(), folder.clone())
     }).collect();
+    settings.favorites = settings.favorites.iter()
+        .map(|trigger| map.get(trigger.as_str()).copied().unwrap_or(trigger).to_owned())
+        .collect();
 }
 
 #[cfg(test)]

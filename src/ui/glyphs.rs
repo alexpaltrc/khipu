@@ -59,6 +59,8 @@ pub enum Glyph {
     Undo,
     Wifi,
     Volume,
+    Star,
+    StarFilled,
 }
 
 impl Glyph {
@@ -88,6 +90,8 @@ impl Glyph {
             Glyph::Undo => '\u{E7A7}',
             Glyph::Wifi => '\u{E701}',
             Glyph::Volume => '\u{E767}',
+            Glyph::Star => '\u{E734}',
+            Glyph::StarFilled => '\u{E735}',
         }
     }
 }
@@ -187,6 +191,26 @@ fn fallback(ui: &egui::Ui, rect: Rect, glyph: Glyph, size: f32, ink: Color32) {
         }
         Glyph::Check => {
             painter.add(egui::Shape::line(vec![p(0.15, 0.52), p(0.4, 0.76), p(0.86, 0.26)], s));
+        }
+        Glyph::Star | Glyph::StarFilled => {
+            // Five points out, five in, starting straight up.
+            let points: Vec<egui::Pos2> = (0..10)
+                .map(|i| {
+                    let r = if i % 2 == 0 { 0.42 } else { 0.18 };
+                    let a = std::f32::consts::PI * (i as f32 / 5.0 - 0.5);
+                    p(0.5 + r * a.cos(), 0.54 + r * a.sin())
+                })
+                .collect();
+            if glyph == Glyph::StarFilled {
+                let inner: Vec<egui::Pos2> = points.iter().skip(1).step_by(2).copied().collect();
+                painter.add(egui::Shape::convex_polygon(inner, ink, Stroke::NONE));
+                for i in (0..10).step_by(2) {
+                    let tip = vec![points[(i + 9) % 10], points[i], points[i + 1]];
+                    painter.add(egui::Shape::convex_polygon(tip, ink, Stroke::NONE));
+                }
+            } else {
+                painter.add(egui::Shape::closed_line(points, s));
+            }
         }
         // The rest always sit beside words that already say what they do.
         _ => {}

@@ -76,6 +76,9 @@ pub struct ExportEntry {
     /// and an older build that does not know the key still reads every file this one writes.
     #[serde(default, skip_serializing_if = "is_false")]
     pub off: bool,
+    /// Starred where it came from. Left out when false, like `off`, for the same reason.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub favorite: bool,
 }
 
 fn is_false(b: &bool) -> bool {
@@ -102,6 +105,7 @@ pub fn build_export(
     entries: &[MatchEntry],
     folder_of: impl Fn(&str) -> Option<String>,
     is_off: impl Fn(&str) -> bool,
+    is_favorite: impl Fn(&str) -> bool,
 ) -> Export {
     let expansions = entries
         .iter()
@@ -114,6 +118,7 @@ pub fn build_export(
                 label: e.name().map(str::to_owned),
                 folder: folder_of(&m.trigger),
                 off: is_off(&m.trigger),
+                favorite: is_favorite(&m.trigger),
             }),
             MatchEntry::Advanced(_) => None,
         })
@@ -256,6 +261,8 @@ pub struct Merged {
     pub folders: Vec<(String, Option<String>)>,
     /// Triggers of the added expansions that arrive switched off.
     pub off: Vec<String>,
+    /// Triggers of the added expansions that arrive starred.
+    pub favorites: Vec<String>,
     /// Triggers that were left alone because that trigger was already in use.
     pub skipped: usize,
 }
@@ -282,6 +289,7 @@ pub fn merge(existing: &[MatchEntry], export: Export) -> Merged {
     let mut added = Vec::new();
     let mut folders = Vec::new();
     let mut off = Vec::new();
+    let mut favorites = Vec::new();
     let mut skipped = 0usize;
 
     for entry in export.expansions {
@@ -306,6 +314,9 @@ pub fn merge(existing: &[MatchEntry], export: Export) -> Merged {
         if entry.off {
             off.push(trigger.clone());
         }
+        if entry.favorite {
+            favorites.push(trigger.clone());
+        }
         folders.push((trigger, entry.folder));
         added.push(candidate);
     }
@@ -314,6 +325,7 @@ pub fn merge(existing: &[MatchEntry], export: Export) -> Merged {
         added,
         folders,
         off,
+        favorites,
         skipped,
     }
 }
@@ -336,6 +348,7 @@ mod tests {
             label: None,
             folder: None,
             off: false,
+            favorite: false,
         }
     }
 
@@ -558,5 +571,18 @@ mod tests {
         let merged = merge(&[], read);
         let names: Vec<Option<&str>> = merged.added.iter().map(MatchEntry::name).collect();
         assert_eq!(names, vec![None, Some("Firma del correo")]);
+    }
+
+    /// A star goes out with its expansion and comes back on it; one without a star writes no key.
+    #[test]
+    fn the_star_travels_and_is_absent_when_there_is_none() {
+        let mut starred = entry(":dos", Vec::new());
+        starred.favorite = true;
+        let text = serde_norway::to_string(&doc(vec![entry(":uno", Vec::new()), starred])).unwrap();
+        assert_eq!(text.matches("favorite:").count(), 1);
+
+        let read: Export = serde_norway::from_str(&text).unwrap();
+        let merged = merge(&[], read);
+        assert_eq!(merged.favorites, vec![":dos".to_string()]);
     }
 }

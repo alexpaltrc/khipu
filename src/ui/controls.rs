@@ -1052,6 +1052,31 @@ pub fn icon_button(ui: &mut egui::Ui, glyph: Glyph, tip: &str, enabled: bool) ->
     response
 }
 
+/// The star that marks a favourite: an [`icon_button`] whose icon fills in the accent when `on`.
+///
+/// The star is the one place besides the chosen row where the list wears the accent: a favourite
+/// has to be found at a glance, and an outline in the text colour does not stand out from one.
+pub fn star_button(ui: &mut egui::Ui, on: bool, tip: &str) -> egui::Response {
+    let (rect, response) =
+        ui.allocate_exact_size(egui::Vec2::splat(FIELD_HEIGHT), egui::Sense::click());
+    let response = response.on_hover_text(tip);
+    subtle_wash(ui, &response, true);
+    if ui.is_rect_visible(rect) {
+        let (glyph, ink) = if on {
+            (Glyph::StarFilled, accent(ui.visuals()))
+        } else {
+            (Glyph::Star, ui.visuals().text_color())
+        };
+        glyphs::paint(ui, rect, glyph, glyphs::SIZE, ink);
+    }
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, true, on, tip));
+    focus_ring(ui, &response, f32::from(RADIUS_CONTROL));
+    response
+}
+
 /// Space inside a [`subtle_button`] on each side, and between its icon and its words.
 const SUBTLE_PAD: f32 = 10.0;
 const SUBTLE_ICON_GAP: f32 = 8.0;
@@ -1249,7 +1274,8 @@ pub fn menu_separator(ui: &mut egui::Ui) {
     );
 }
 
-/// The small upright bar beside the chosen row: the accent's only job in the list.
+/// The small upright bar beside the chosen row: with the favourites' star, the only accent in the
+/// list.
 pub fn accent_bar(ui: &egui::Ui, row: egui::Rect) {
     let (fill, _) = accent_fill(ui.visuals());
     let bar = egui::Rect::from_center_size(

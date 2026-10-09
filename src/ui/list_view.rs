@@ -584,6 +584,9 @@ fn drag_autoscroll(ui: &egui::Ui) {
 /// The list never gets less than this, however small the window: below it the list stops being a
 /// list. One full row.
 const LIST_MIN_HEIGHT: f32 = 56.0;
+/// The star at the far end of a favourite's row: a step under an icon in a control, as a mark
+/// beside text is.
+const ROW_STAR: f32 = 14.0;
 /// From this width on, the chosen expansion opens in a pane beside the list; below it, the detail
 /// takes the whole window and «Volver» leads back.
 const INSPECTOR_BREAK: f32 = 720.0;
@@ -642,6 +645,15 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             .iter()
             .find(|(name, _)| name == folder)
             .map_or(&[], |(_, indices)| indices.as_slice()),
+    };
+    // The star narrows whatever the folder picker shows. Only then is a list of its own built; the
+    // rest of the time the cache's grouping is borrowed as it is.
+    let starred: Vec<usize>;
+    let visible: &[usize] = if studio::favorites_only(&ctx) {
+        starred = visible.iter().copied().filter(|&i| list.rows[i].favorite).collect();
+        &starred
+    } else {
+        visible
     };
 
     // The open row has to be one the list is showing: an inspector about an expansion the search
@@ -942,7 +954,16 @@ fn search_row(
         Some("") => t.no_folder.to_owned(),
         Some(folder) => truncate(folder, 28),
     };
-    let picker_w = controls::subtle_button_width(ui, true, &folder_label, true);
+    let picker_w = controls::subtle_button_width(ui, true, &folder_label, true)
+        + controls::GAP_TIGHT
+        + controls::FIELD_HEIGHT;
+    let starred = studio::favorites_only(ui.ctx());
+    let star_tip = if starred {
+        studio::text(state, "Mostrar todas", "Show all", "Ipakita lahat", "सभी दिखाएँ")
+    } else {
+        studio::text(state, "Mostrar solo favoritos", "Show favorites only", "Mga paborito lang", "केवल पसंदीदा दिखाएँ")
+    };
+    let mut star = None;
     let width = ui.available_width();
     let side_by_side = SEARCH_MIN + controls::GAP + picker_w <= width;
     let search_w = if side_by_side {
@@ -974,6 +995,8 @@ fn search_row(
                 &folder_label,
                 Some(Glyph::ChevronDown),
             ));
+            ui.add_space(controls::GAP_TIGHT - controls::GAP);
+            star = Some(controls::star_button(ui, starred, star_tip));
         });
     } else {
         ui.vertical_centered(|ui| search(ui, state));
@@ -985,6 +1008,8 @@ fn search_row(
                 &folder_label,
                 Some(Glyph::ChevronDown),
             ));
+            ui.add_space(controls::GAP_TIGHT - ui.spacing().item_spacing.x);
+            star = Some(controls::star_button(ui, starred, star_tip));
         });
     }
     ui.ctx().data_mut(|d| d.insert_temp(search_had_focus_key(), field_focused));
@@ -993,6 +1018,9 @@ fn search_row(
     // word reads as a bug.
     if field_changed && !state.selected.is_empty() {
         forget_selection(ui.ctx(), state);
+    }
+    if star.is_some_and(|s| s.clicked()) {
+        studio::set_favorites_only(ui.ctx(), state, !starred);
     }
     if let Some(picker) = picker {
         folder_menu(ui, state, list, active, &picker, all, is_light);
@@ -1513,6 +1541,23 @@ fn show_list(
                 // was the first thing this screen got wrong out loud.
                 let (title, hint) = if !state.search.trim().is_empty() {
                     (t.no_matches, "")
+                } else if studio::favorites_only(ui.ctx()) {
+                    (
+                        studio::text(
+                            state,
+                            "Aquí no hay favoritos todavía.",
+                            "No favorites here yet.",
+                            "Wala pang paborito rito.",
+                            "यहाँ अभी कोई पसंदीदा नहीं है।",
+                        ),
+                        studio::text(
+                            state,
+                            "Abre una expansión y toca su estrella.",
+                            "Open an expansion and click its star.",
+                            "Buksan ang isang expansion at i-click ang bituin nito.",
+                            "कोई विस्तार खोलें और उसके तारे पर क्लिक करें।",
+                        ),
+                    )
                 } else if matches!(active, Some("")) {
                     (
                         studio::text(
@@ -1752,7 +1797,10 @@ fn open_edit_for(state: &mut AppState, trigger: &str) {
     };
     if let crate::yaml::model::MatchEntry::Simple(m) = &state.match_file.entries[index] {
         let folder = state.settings.folder_of(&m.trigger).map(str::to_string);
-        state.view = View::Edit(EditState::new_for_edit(index, m, folder));
+        state.view = View::Edit(EditState {
+            favorite: state.settings.is_favorite(&m.trigger),
+            ..EditState::new_for_edit(index, m, folder)
+        });
     }
 }
 
@@ -2018,7 +2066,8 @@ fn show_row_inner(
         ui.ctx().data_mut(|d| d.insert_temp(glide_target_key(), rect));
     }
 
-    // The accent's one appearance in the list: a short bar beside the chosen row.
+    // A short bar in the accent beside the chosen row; the only other accent in the list is the
+    // favourites' star.
     if is_open {
         controls::accent_bar(ui, framed.response.rect);
     }
@@ -2136,11 +2185,31 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                 } else {
                     controls::muted(&row.preview, is_light)
                 };
-                ui.add(
-                    egui::Label::new(controls::named_text(ui, row.name.as_deref(), strong, text))
-                        .truncate()
-                        .selectable(false),
-                );
+                // A favourite wears its star at the far end, in the accent; the text stops short of
+                // it rather than running underneath.
+                let star_room = if row.favorite { ROW_STAR + spacing } else { 0.0 };
+                let label = ui
+                    .scope(|ui| {
+                        ui.set_max_width((ui.available_width() - star_room).max(1.0));
+                        ui.add(
+                            egui::Label::new(controls::named_text(ui, row.name.as_deref(), strong, text))
+                                .truncate()
+                                .selectable(false),
+                        )
+                    })
+                    .inner;
+                if row.favorite {
+                    let ink = if row.off {
+                        crate::app::disabled_text(is_light)
+                    } else {
+                        accent(ui.visuals())
+                    };
+                    let star = egui::Rect::from_center_size(
+                        egui::pos2(ui.max_rect().right() - ROW_STAR * 0.5, label.rect.center().y),
+                        egui::Vec2::splat(ROW_STAR),
+                    );
+                    glyphs::paint(ui, star, Glyph::StarFilled, ROW_STAR, ink);
+                }
             });
         });
 }
@@ -2192,6 +2261,13 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
     let folder = state.settings.folder_of(trigger).map(str::to_owned);
     let was_off = state.match_file.is_off(trigger);
     let mut switch_to: Option<bool> = None;
+    let starred = state.settings.is_favorite(trigger);
+    let mut star_to: Option<bool> = None;
+    let star_tip = if starred {
+        studio::text(state, "Quitar de favoritos", "Remove from favorites", "Alisin sa mga paborito", "पसंदीदा से हटाएँ")
+    } else {
+        studio::text(state, "Añadir a favoritos", "Add to favorites", "Idagdag sa mga paborito", "पसंदीदा में जोड़ें")
+    };
     let close_tip = keys::tip(
         studio::text(state, "Cerrar", "Close", "Isara", "बंद करें"),
         keys::BACK,
@@ -2220,19 +2296,21 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
 
         // The trigger, whole: the list cuts a long one to keep its column straight, so this is the
         // one place it can be read in full. It wraps rather than truncates for that reason.
+        // The star stands beside it, with the close button when there is one.
         ui.horizontal_top(|ui| {
-            if side {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                    if controls::icon_button(ui, Glyph::Close, &close_tip, true).clicked() {
-                        close = true;
-                    }
-                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
-                        trigger_heading(ui, trigger);
-                    });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
+                if side && controls::icon_button(ui, Glyph::Close, &close_tip, true).clicked() {
+                    close = true;
+                }
+                if controls::star_button(ui, starred, star_tip).clicked() {
+                    star_to = Some(!starred);
+                }
+                ui.spacing_mut().item_spacing.x = controls::GAP;
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                    trigger_heading(ui, trigger);
                 });
-            } else {
-                trigger_heading(ui, trigger);
-            }
+            });
         });
         // Its name, under it: the trigger is what you type, so it stays the heading; the name is
         // what you call it, and reads as the line that explains the heading.
@@ -2426,6 +2504,9 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
     }
     if unfile {
         state.assign_folder_to_triggers(&[trigger.to_owned()], None);
+    }
+    if let Some(on) = star_to {
+        state.set_favorite(trigger, on);
     }
     if let Some(off) = switch_to {
         state.set_off(&[trigger.to_owned()], off);

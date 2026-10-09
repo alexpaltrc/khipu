@@ -243,6 +243,8 @@ pub struct ListRow {
     pub preview: String,
     /// Switched off: kept, drawn dimmer, and absent from espanso and from the launcher.
     pub off: bool,
+    /// Starred: a filled star on its row, and ahead of the rest in the launcher.
+    pub favorite: bool,
 }
 
 /// Everything the list screen needs, derived once from the expansions and the folder assignments.
@@ -566,9 +568,14 @@ impl AppState {
 
     /// Every expansion this app manages, as trigger, name and one-line preview, for the search window.
     /// The ones switched off are left out: the launcher fires expansions, and these do not fire.
+    ///
+    /// Starred ones come first unless that is switched off in Ajustes. The launcher ranks by what
+    /// the query matched and keeps this order inside each rank, so a star lifts an expansion among
+    /// its equals without beating a trigger typed out in full.
     pub fn list_all(&self) -> Vec<crate::ui::search_view::Hit> {
         let t = self.t();
-        self.match_file
+        let mut hits: Vec<_> = self
+            .match_file
             .entries
             .iter()
             .filter_map(|entry| match entry {
@@ -582,7 +589,49 @@ impl AppState {
                 MatchEntry::Simple(_) => None,
                 MatchEntry::Advanced(_) => None,
             })
-            .collect()
+            .collect();
+        if self.settings.favorites_first {
+            // Stable, so each half keeps the file's order.
+            hits.sort_by_key(|hit| !self.settings.is_favorite(&hit.trigger));
+        }
+        hits
+    }
+
+    /// Stars or unstars one expansion, at once: a star is a mark on the list, not an edit, and
+    /// asking for Guardar to keep one would be asking for a step nobody expects.
+    pub fn set_favorite(&mut self, trigger: &str, on: bool) {
+        if self.settings.is_favorite(trigger) == on {
+            return;
+        }
+        self.settings.set_favorite(trigger, on);
+        self.touch_list();
+        if let Err(e) = self.settings_store.save(&self.settings) {
+            let msg = fill(ui::studio::text(
+                self,
+                "No se pudo guardar el favorito: {err}",
+                "Could not save the favorite: {err}",
+                "Hindi ma-save ang paborito: {err}",
+                "पसंदीदा सहेजा नहीं जा सका: {err}",
+            ), &[("err", &e.to_string())]);
+            self.set_error_banner(msg);
+        }
+    }
+
+    pub fn set_favorites_first(&mut self, on: bool) {
+        if self.settings.favorites_first == on {
+            return;
+        }
+        self.settings.favorites_first = on;
+        if let Err(e) = self.settings_store.save(&self.settings) {
+            let msg = fill(ui::studio::text(
+                self,
+                "No se pudo guardar el ajuste del buscador: {err}",
+                "Could not save the search setting: {err}",
+                "Hindi ma-save ang setting ng paghahanap: {err}",
+                "खोज की सेटिंग सहेजी नहीं जा सकी: {err}",
+            ), &[("err", &e.to_string())]);
+            self.set_error_banner(msg);
+        }
     }
 
     /// What the launcher can paste for `trigger` by itself. See
@@ -666,6 +715,7 @@ impl AppState {
                 name: entry.name().map(str::to_owned),
                 preview: truncate(&preview, PREVIEW_MAX_CHARS),
                 off: self.match_file.is_off(entry.trigger_str()),
+                favorite: self.settings.is_favorite(entry.trigger_str()),
             });
         }
 
@@ -1348,7 +1398,7 @@ impl AppState {
     pub fn export_folder(&mut self, folder: &str) {
         let export = crate::transfer::build_export(&self.match_file.entries, |trigger| {
             self.settings.folder_of(trigger).map(str::to_owned)
-        }, |trigger| self.match_file.is_off(trigger));
+        }, |trigger| self.match_file.is_off(trigger), |trigger| self.settings.is_favorite(trigger));
         let export = crate::transfer::retain_folders(export, &[Some(folder.to_owned())]);
         if !export.expansions.is_empty() { self.write_export(export); }
     }
@@ -1398,7 +1448,7 @@ impl AppState {
     pub fn export_expansions(&mut self) {
         let export = crate::transfer::build_export(&self.match_file.entries, |trigger| {
             self.settings.folder_of(trigger).map(str::to_string)
-        }, |trigger| self.match_file.is_off(trigger));
+        }, |trigger| self.match_file.is_off(trigger), |trigger| self.settings.is_favorite(trigger));
 
         let groups = crate::transfer::groups(&export);
         if groups.len() < 2 {
@@ -1503,6 +1553,9 @@ impl AppState {
         self.match_file.off.extend(merged.off);
         for (trigger, folder) in &merged.folders {
             self.settings.set_folder(trigger, folder.clone());
+        }
+        for trigger in &merged.favorites {
+            self.settings.set_favorite(trigger, true);
         }
         let _ = self.settings_store.save(&self.settings);
         self.touch_list();
@@ -1614,6 +1667,7 @@ impl AppState {
             self.selection_rename(previous_trigger, &new_match.trigger);
         }
         self.settings.set_folder(&new_match.trigger, edit.resolved_folder());
+        self.settings.set_favorite(&new_match.trigger, edit.favorite);
         let _ = self.settings_store.save(&self.settings);
         self.touch_list();
 

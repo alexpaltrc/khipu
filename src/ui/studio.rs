@@ -95,6 +95,20 @@ pub fn filter(ctx: &egui::Context) -> Option<String> {
     ctx.data(|d| d.get_temp::<String>(egui::Id::new("studio-folder")))
 }
 
+/// Whether the list shows only the favourites. On top of the folder, not instead of it: the star
+/// beside the folder picker narrows whatever the picker is showing.
+pub fn favorites_only(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<bool>(egui::Id::new("studio-favorites")))
+        .unwrap_or(false)
+}
+
+pub(super) fn set_favorites_only(ctx: &egui::Context, state: &mut AppState, on: bool) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("studio-favorites"), on));
+    // A selection made under one filter cannot be seen under the next.
+    state.clear_selection();
+    ctx.request_repaint();
+}
+
 pub(super) fn set_filter(ctx: &egui::Context, state: &mut AppState, folder: Option<&str>) {
     ctx.data_mut(|d| {
         let key = egui::Id::new("studio-folder");

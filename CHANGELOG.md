@@ -23,6 +23,11 @@ was published.
   `label`, and travels with export and import. An expansion without a name looks as it did. If
   you had already written a `label` into `base.yml` by hand, editing that expansion no longer
   erases it.
+- **Favorites.** The star at the top of an expansion's detail, or at the top of its edit screen,
+  marks it as a favorite. Favorites wear a star at the end of their row. The star beside the
+  folder picker shows only the favorites, inside whatever folder is showing. In the launcher,
+  favorites come first; **Favorites first in search**, in Settings, turns that off. A renamed
+  expansion keeps its star, and stars travel with export and import.
 
 ### Changed
 
