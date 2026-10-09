@@ -40,6 +40,11 @@ was published.
   **Trigger** label sits above what is being typed and turns into **Text** when it becomes the
   full text. With Windows' animation effects off, the still list of examples has the same two
   words as column heads.
+- **A round button for new expansions.** The **+** moved from the top right to a round button in
+  your Windows accent colour, at the bottom of the main window, in the middle. It rises into
+  place with a small bounce each time the window opens, and the list scrolls a little further so
+  the last expansion never hides under it. With Windows' animation effects off, it is simply
+  there.
 - **The tray picture looks like your taskbar.** The welcome screen's animation and the picture in
   Tips now draw Windows 11's own taskbar: Start, the network and volume icons, and the clock with
   the time it is, in your format. The hidden icons open right above the arrow, the way they do on

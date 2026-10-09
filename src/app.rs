@@ -2384,6 +2384,9 @@ pub struct KhipuApp {
     /// Native small/large window icons are reselected when this window moves between DPI scales.
     last_icon_dpi: u32,
     start_hidden_pending: bool,
+    /// Set when this frame is drawn for a window nobody can see, or one about to be put away: the
+    /// round «+» is then told, after drawing, to rise again when the window opens.
+    rewind_new_button: bool,
     /// Set by the tray's Quit item. The window's close handler normally cancels the close and hides
     /// to the tray instead; this is what tells it that this particular close is meant.
     quitting: bool,
@@ -2662,6 +2665,7 @@ impl KhipuApp {
             last_accent: read_system_accent(is_light),
             last_icon_dpi,
             start_hidden_pending: ctx.start_hidden,
+            rewind_new_button: false,
             quitting: false,
             pacer: Default::default(),
             held_menu: Vec::new(),
@@ -3123,6 +3127,21 @@ fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput) {
                 queue.push_back(vec![egui::Event::Text(typed.to_owned())]);
                 continue;
             }
+            // `s:x,y,dy` turns the wheel over a point: a positive `dy` scrolls down, in pixels.
+            if let Some(wheel) = line.strip_prefix("s:") {
+                let n: Vec<f32> = wheel.split(',').filter_map(|n| n.trim().parse().ok()).collect();
+                if let [x, y, dy] = n[..] {
+                    let pos = egui::pos2(x / ctx.pixels_per_point(), y / ctx.pixels_per_point());
+                    queue.push_back(vec![egui::Event::PointerMoved(pos)]);
+                    queue.push_back(vec![egui::Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::vec2(0.0, -dy / ctx.pixels_per_point()),
+                        phase: egui::TouchPhase::Move,
+                        modifiers: egui::Modifiers::NONE,
+                    }]);
+                }
+                continue;
+            }
             let mut xy = line.split(',').filter_map(|n| n.trim().parse::<f32>().ok());
             let (Some(x), Some(y)) = (xy.next(), xy.next()) else { continue };
             let pos = egui::pos2(x / ppp, y / ppp);
@@ -3167,6 +3186,8 @@ impl eframe::App for KhipuApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.window.as_ref().and_then(|w| w.is_visible()).unwrap_or(true) {
             self.pacer.wait_for_compositor();
+        } else {
+            self.rewind_new_button = true;
         }
 
         // `with_visible(false)` in main.rs is not enough on its own: eframe shows the root window
@@ -3177,6 +3198,7 @@ impl eframe::App for KhipuApp {
         // with Windows opened the window at every login.
         if self.start_hidden_pending {
             self.start_hidden_pending = false;
+            self.rewind_new_button = true;
             if let Some(window) = &self.window {
                 set_cloaked(window, true);
             }
@@ -3248,6 +3270,7 @@ impl eframe::App for KhipuApp {
         if ctx.input(|i| i.viewport().close_requested()) && !self.quitting && !crate::EXPERIMENTAL {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.hide_to_tray();
+            self.rewind_new_button = true;
         }
 
         // Hidden in the tray, the app now schedules nothing at all. Everything that used to need
@@ -3328,6 +3351,9 @@ impl eframe::App for KhipuApp {
         ui::settings_view::show(ui.ctx(), &mut self.state);
         ui::settings_view::show_folder_picker(ui.ctx(), &mut self.state);
         ui::glide::end_frame(ui.ctx());
+        if std::mem::take(&mut self.rewind_new_button) {
+            ui::list_view::rewind_new_button(ui.ctx());
+        }
 
         // Left set while espanso restarts: see `drain_menu_events`.
         if !self.state.reload.busy() && std::mem::take(&mut self.state.pause_toggle_requested) {

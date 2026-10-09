@@ -19,9 +19,10 @@
 
 //! The library: everything you have, in one flat list, with the chosen one open beside it.
 //!
-//! The screen reads top to bottom — the real state of espanso on the left of the title, the three
+//! The screen reads top to bottom — the real state of espanso on the left of the title, the two
 //! borderless commands on its right; then the search and the folder picker, short and centred;
-//! then the list, trigger and a one-line preview per row. Choosing a row opens the inspector at
+//! then the list, trigger and a one-line preview per row, with the round «+» floating over its
+//! foot. Choosing a row opens the inspector at
 //! the right, or, when the window is too narrow for two columns, in place of the list with a way
 //! back. Nothing here writes to disk; every action is a call into `AppState`.
 //!
@@ -679,6 +680,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             ui.scope_builder(egui::UiBuilder::new().max_rect(list_rect), |ui| {
                 library(ui, state, &list, visible, active.as_deref(), is_light);
             });
+            // After the list, so it is drawn over the rows and answers the click before them.
+            new_button(ui, state, list_rect);
             if let Some((rect, trigger)) = side {
                 ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
                     inspector(ui, state, &trigger, true, is_light);
@@ -778,12 +781,12 @@ fn status(ui: &mut egui::Ui, state: &AppState, is_light: bool) {
     }
 }
 
-/// How wide the three command buttons are together.
+/// How wide the two command buttons are together.
 fn commands_width() -> f32 {
-    3.0 * controls::FIELD_HEIGHT + 2.0 * controls::GAP_TIGHT
+    2.0 * controls::FIELD_HEIGHT + controls::GAP_TIGHT
 }
 
-/// The state of espanso on the left, the title in the middle, the three commands on the right. On a
+/// The state of espanso on the left, the title in the middle, the two commands on the right. On a
 /// window too narrow for the three on one line, the title moves to a line of its own below them —
 /// it is never cut short.
 fn header(ui: &mut egui::Ui, state: &mut AppState, is_light: bool) {
@@ -830,10 +833,10 @@ fn header(ui: &mut egui::Ui, state: &mut AppState, is_light: bool) {
     }
 }
 
-/// Pause or resume, a new expansion, and the rest behind «…».
+/// Pause or resume, and the rest behind «…». A new expansion has a button of its own, floating
+/// over the list: [`new_button`].
 fn commands(ui: &mut egui::Ui, state: &mut AppState) {
     let t = state.t();
-    let lang = state.settings.lang;
     let (glyph, tip) = if state.paused {
         (Glyph::Play, t.tray_resume)
     } else {
@@ -842,10 +845,6 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
     if controls::icon_button(ui, glyph, tip, true).clicked() {
         // The tray owns the daemon. The view can only ask. See [`AppState::paused`].
         state.pause_toggle_requested = true;
-    }
-    let new_tip = keys::tip(t.new_expansion, keys::NEW, lang);
-    if controls::icon_button(ui, Glyph::Add, &new_tip, true).clicked() {
-        studio::create_expansion(ui.ctx(), state);
     }
     let more = controls::icon_button(
         ui,
@@ -1589,7 +1588,150 @@ fn show_list(
                 next += 1;
             }
             glide(ui, slot, origin, is_light);
+            // Room to scroll the last row clear of the round button, so nothing stays under it.
+            ui.add_space(NEW_BUTTON_ROOM);
         });
+}
+
+// --- The round «+» -----------------------------------------------------------------------------
+
+/// The round button's width, which is also its height.
+const NEW_BUTTON: f32 = 52.0;
+/// From the foot of the list to the foot of the button.
+const NEW_BUTTON_LIFT: f32 = controls::GAP_WIDE;
+/// The space left after the last row: the button, the lift, and a gap above the button.
+const NEW_BUTTON_ROOM: f32 = NEW_BUTTON + NEW_BUTTON_LIFT + controls::GAP_SECTION;
+/// The plus drawn on it: how long each bar is, and how thick.
+const PLUS_ARM: f32 = 18.0;
+const PLUS_STROKE: f32 = 2.0;
+/// The entrance: a moment after the screen appears, the button rises from below the window and
+/// settles with one small bounce.
+const RISE_DELAY: f64 = 0.15;
+const RISE: f64 = 0.6;
+/// How far past its place the bounce carries it, as a share of the way it travelled. Small, so
+/// it reads as settling rather than as springing.
+const BOUNCE: f32 = 1.25;
+
+/// When the round button began to rise, and the last frame it was drawn in.
+#[derive(Clone, Copy)]
+struct Rise {
+    since: f64,
+    frame: u64,
+}
+
+fn rise_id() -> egui::Id {
+    egui::Id::new("new-button-rise")
+}
+
+/// Makes the round button rise again the next time it is drawn. Called when the window is put
+/// away: a frame drawn while it was hidden must not use up the entrance nobody saw.
+pub fn rewind_new_button(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.remove::<Rise>(rise_id()));
+}
+
+/// Ease-out with an overshoot: arrives past 1, comes back to it, and stops.
+fn ease_out_back(x: f32) -> f32 {
+    let c1 = BOUNCE;
+    let c3 = c1 + 1.0;
+    1.0 + c3 * (x - 1.0).powi(3) + c1 * (x - 1.0).powi(2)
+}
+
+/// A new expansion: a circle in the accent, at the foot of the list and in the middle of it, over
+/// the rows. It is the one thing on this screen that makes something, so it is the one thing in
+/// colour. It rises into place whenever the screen appears — from another screen, or from the
+/// tray — and [`NEW_BUTTON_ROOM`] after the last row lets the list scroll clear of it.
+fn new_button(ui: &mut egui::Ui, state: &mut AppState, area: egui::Rect) {
+    let ctx = ui.ctx().clone();
+    let is_light = !ui.visuals().dark_mode;
+    let now = ctx.input(|i| i.time);
+    let frame = ctx.cumulative_frame_nr();
+    // A frame without the list in between means the screen has just appeared: rise again.
+    let since = ctx.data_mut(|d| {
+        let since = d
+            .get_temp::<Rise>(rise_id())
+            .filter(|r| frame <= r.frame + 1)
+            .map_or(now, |r| r.since);
+        d.insert_temp(rise_id(), Rise { since, frame });
+        since
+    });
+    let progress = if crate::theme::animations_enabled() {
+        ((now - since - RISE_DELAY) / RISE).clamp(0.0, 1.0) as f32
+    } else {
+        1.0
+    };
+    if progress < 1.0 {
+        ctx.request_repaint();
+    }
+
+    let rest = egui::Rect::from_center_size(
+        egui::pos2(area.center().x, area.bottom() - NEW_BUTTON_LIFT - NEW_BUTTON * 0.5),
+        egui::Vec2::splat(NEW_BUTTON),
+    );
+    // Starts wholly below the window, shadow and all, so it comes in rather than fading up.
+    let window = ctx.content_rect();
+    let travel = window.bottom() + controls::GAP_SECTION - rest.top();
+    let rect = rest.translate(egui::vec2(0.0, travel * (1.0 - ease_out_back(progress))));
+
+    let t = state.t();
+    let tip = keys::tip(t.new_expansion, keys::NEW, state.settings.lang);
+    let response = ui.interact(rect, egui::Id::new("new-expansion-button"), egui::Sense::click());
+    let response = response.on_hover_text(&tip);
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &tip));
+    if response.hovered() {
+        ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+
+    // Windows' accent buttons: the fill a little weaker on hover and weaker again while pressed,
+    // the plus a little dimmer while pressed. Mixed with the page, not made see-through, so the
+    // row under it never shows through.
+    let (fill, ink) = crate::app::accent_fill(ui.visuals());
+    let page = crate::app::win_background_for(is_light);
+    let (fill, ink) = if response.is_pointer_button_down_on() {
+        (fill.lerp_to_gamma(page, 0.2), ink.lerp_to_gamma(fill, 0.25))
+    } else if response.hovered() {
+        (fill.lerp_to_gamma(page, 0.1), ink)
+    } else {
+        (fill, ink)
+    };
+
+    let painter = ui.painter().with_clip_rect(window);
+    let round = egui::CornerRadius::same((NEW_BUTTON * 0.5) as u8);
+    if crate::app::contrast().is_none() {
+        // Two shadows, as Fluent lifts what floats: a soft wide one, and a tight one at its foot.
+        let shadow = |offset: i8, blur: u8, alpha: u8| egui::Shadow {
+            offset: [0, offset],
+            blur,
+            spread: 0,
+            color: egui::Color32::from_black_alpha(alpha),
+        };
+        let (wide, tight) = if is_light { (34, 26) } else { (90, 70) };
+        painter.add(shadow(6, 18, wide).as_shape(rect, round));
+        painter.add(shadow(1, 3, tight).as_shape(rect, round));
+    }
+    painter.circle_filled(rect.center(), NEW_BUTTON * 0.5, fill);
+    if crate::app::contrast().is_some() {
+        painter.circle_stroke(rect.center(), NEW_BUTTON * 0.5 - 0.5, egui::Stroke::new(1.0, ink));
+    }
+    let bar = |size: egui::Vec2| {
+        painter.rect_filled(
+            egui::Rect::from_center_size(rect.center(), size),
+            PLUS_STROKE * 0.5,
+            ink,
+        );
+    };
+    bar(egui::vec2(PLUS_ARM, PLUS_STROKE));
+    bar(egui::vec2(PLUS_STROKE, PLUS_ARM));
+    if response.has_focus() {
+        painter.circle_stroke(
+            rect.center(),
+            NEW_BUTTON * 0.5 + 3.0,
+            egui::Stroke::new(2.0, ui.visuals().strong_text_color()),
+        );
+    }
+
+    if response.clicked() {
+        studio::create_expansion(&ctx, state);
+    }
 }
 
 fn empty_state(ui: &mut egui::Ui, title: &str, hint: &str, is_light: bool) {
