@@ -5,12 +5,31 @@ was published.
 
 ## Unreleased
 
+### Added
+
+- **The welcome screen helps when the trial does not work.** If what is in the trial box is
+  not on its way to the trigger and a moment passes, a quiet line under it says to clear the box
+  and type the trigger in one go: correcting a typo half way through can make Khipu lose track of
+  it. The tip at the bottom of that step now points to the launcher, the way out for any trigger
+  that is forgotten or does not fire.
+
 ### Changed
 
+- **New installs use `;` as the prefix, not `:`.** Outlook, Teams, WhatsApp, Discord and Slack
+  read a colon followed by a word as the start of an emoji, and open their emoji picker over
+  `:hi` before it can expand. A semicolon followed by a letter means nothing to any of them. The
+  three starter expansions are now `;hi`, `;date` and `;today`. **Nothing changes for anyone
+  who already uses Khipu**: your expansions and your prefix stay as they are. To move all of them
+  to `;`, pick it in Settings under **Prefix for new expansions**, then press **Apply the current
+  prefix to my existing expansions**.
+- **Tips names the two halves of an expansion.** The example at the top of Tips now labels
+  what you type (the trigger) and what appears (the text), says that together they make an
+  expansion, and uses your own prefix. It is outside the sections, so nobody has to open
+  anything to read it.
 - **Khipu speaks for itself.** Tips, the welcome screen, the tray tooltip, the status dot and the
   error messages used to say "Espanso" where they meant Khipu or your expansions. They now say
   Khipu, so nobody wonders which app they are using. The welcome screen's trial expansion is
-  now `:khipu`. Espanso is still named where it is due: the credits, the version line in
+  now `;khipu`. Espanso is still named where it is due: the credits, the version line in
   Settings, the licences, and the two rare messages about Espanso's own icon showing up.
 
 ## 0.0.6 — 2026-10-06

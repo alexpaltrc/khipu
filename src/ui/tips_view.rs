@@ -206,7 +206,11 @@ fn lead(ui: &mut egui::Ui, state: &mut AppState) {
         "Pumili ka ng maikling trigger, isulat ang teksto nang minsanan, at mula noon ay kukumpletuhin ito ng Khipu para sa iyo sa kahit anong programa.",
         "एक छोटा ट्रिगर चुनें, टेक्स्ट एक बार लिखें, और उसके बाद Khipu उसे किसी भी प्रोग्राम में आपके लिए पूरा कर देगा।",
     );
-    let trigger = text(state, ":hola", ":hi", ":kumusta", ":namaste");
+    // With the user's own prefix: the example is what they would really type.
+    let prefix = state.settings.prefix.trim().to_owned();
+    let trigger = format!("{prefix}{}", text(state, "hola", "hi", "kumusta", "namaste"));
+    let typed_caption = text(state, "Activador", "Trigger", "Trigger", "ट्रिगर");
+    let shown_caption = text(state, "Aparece", "Appears", "Lalabas", "दिखता है");
     let result = text(
         state,
         "Hola, ¿en qué puedo ayudarte?",
@@ -217,12 +221,12 @@ fn lead(ui: &mut egui::Ui, state: &mut AppState) {
     let note = crate::i18n::fill(
         text(
             state,
-            "Los dos puntos son el prefijo: evitan que una palabra corriente dispare una expansión. Se cambia en {settings}.",
-            "The colon is the prefix: it keeps an ordinary word from firing an expansion. You change it in {settings}.",
-            "Ang tutuldok ang prefix: pinipigilan nitong ma-trigger ng karaniwang salita ang isang expansion. Mababago ito sa {settings}.",
-            "कोलन उपसर्ग है: यह किसी आम शब्द को विस्तार चलाने से रोकता है। इसे {settings} में बदला जाता है।",
+            "Lo que escribes es el activador, y lo que aparece en su lugar es el texto: juntos forman una expansión. El «{prefix}» del principio es el prefijo, y evita que una palabra corriente dispare una expansión. Se cambia en {settings}.",
+            "What you type is the trigger, and what appears in its place is the text: together they make an expansion. The “{prefix}” at the start is the prefix, and it keeps an ordinary word from firing an expansion. You change it in {settings}.",
+            "Ang tinitipa mo ang trigger, at ang lumalabas kapalit nito ang teksto: magkasama silang bumubuo ng isang expansion. Ang “{prefix}” sa simula ang prefix, at pinipigilan nitong ma-trigger ng karaniwang salita ang isang expansion. Mababago ito sa {settings}.",
+            "आप जो लिखते हैं वह ट्रिगर है, और उसकी जगह जो दिखता है वह टेक्स्ट: दोनों मिलकर एक विस्तार बनाते हैं। शुरुआत का “{prefix}” उपसर्ग है, जो किसी आम शब्द को विस्तार चलाने से रोकता है। इसे {settings} में बदला जाता है।",
         ),
-        &[("settings", t.settings_title)],
+        &[("prefix", prefix.as_str()), ("settings", t.settings_title)],
     );
 
     let mut creating = false;
@@ -233,12 +237,34 @@ fn lead(ui: &mut egui::Ui, state: &mut AppState) {
         ui.add_space(controls::GAP_ROW);
         controls::inset_frame(ui).show(ui, |ui| {
             ui.set_width(ui.available_width());
+            // Each half named above itself, so the words in the note below point at something.
             let written = controls::code(trigger, ui.visuals());
             let arrow = controls::muted("→", is_light);
-            ui.horizontal_wrapped(|ui| {
-                ui.label(written);
-                ui.label(arrow);
-                ui.add(egui::Label::new(result).wrap());
+            // The trigger and the arrow sit in a box one text line tall, centred, so they share the
+            // middle of the first line of what appears rather than riding above it.
+            let line = ui.text_style_height(&egui::TextStyle::Body);
+            let on_the_line = |ui: &mut egui::Ui, text: egui::RichText| {
+                let width = controls::widget_line(ui, text.clone(), egui::TextStyle::Body).size().x;
+                ui.allocate_ui_with_layout(
+                    egui::vec2(width, line),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| ui.label(text),
+                );
+            };
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    ui.label(controls::small_muted(typed_caption, is_light));
+                    on_the_line(ui, written);
+                });
+                ui.vertical(|ui| {
+                    ui.label(controls::small_muted(" ", is_light));
+                    on_the_line(ui, arrow);
+                });
+                ui.vertical(|ui| {
+                    ui.set_max_width(ui.available_width());
+                    ui.label(controls::small_muted(shown_caption, is_light));
+                    ui.add(egui::Label::new(result).wrap());
+                });
             });
         });
         ui.add_space(controls::GAP_ROW);

@@ -48,7 +48,7 @@
 
 ## ✨ What it does
 
-You type `:sig`, and your whole signature appears. You type `:today`, and today's date
+You type `;sig`, and your whole signature appears. You type `;today`, and today's date
 appears. That is espanso, and it works everywhere you type — email, chat, a document, the
 browser.
 

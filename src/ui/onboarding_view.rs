@@ -44,7 +44,7 @@ use egui::{pos2, vec2, Color32, Rect, Stroke};
 
 /// What the trial expansion produces. The trigger is the app's own name, so the first expansion
 /// anybody sees says whose it is; the text is espanso's classic example.
-pub const PROBE_TRIGGER: &str = ":khipu";
+pub const PROBE_TRIGGER: &str = ";khipu";
 pub const PROBE_REPLACE: &str = "Hi there!";
 
 const STEPS: usize = 4;
@@ -154,6 +154,12 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
         let tip = match flow.step {
             0 => t.onboarding_welcome_tip.to_owned(),
             1 => t.onboarding_what_tip.to_owned(),
+            // The way out for a trigger that will not come, taught where one first fails to.
+            // Only when the shortcut is ours: otherwise there is no launcher to point at.
+            2 if state.hotkey.is_some() => crate::i18n::fill(
+                t.onboarding_try_launcher_tip,
+                &[("keys", state.search_shortcut.label(state.settings.lang).as_str())],
+            ),
             2 => t.onboarding_try_tip.to_owned(),
             _ => crate::i18n::fill(t.onboarding_autostart_note, &[("settings", t.settings_title)]),
         };
@@ -450,13 +456,15 @@ fn drawn(ctx: &egui::Context, kind: &'static str, px: u32, draw: impl FnOnce() -
 struct Example {
     /// What is already on the page before the trigger is typed.
     before: &'static str,
-    trigger: &'static str,
+    trigger: String,
     result: String,
 }
 
 fn examples(state: &AppState) -> [Example; 3] {
     use crate::ui::studio::text;
     let lang = state.settings.lang;
+    // Typed with the user's own prefix, so the demonstration shows what they will really type.
+    let trigger = |es, en, fil, hi| format!("{}{}", state.settings.prefix.trim(), text(state, es, en, fil, hi));
     // Today, in the friendliest of the formats: the month spelled out, as a person writes it.
     let mut date = crate::datefmt::format("%B %d, %Y", crate::datefmt::Now::local(), lang);
     if let Some(first) = date.chars().next() {
@@ -465,7 +473,7 @@ fn examples(state: &AppState) -> [Example; 3] {
     [
         Example {
             before: "",
-            trigger: text(state, ":hola", ":hi", ":kumusta", ":namaste"),
+            trigger: trigger("hola", "hi", "kumusta", "namaste"),
             result: text(
                 state,
                 "¡Hola! ¿Cómo estás?",
@@ -477,7 +485,7 @@ fn examples(state: &AppState) -> [Example; 3] {
         },
         Example {
             before: text(state, "Fecha de entrega: ", "Delivery date: ", "Petsa ng paghahatid: ", "डिलीवरी की तारीख़: "),
-            trigger: text(state, ":fecha", ":date", ":petsa", ":tarikh"),
+            trigger: trigger("fecha", "date", "petsa", "tarikh"),
             result: date,
         },
         Example {
@@ -488,7 +496,7 @@ fn examples(state: &AppState) -> [Example; 3] {
                 "Salamat sa tulong mo sa ulat.\n\n",
                 "रिपोर्ट में मदद के लिए धन्यवाद।\n\n",
             ),
-            trigger: text(state, ":firma", ":sig", ":pirma", ":sign"),
+            trigger: trigger("firma", "sig", "pirma", "sign"),
             result: text(
                 state,
                 "Un saludo,\nAna Torres\nEquipo de Ventas",
@@ -652,7 +660,7 @@ fn still_examples(ui: &mut egui::Ui, examples: &[Example; 3]) {
         ui.set_width(ui.available_width());
         let key_width = examples
             .iter()
-            .map(|e| controls::widget_line(ui, controls::code(e.trigger, ui.visuals()), egui::TextStyle::Body).size().x)
+            .map(|e| controls::widget_line(ui, controls::code(&e.trigger, ui.visuals()), egui::TextStyle::Body).size().x)
             .fold(0.0_f32, f32::max);
         for (i, example) in examples.iter().enumerate() {
             if i > 0 {
@@ -666,7 +674,7 @@ fn still_examples(ui: &mut egui::Ui, examples: &[Example; 3]) {
                 );
                 // On the baseline of the words beside it, not at the top of the row: Cascadia's
                 // baseline sits higher in its box than Segoe's, so top-aligned it floated.
-                let line = controls::widget_line(ui, controls::code(example.trigger, ui.visuals()), egui::TextStyle::Body);
+                let line = controls::widget_line(ui, controls::code(&example.trigger, ui.visuals()), egui::TextStyle::Body);
                 let words = controls::widget_line(ui, egui::RichText::new("A"), egui::TextStyle::Body);
                 let drop = controls::baseline(&words) - controls::baseline(&line);
                 ui.painter().galley(slot.left_top() + vec2(0.0, drop), line, Color32::PLACEHOLDER);
@@ -723,15 +731,73 @@ fn try_it(ui: &mut egui::Ui, state: &mut AppState, enter: &Enter, focus_pending:
     if state.onboarding_probe.contains(PROBE_REPLACE) {
         state.onboarding_expanded = true;
     }
+    let stuck = typing_went_astray(ui.ctx(), &state.onboarding_probe, state.onboarding_expanded);
     ui.add_space(controls::GAP_SECTION);
-    // The room for the answer is kept from the start, so the step does not jump when it comes.
-    let shown = ui.ctx().animate_bool_with_time(
-        flow_id().with("try-ok"),
-        state.onboarding_expanded,
-        if crate::theme::animations_enabled() { 0.3 } else { 0.0 },
+    // One reserved line for two answers: the success, or the way back from a trigger that did not
+    // take. Kept at the taller of the two from the start, so the step never jumps when either comes.
+    let seconds = if crate::theme::animations_enabled() { 0.3 } else { 0.0 };
+    let ctx = ui.ctx().clone();
+    let shown_ok = ctx.animate_bool_with_time(flow_id().with("try-ok"), state.onboarding_expanded, seconds);
+    let shown_hint = ctx.animate_bool_with_time(flow_id().with("try-hint"), stuck, seconds);
+    let width = ui.available_width();
+    let body = egui::TextStyle::Body.resolve(ui.style());
+    let centred = |width: f32| {
+        let mut job = egui::text::LayoutJob { halign: egui::Align::Center, ..Default::default() };
+        job.wrap.max_width = width;
+        job
+    };
+    let mut ok = centred(width);
+    ok.append(t.onboarding_try_ok, 0.0, egui::TextFormat::simple(body.clone(), crate::app::success(is_light).gamma_multiply(shown_ok)));
+    // The trigger inside the hint is set the way the body above sets it.
+    let (before, after) = t.onboarding_try_hint.split_once("{trigger}").unwrap_or((t.onboarding_try_hint, ""));
+    let quiet = crate::app::secondary_text(is_light).gamma_multiply(shown_hint);
+    let mut hint = centred(width);
+    hint.append(before, 0.0, egui::TextFormat::simple(body.clone(), quiet));
+    hint.append(
+        PROBE_TRIGGER,
+        0.0,
+        egui::TextFormat::simple(egui::FontId::monospace(body.size), crate::app::accent(ui.visuals()).gamma_multiply(shown_hint)),
     );
-    let answer = egui::RichText::new(t.onboarding_try_ok).color(crate::app::success(is_light).gamma_multiply(shown));
-    ui.add(egui::Label::new(answer).wrap());
+    hint.append(after, 0.0, egui::TextFormat::simple(body, quiet));
+    let ok = ui.painter().layout_job(ok);
+    let hint = ui.painter().layout_job(hint);
+    let height = ok.size().y.max(hint.size().y);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    if shown_hint > 0.0 {
+        ui.painter().galley(rect.center_top(), hint, egui::Color32::PLACEHOLDER);
+    }
+    if shown_ok > 0.0 {
+        ui.painter().galley(rect.center_top(), ok, egui::Color32::PLACEHOLDER);
+    }
+}
+
+/// Whether the trial field holds something that is no longer on its way to the trigger, and has
+/// held it long enough that the person typing has stopped to wait for something.
+///
+/// A strict beginning of the trigger is somebody still typing, and is left alone however long it
+/// sits. Anything else is either a different word or the whole trigger left standing: espanso
+/// replaces the trigger on its last letter, so one still visible was not recognised — usually
+/// because a mistake was corrected half way through and espanso lost track of what came before.
+fn typing_went_astray(ctx: &egui::Context, probe: &str, expanded: bool) -> bool {
+    const PATIENCE: f64 = 1.5;
+    let now = ctx.input(|i| i.time);
+    let id = flow_id().with("try-last-edit");
+    let (seen, since) = ctx
+        .data(|d| d.get_temp::<(String, f64)>(id))
+        .unwrap_or_else(|| (probe.to_owned(), now));
+    let since = if seen == probe { since } else { now };
+    ctx.data_mut(|d| d.insert_temp(id, (probe.to_owned(), since)));
+    let typed = probe.trim();
+    let on_its_way = PROBE_TRIGGER.starts_with(typed) && typed != PROBE_TRIGGER;
+    if expanded || typed.is_empty() || on_its_way {
+        return false;
+    }
+    let waited = now - since;
+    if waited < PATIENCE {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(PATIENCE - waited));
+        return false;
+    }
+    true
 }
 
 // --- 4. start with Windows ------------------------------------------------------------------

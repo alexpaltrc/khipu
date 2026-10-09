@@ -40,11 +40,25 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub const PREFIX_SUGGESTIONS: [&str; 5] = [":", "::", ";", "?", "//"];
+pub const PREFIX_SUGGESTIONS: [&str; 5] = [";", ":", "::", "?", "//"];
+
+/// The prefix a new install starts with.
+///
+/// It was `:` until 0.0.7. Outlook, Teams, WhatsApp, Discord and Slack all read a colon followed by a
+/// word as the start of an emoji code, and open their emoji picker over `:hi` before espanso can
+/// replace it. A semicolon followed by a letter means nothing in any of them.
+pub const DEFAULT_PREFIX: &str = ";";
+
+/// What a settings file written before 0.0.7 meant by saying nothing: those versions always wrote
+/// the field, but one that somehow lacks it belongs to somebody whose expansions start with `:`.
+fn legacy_prefix() -> String {
+    ":".to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
+    #[serde(default = "legacy_prefix")]
     pub prefix: String,
     pub window_pos: Option<(f32, f32)>,
     pub window_size: Option<(f32, f32)>,
@@ -94,7 +108,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            prefix: ":".to_string(),
+            prefix: DEFAULT_PREFIX.to_string(),
             window_pos: None,
             window_size: None,
             folder_by_trigger: BTreeMap::new(),
@@ -351,6 +365,17 @@ mod tests {
         s
     }
 
+    /// A new install starts with `;`; a file that says nothing about the prefix keeps the `:` its
+    /// expansions were written with, and one that says something keeps what it says.
+    #[test]
+    fn the_semicolon_is_only_for_new_installs() {
+        assert_eq!(Settings::default().prefix, ";");
+        let silent: Settings = serde_json::from_str("{}").unwrap();
+        assert_eq!(silent.prefix, ":");
+        let said: Settings = serde_json::from_str(r#"{"prefix": "//"}"#).unwrap();
+        assert_eq!(said.prefix, "//");
+    }
+
     /// Moving the last expansion out of a folder that existed only through its assignments empties
     /// the folder; it does not delete it.
     #[test]
@@ -404,10 +429,12 @@ mod tests {
     fn the_hidden_theme_round_trips_and_an_older_version_reads_light() {
         let dir = scratch("khipu-theme");
         let store = SettingsStore::new(&dir);
-        let mut s = Settings::default();
-        s.theme_mode = ThemeMode::Khipu;
-        s.khipu_theme = true;
-        s.khipu_theme_found = true;
+        let s = Settings {
+            theme_mode: ThemeMode::Khipu,
+            khipu_theme: true,
+            khipu_theme_found: true,
+            ..Settings::default()
+        };
         store.save(&s).unwrap();
 
         let text = std::fs::read_to_string(dir.join("settings.json")).unwrap();

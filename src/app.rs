@@ -3108,6 +3108,11 @@ fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         let _ = std::fs::remove_file(&file);
         let ppp = ctx.pixels_per_point();
         for line in text.lines() {
+            // `t:` and the rest of the line is typed, into whatever has the focus.
+            if let Some(typed) = line.strip_prefix("t:") {
+                queue.push_back(vec![egui::Event::Text(typed.to_owned())]);
+                continue;
+            }
             let mut xy = line.split(',').filter_map(|n| n.trim().parse::<f32>().ok());
             let (Some(x), Some(y)) = (xy.next(), xy.next()) else { continue };
             let pos = egui::pos2(x / ppp, y / ppp);
