@@ -1071,11 +1071,13 @@ impl AppState {
             .any(|t| self.settings.folder_of(t).is_some())
     }
 
-    pub fn set_compact_view(&mut self, compact: bool) {
-        if self.settings.compact_view == compact {
+    /// The list's look: comfortable rows, compact rows, or, with `grid`, the grid of cards.
+    pub fn set_list_view(&mut self, compact: bool, grid: bool) {
+        if self.settings.compact_view == compact && self.settings.grid_view == grid {
             return;
         }
         self.settings.compact_view = compact;
+        self.settings.grid_view = grid;
         if let Err(e) = self.settings_store.save(&self.settings) {
             let msg = fill(self.t().view_save_error, &[("err", &e.to_string())]);
             self.set_error_banner(msg);

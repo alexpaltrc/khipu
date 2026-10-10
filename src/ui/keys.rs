@@ -67,6 +67,9 @@ pub const BACK: Shortcut = bare(egui::Key::Escape);
 /// Move the choice through the list.
 pub const UP: Shortcut = bare(egui::Key::ArrowUp);
 pub const DOWN: Shortcut = bare(egui::Key::ArrowDown);
+/// In the grid, to the card beside; Up and Down there go a whole line of cards at a time.
+pub const LEFT: Shortcut = bare(egui::Key::ArrowLeft);
+pub const RIGHT: Shortcut = bare(egui::Key::ArrowRight);
 
 /// Whether a text field has the keyboard. While it does, only shortcuts with Ctrl are read.
 pub fn typing(ctx: &egui::Context) -> bool {
@@ -88,6 +91,8 @@ fn key_name(key: egui::Key, lang: Lang) -> String {
         Key::Escape => "Esc".into(),
         Key::ArrowUp => "↑".into(),
         Key::ArrowDown => "↓".into(),
+        Key::ArrowLeft => "←".into(),
+        Key::ArrowRight => "→".into(),
         other => other.name().into(),
     }
 }
@@ -141,7 +146,7 @@ mod tests {
 
     #[test]
     fn no_two_commands_share_keys() {
-        let all = [NEW, FIND, FIND_ALT, RENAME, DELETE, OPEN, SAVE, BACK, UP, DOWN];
+        let all = [NEW, FIND, FIND_ALT, RENAME, DELETE, OPEN, SAVE, BACK, UP, DOWN, LEFT, RIGHT];
         for (i, a) in all.iter().enumerate() {
             for b in &all[i + 1..] {
                 assert_ne!(a, b);

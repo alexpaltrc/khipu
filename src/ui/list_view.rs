@@ -444,6 +444,9 @@ struct RowPass<'a> {
     /// exactly one frame — the list can be slow once, never wrong.
     known_height: Option<f32>,
     compact: bool,
+    /// Cards in a grid instead of rows — see [`show_grid`]. In it, `known_height` is the height of
+    /// one line of cards, the gap below it included.
+    grid: bool,
     select_mode: bool,
     /// Width of the "when you type" column, so every replacement in the list starts on one line.
     trigger_w: f32,
@@ -461,6 +464,7 @@ struct RowPass<'a> {
 fn row_pass<'a>(
     ui: &egui::Ui,
     compact: bool,
+    grid: bool,
     select_mode: bool,
     trigger_w: f32,
     baseline_drop: &'a std::cell::Cell<Option<f32>>,
@@ -472,8 +476,9 @@ fn row_pass<'a>(
         baseline_drop,
         known_height: ui
             .ctx()
-            .data(|d| d.get_temp::<f32>(row_height_key(compact, select_mode))),
+            .data(|d| d.get_temp::<f32>(row_height_key(compact, grid, select_mode))),
         compact,
+        grid,
         select_mode,
         trigger_w,
         flash: flash_now(ui.ctx()),
@@ -482,8 +487,8 @@ fn row_pass<'a>(
     }
 }
 
-fn row_height_key(compact: bool, select_mode: bool) -> egui::Id {
-    egui::Id::new("row_advance").with(compact).with(select_mode)
+fn row_height_key(compact: bool, grid: bool, select_mode: bool) -> egui::Id {
+    egui::Id::new("row_advance").with(compact).with(grid).with(select_mode)
 }
 
 /// Width of the trigger column: a share of what there is, never below the plan's minimum and never
@@ -870,11 +875,11 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
         true,
     );
     let picking = select_mode(ui.ctx());
-    let compact = state.settings.compact_view;
-    let views = [t.view_comfortable, t.view_compact];
+    let shown = if state.settings.grid_view { 2 } else { usize::from(state.settings.compact_view) };
+    let views = [t.view_comfortable, t.view_compact, t.view_grid];
     let width = MENU_WIDTH.max(controls::menu_choice_width(ui, t.view_label, &views));
     let mut toggle_picking = false;
-    let mut pick_compact: Option<bool> = None;
+    let mut pick_view: Option<usize> = None;
     let mut go: Option<View> = None;
     let mut settings = false;
     menu(&more, width, |ui| {
@@ -887,11 +892,10 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
             toggle_picking = true;
         }
         controls::menu_separator(ui);
-        let current = Some(usize::from(compact));
         if let Some(picked) =
-            controls::menu_choice(ui, Some(Glyph::View), t.view_label, "list-view", &views, current)
+            controls::menu_choice(ui, Some(Glyph::View), t.view_label, "list-view", &views, Some(shown))
         {
-            pick_compact = Some(picked == 1);
+            pick_view = Some(picked);
         }
         controls::menu_separator(ui);
         let guide = t.tips_button_tip;
@@ -911,8 +915,11 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
         }
         set_open_row(ui.ctx(), None);
     }
-    if let Some(compact) = pick_compact {
-        state.set_compact_view(compact);
+    // The grid leaves the density of the rows as it was, so coming back to them finds them unchanged.
+    match pick_view {
+        Some(2) => state.set_list_view(state.settings.compact_view, true),
+        Some(picked) => state.set_list_view(picked == 1, false),
+        None => {}
     }
     if let Some(view) = go {
         state.view = view;
@@ -1430,9 +1437,19 @@ fn keyboard(
         return;
     }
 
+    // In the grid Up and Down go a line of cards at a time, and Left and Right one card.
+    let line = if state.settings.grid_view {
+        ctx.data(|d| d.get_temp::<usize>(grid_columns_key())).unwrap_or(1) as isize
+    } else {
+        1
+    };
     let step = if keys::pressed(&ctx, keys::DOWN) {
-        Some(1isize)
+        Some(line)
     } else if keys::pressed(&ctx, keys::UP) {
+        Some(-line)
+    } else if state.settings.grid_view && keys::pressed(&ctx, keys::RIGHT) {
+        Some(1)
+    } else if state.settings.grid_view && keys::pressed(&ctx, keys::LEFT) {
         Some(-1)
     } else {
         None
@@ -1530,7 +1547,15 @@ fn show_list(
     let baseline_drop = std::cell::Cell::new(None);
     // Lowercased the way the list was filtered, in [`AppState::build_list`].
     let needle = state.search.to_lowercase();
-    let pass = row_pass(ui, state.settings.compact_view, picking, trigger_w, &baseline_drop, &needle);
+    let pass = row_pass(
+        ui,
+        state.settings.compact_view,
+        state.settings.grid_view,
+        picking,
+        trigger_w,
+        &baseline_drop,
+        &needle,
+    );
     let open = open_row(ui.ctx());
     let height = ui.available_height().max(LIST_MIN_HEIGHT);
     // The one row Tab stops on: the chosen one, or the first. The arrows do the rest, as in every
@@ -1610,6 +1635,11 @@ fn show_list(
 
             ui.set_width(ui.available_width());
             ui.spacing_mut().item_spacing.y = 0.0;
+            if pass.grid {
+                show_grid(ui, state, list, visible, pass, open.as_deref(), tab_stop.as_deref());
+                ui.add_space(NEW_BUTTON_ROOM);
+                return;
+            }
             // The hover wash goes under every row, so its place in the paint order is taken now
             // and filled in once the rows have said which of them the pointer is over.
             let origin = ui.cursor().top();
@@ -1651,6 +1681,90 @@ fn show_list(
             // Room to scroll the last row clear of the round button, so nothing stays under it.
             ui.add_space(NEW_BUTTON_ROOM);
         });
+}
+
+/// How many cards the grid put on a line last frame, which is what Up and Down step over.
+fn grid_columns_key() -> egui::Id {
+    egui::Id::new("library-grid-columns")
+}
+
+/// The grid: the same expansions as the list, in the same order, as cards — as many to a line as
+/// fit at [`GRID_CARD_MIN`] or wider, sharing the width between them so each line ends flush with
+/// the list's edge. Widening the window fits more on a line; narrowing it, fewer, down to one.
+///
+/// Everything a row does, a card does — choosing, ticking, dragging, opening with a double click —
+/// because a card *is* a row drawn otherwise: see [`show_row_inner`]. The one thing it does not
+/// share is the gliding wash, which would pass behind the cards and be seen nowhere.
+///
+/// Virtualized a line at a time, the way the list is a row at a time: a line far outside the view
+/// is a gap the height of one that was drawn, unless one of its cards must be drawn wherever it is
+/// (chosen, Tab's stop, dragged, just saved).
+fn show_grid(
+    ui: &mut egui::Ui,
+    state: &mut AppState,
+    list: &ListCache,
+    visible: &[usize],
+    pass: RowPass<'_>,
+    open: Option<&str>,
+    tab_stop: Option<&str>,
+) {
+    let gap = controls::GAP;
+    let width = ui.available_width();
+    let columns = (((width + gap) / (GRID_CARD_MIN + gap)).floor() as usize).max(1);
+    let card_w = ((width - gap * (columns - 1) as f32) / columns as f32).floor();
+    ui.ctx().data_mut(|d| d.insert_temp(grid_columns_key(), columns));
+    let known_height = pass.known_height.or_else(|| {
+        ui.ctx().data(|d| d.get_temp::<f32>(row_height_key(pass.compact, pass.grid, pass.select_mode)))
+    });
+
+    for line in visible.chunks(columns) {
+        let must_draw = line.iter().any(|&index| {
+            let trigger = list.rows[index].trigger.as_str();
+            let id = row_id(trigger);
+            open == Some(trigger)
+                || tab_stop == Some(trigger)
+                || pass.dragged_id == Some(id)
+                || pass.flash.is_some_and(|(lit, _)| lit == id)
+        });
+        if !must_draw {
+            if let Some(height) = known_height {
+                let top = ui.cursor().top();
+                let view = ui.clip_rect();
+                let band = height * 2.0;
+                if top + height < view.top() - band || top > view.bottom() + band {
+                    ui.add_space(height);
+                    continue;
+                }
+            }
+        }
+
+        let before = ui.cursor().top();
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            for &index in line {
+                let row = &list.rows[index];
+                let trigger = row.trigger.as_str();
+                let is_open = open == Some(trigger);
+                let focusable = tab_stop == Some(trigger);
+                ui.allocate_ui_with_layout(
+                    egui::vec2(card_w, 0.0),
+                    egui::Layout::top_down(egui::Align::Min),
+                    |ui| {
+                        ui.set_width(card_w);
+                        show_row_inner(ui, state, list, row, row_id(trigger), visible, pass, is_open, focusable, true);
+                    },
+                );
+            }
+        });
+        ui.add_space(gap);
+        let dragging = pass.dragged_id.is_some_and(|id| line.iter().any(|&i| row_id(&list.rows[i].trigger) == id));
+        let height = ui.cursor().top() - before;
+        if !dragging && height > 1.0 && pass.known_height != Some(height) {
+            ui.ctx().data_mut(|d| {
+                d.insert_temp(row_height_key(pass.compact, pass.grid, pass.select_mode), height)
+            });
+        }
+    }
 }
 
 // --- The round «+» -----------------------------------------------------------------------------
@@ -1919,7 +2033,7 @@ fn show_row(
     // list on the first frame of every start: with 2,000 expansions, 75 MB taken and given back
     // before the window had even been shown.
     let known_height = pass.known_height.or_else(|| {
-        ui.ctx().data(|d| d.get_temp::<f32>(row_height_key(pass.compact, pass.select_mode)))
+        ui.ctx().data(|d| d.get_temp::<f32>(row_height_key(pass.compact, pass.grid, pass.select_mode)))
     });
     if !dragging && !is_open && !flashed && !focusable {
         if let Some(height) = known_height {
@@ -1943,7 +2057,7 @@ fn show_row(
         // row writes it once instead of just the first.
         if height > 1.0 && pass.known_height != Some(height) {
             ui.ctx().data_mut(|d| {
-                d.insert_temp(row_height_key(pass.compact, pass.select_mode), height)
+                d.insert_temp(row_height_key(pass.compact, pass.grid, pass.select_mode), height)
             });
         }
     }
@@ -2018,11 +2132,30 @@ fn show_row_inner(
         );
     }
 
+    // A card stands on the page in the card's own colour with the one line colour round it, as a
+    // section does; the pointer over it moves it a step towards the hover wash, since in the grid
+    // there is no wash to glide between cards. The chosen card is ringed in the accent instead of
+    // wearing the row's bar, the way Windows 11 marks the chosen item of a grid.
+    let frame = if pass.grid {
+        let card = crate::app::win_card_for(is_light);
+        let fill = if bg != egui::Color32::TRANSPARENT {
+            bg
+        } else if hovered_row && pass.dragged_id.is_none() {
+            crate::app::mix(card, crate::app::hover_tint(is_light), 0.6)
+        } else {
+            card
+        };
+        // Always one point: the frame counts its stroke into its size, so the chosen card's ring is
+        // painted over it afterwards rather than widening it.
+        egui::Frame::default().fill(fill).stroke(egui::Stroke::new(1.0, hairline(is_light)))
+    } else {
+        egui::Frame::default().fill(bg)
+    };
+
     let mut edit_clicked = false;
     let mut clicked_with: Option<(bool, bool)> = None;
 
-    let framed = egui::Frame::default()
-        .fill(bg)
+    let framed = frame
         .corner_radius(controls::RADIUS_CONTROL)
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -2047,7 +2180,11 @@ fn show_row_inner(
                     ui.memory_mut(|m| {
                         m.set_focus_lock_filter(
                             drag_id,
-                            egui::EventFilter { vertical_arrows: true, ..Default::default() },
+                            egui::EventFilter {
+                                vertical_arrows: true,
+                                horizontal_arrows: pass.grid,
+                                ..Default::default()
+                            },
                         )
                     });
                 }
@@ -2076,14 +2213,21 @@ fn show_row_inner(
 
     // Under the pointer: tell the wash where to go. Not while something is being dragged — the
     // wash following a drag across the list would compete with the drop targets.
-    if pass.dragged_id.is_none() && ui.rect_contains_pointer(framed.response.rect) {
+    if !pass.grid && pass.dragged_id.is_none() && ui.rect_contains_pointer(framed.response.rect) {
         let rect = framed.response.rect;
         ui.ctx().data_mut(|d| d.insert_temp(glide_target_key(), rect));
     }
 
     // A short bar in the accent beside the chosen row; the only other accent in the list is the
     // favourites' star.
-    if is_open {
+    if is_open && pass.grid {
+        ui.painter().rect_stroke(
+            framed.response.rect,
+            controls::RADIUS_CONTROL,
+            egui::Stroke::new(2.0, crate::app::accent_fill(ui.visuals()).0),
+            egui::StrokeKind::Inside,
+        );
+    } else if is_open {
         controls::accent_bar(ui, framed.response.rect);
     }
 
@@ -2124,6 +2268,10 @@ fn show_row_inner(
 
 /// The row: a tick box when picking, the trigger in its column, and what it writes, quietly.
 fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: bool, is_light: bool) {
+    if pass.grid {
+        grid_card(ui, row, pass, is_selected, is_light);
+        return;
+    }
     if !pass.compact {
         comfortable_row(ui, row, pass, is_selected, is_light);
         return;
@@ -2274,6 +2422,66 @@ fn comfortable_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selec
                     };
                     let text = controls::named_text(ui, None, quiet, &row.preview, quiet, pass.needle);
                     ui.add(egui::Label::new(text).truncate().selectable(false));
+                });
+            });
+        });
+}
+
+/// How narrow a card in the grid may get before a line holds one card fewer.
+const GRID_CARD_MIN: f32 = 220.0;
+/// How many lines of what an expansion writes a card shows before it cuts it short.
+const GRID_PREVIEW_LINES: usize = 3;
+
+/// A card in the grid: the comfortable row's first line — name, star and trigger — and under it up
+/// to three lines of what it writes, wrapped instead of cut at the first.
+///
+/// The room for those three lines is kept whether the text fills them or not, so every card in the
+/// grid is the same height and every line of cards is too: the grid stands lines it has not drawn
+/// in for gaps the height of one it has, as the list does with rows — see [`show_grid`].
+fn grid_card(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: bool, is_light: bool) {
+    let pad_y = controls::ROW_PAD_COMFORTABLE as i8;
+    egui::Frame::default()
+        .inner_margin(egui::Margin {
+            left: controls::ROW_PAD_X as i8,
+            right: controls::ROW_PAD_X as i8,
+            top: pad_y,
+            bottom: pad_y,
+        })
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing.x = controls::GAP_WIDE;
+                if pass.select_mode {
+                    let (rect, _) = ui.allocate_exact_size(
+                        egui::Vec2::splat(controls::CHECKBOX),
+                        egui::Sense::hover(),
+                    );
+                    controls::paint_checkbox(ui, rect, is_selected);
+                }
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing.y = controls::GAP;
+                    comfortable_first_line(ui, row, pass, is_light);
+                    let quiet = if row.off {
+                        crate::app::disabled_text(is_light)
+                    } else {
+                        crate::app::secondary_text(is_light)
+                    };
+                    let width = ui.available_width().max(1.0);
+                    let mut job = controls::named_text(ui, None, quiet, &row.preview, quiet, pass.needle);
+                    job.wrap = egui::text::TextWrapping {
+                        max_width: width,
+                        max_rows: GRID_PREVIEW_LINES,
+                        break_anywhere: false,
+                        overflow_character: Some('…'),
+                    };
+                    let body = egui::TextStyle::Body.resolve(ui.style());
+                    let line = ui.fonts_mut(|f| f.row_height(&body));
+                    let galley = ui.fonts_mut(|f| f.layout_job(job));
+                    let (rect, _) = ui.allocate_exact_size(
+                        egui::vec2(width, line * GRID_PREVIEW_LINES as f32),
+                        egui::Sense::hover(),
+                    );
+                    ui.painter().galley(rect.min, galley, egui::Color32::PLACEHOLDER);
                 });
             });
         });

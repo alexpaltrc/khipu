@@ -38,6 +38,11 @@ was published.
   text where you were typing; Esc or **Cancel** leaves the trigger as you typed it. The edit screen
   and the launcher say how many fields an expansion asks for. Note: an existing expansion whose
   text already contains `[[…]]` becomes a form the next time you save it in the edit screen.
+- **Grid view.** **…** › **View** has a third choice, **Grid**: one card per expansion, with its
+  name, star and trigger on top and up to three lines of its text below. The wider the window,
+  the more cards per line. Everything the list does works the same: open, select several, drag
+  into a folder. With the keyboard, ← and → move to the card beside, ↑ and ↓ a whole line.
+  Leaving the grid goes back to the view you had, Comfortable or Compact.
 
 ### Changed
 

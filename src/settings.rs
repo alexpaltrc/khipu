@@ -79,6 +79,9 @@ pub struct Settings {
     pub folders: BTreeSet<String>,
     /// Renders the list as short single-line rows instead of two-line cards.
     pub compact_view: bool,
+    /// Lays the list out as a grid of cards, as many to a line as the width allows. Wins over
+    /// `compact_view`, which is kept as it was so that leaving the grid goes back to the rows it left.
+    pub grid_view: bool,
     /// Interface language. Independent of the expansions themselves, which are never translated.
     pub lang: Lang,
     /// Light/dark appearance, or follow Windows.
@@ -121,6 +124,7 @@ impl Default for Settings {
             folder_by_trigger: BTreeMap::new(),
             folders: BTreeSet::new(),
             compact_view: false,
+            grid_view: false,
             lang: Lang::default(),
             theme_mode: ThemeMode::default(),
             khipu_theme: false,
