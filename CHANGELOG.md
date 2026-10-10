@@ -114,7 +114,8 @@ was published.
   app could take the window's turn back a moment later: the form stayed on top but greyed, and
   the field you were typing in showed no accent edge however much you clicked, as if the window
   were stuck. The form now takes the keyboard back in that first moment, and keeps checking with
-  Windows, so the field you are in always looks it.
+  Windows, so the field you are in always looks it. Pressing Enter to move to the next field
+  also lands there visibly now, instead of leaving no field marked.
 
 ## 0.0.6 — 2026-10-06
 

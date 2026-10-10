@@ -25,8 +25,9 @@
 //! The editor's «Probar» shows the same [`fields`] and [`result_preview`] in a dialog, without
 //! espanso, so what the editor promises is what the window does.
 //!
-//! The invariant: **leaving without inserting gives the trigger back.** Espanso has already erased
-//! what was typed by the time the window is up, so printing nothing would eat it; printing the
+//! The invariant: **leaving without inserting gives the trigger back.** The typed trigger stays in
+//! the text while the window is up, and espanso erases it once this process returns, whatever it
+//! printed (measured in a browser textarea, 2026-10-09). Printing nothing would eat it; printing the
 //! trigger leaves the text exactly as it was before the form opened.
 //!
 //! **Not here:** reading the form out of the file (`crate::yaml::form`), and anything that saves.
@@ -97,7 +98,14 @@ pub fn fields(
         .filter(|(_, f)| f.kind != FieldKind::Choice)
         .map(|(i, _)| i)
         .collect();
-    if focus_first {
+    // Enter hands the focus on a frame late. Handed on at once, the next field took it in the
+    // same frame, read that same Enter as its own and let go again: no field focused, nothing
+    // looking focused, and the window seemingly stuck.
+    let pending = egui::Id::new((salt, "form-focus-next"));
+    let next_focus = ui.data_mut(|d| d.remove_temp::<usize>(pending));
+    if let Some(next) = next_focus {
+        ui.memory_mut(|m| m.request_focus(field_id(salt, next)));
+    } else if focus_first {
         if let Some(&first) = typed.first() {
             ui.memory_mut(|m| m.request_focus(field_id(salt, first)));
         }
@@ -118,7 +126,10 @@ pub fn fields(
                 );
                 if response.lost_focus() && ui.input(|inp| inp.key_pressed(egui::Key::Enter)) {
                     match typed.iter().find(|&&next| next > i) {
-                        Some(&next) => ui.memory_mut(|m| m.request_focus(field_id(salt, next))),
+                        Some(&next) => {
+                            ui.data_mut(|d| d.insert_temp(pending, next));
+                            ui.ctx().request_repaint();
+                        }
                         None => submit = true,
                     }
                 }
