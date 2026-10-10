@@ -42,7 +42,8 @@ was published.
   name, star and trigger on top and up to three lines of its text below. The wider the window,
   the more cards per line. Everything the list does works the same: open, select several, drag
   into a folder. With the keyboard, ← and → move to the card beside, ↑ and ↓ a whole line.
-  Leaving the grid goes back to the view you had, Comfortable or Compact.
+  Leaving the grid goes back to the view you had, Comfortable or Compact. The grid is the view
+  Khipu now opens in, after this update too; if you had chosen Compact, you stay in Compact.
 
 ### Changed
 

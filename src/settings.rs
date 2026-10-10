@@ -81,6 +81,8 @@ pub struct Settings {
     pub compact_view: bool,
     /// Lays the list out as a grid of cards, as many to a line as the width allows. Wins over
     /// `compact_view`, which is kept as it was so that leaving the grid goes back to the rows it left.
+    /// On by default since 0.0.7, also for a file written before the field existed, unless that
+    /// file chose Compacta (see [`SettingsStore::load`]).
     pub grid_view: bool,
     /// Interface language. Independent of the expansions themselves, which are never translated.
     pub lang: Lang,
@@ -124,7 +126,7 @@ impl Default for Settings {
             folder_by_trigger: BTreeMap::new(),
             folders: BTreeSet::new(),
             compact_view: false,
-            grid_view: false,
+            grid_view: true,
             lang: Lang::default(),
             theme_mode: ThemeMode::default(),
             khipu_theme: false,
@@ -295,8 +297,17 @@ impl SettingsStore {
         }
 
         let (mut settings, issue) = match std::fs::read_to_string(&self.path) {
-            Ok(text) => match serde_json::from_str(&text) {
-                Ok(settings) => (settings, None),
+            Ok(text) => match serde_json::from_str::<Settings>(&text) {
+                Ok(mut settings) => {
+                    // The grid is what a file without the field gets, since 0.0.7. Somebody who
+                    // chose Compacta before the grid existed made a choice, though, and keeps it.
+                    let says_grid = serde_json::from_str::<serde_json::Value>(&text)
+                        .is_ok_and(|v| v.get("grid_view").is_some());
+                    if settings.compact_view && !says_grid {
+                        settings.grid_view = false;
+                    }
+                    (settings, None)
+                }
                 Err(_) => (
                     Settings::default(),
                     Some(SettingsIssue::Damaged {
@@ -509,6 +520,21 @@ mod tests {
     }
 
     /// Worn means found, even when the file forgot to say so: the option must be there to leave by.
+    #[test]
+    fn the_grid_is_the_default_unless_compact_was_chosen_before_it() {
+        let read = |name: &str, json: &str| {
+            let dir = scratch(name);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("settings.json"), json).unwrap();
+            SettingsStore::new(&dir).load().0
+        };
+        assert!(Settings::default().grid_view);
+        assert!(read("grid-old-cards", r#"{"compact_view": false}"#).grid_view);
+        let compact = read("grid-old-compact", r#"{"compact_view": true}"#);
+        assert!(compact.compact_view && !compact.grid_view);
+        assert!(!read("grid-said-no", r#"{"compact_view": false, "grid_view": false}"#).grid_view);
+    }
+
     #[test]
     fn wearing_the_hidden_theme_shows_its_option() {
         let dir = scratch("khipu-worn");
