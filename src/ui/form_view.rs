@@ -219,7 +219,15 @@ struct FormApp {
     studio: bool,
     /// The most the window may grow to: most of the screen it opened on.
     tallest: f32,
+    /// The window that was being typed into when espanso opened this one.
+    previous: windows::Win32::Foundation::HWND,
+    opened: std::time::Instant,
 }
+
+/// How long after opening the window takes the foreground back from the window it was opened
+/// over. Long enough for a launcher closing or espanso finishing its keystrokes to hand the
+/// activation back there, short enough that a person who chose to click elsewhere is left alone.
+const RECLAIM_FOR: std::time::Duration = std::time::Duration::from_millis(1500);
 
 impl FormApp {
     fn close(&self, ctx: &egui::Context, text: Option<String>) {
@@ -231,14 +239,42 @@ impl FormApp {
 }
 
 impl eframe::App for FormApp {
+    /// The focus comes from Windows on every frame, as in the main window: see
+    /// [`crate::display::has_keyboard_focus`]. With winit's last notice instead, the field being
+    /// typed into could go on looking untouched — no caret, no accent edge — and clicking could not
+    /// mend it.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         if self.studio {
             crate::app::studio_clicks(ctx, raw_input);
+            return;
+        }
+        if let Some(focused) = self.window.as_deref().and_then(crate::app::hwnd_of).and_then(crate::display::has_keyboard_focus) {
+            raw_input.focused = focused;
         }
     }
 
-    fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.pacer.wait_for_compositor();
+        if self.studio {
+            return;
+        }
+        if let Some(hwnd) = self.window.as_deref().and_then(crate::app::hwnd_of) {
+            // Opened from the background, the window can be handed the foreground and then lose it
+            // to the window it opened over, which espanso or a closing launcher activates a moment
+            // later: on top, still, but greyed and deaf. Taken back while that can still be the
+            // reason, and only from that window.
+            if self.frames >= 2 && self.opened.elapsed() < RECLAIM_FOR && !self.previous.is_invalid() {
+                let foreground = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+                if foreground == self.previous {
+                    crate::display::bring_to_front(hwnd);
+                }
+            }
+            crate::display::restore_keyboard_focus(hwnd);
+        }
+        // A heartbeat, so that whatever Windows changed without a word to winit shows within a
+        // quarter of a second rather than at the next keystroke.
+        let wait = if self.opened.elapsed() < RECLAIM_FOR { 50 } else { 250 };
+        ctx.request_repaint_after(std::time::Duration::from_millis(wait));
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -407,6 +443,8 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
                 frames: 0,
                 studio,
                 tallest,
+                previous,
+                opened: std::time::Instant::now(),
             }))
         }),
     );

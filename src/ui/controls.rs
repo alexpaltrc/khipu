@@ -872,7 +872,66 @@ pub fn segmented_marked<S: AsRef<str>>(
     selected: Option<usize>,
     mark: Option<SegmentMark>,
 ) -> Option<usize> {
-    if labels.is_empty() {
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let faces: Vec<_> = labels
+        .iter()
+        .map(|label| {
+            SegmentFace::Words(ui.painter().layout_no_wrap(
+                label.as_ref().to_owned(),
+                font.clone(),
+                egui::Color32::PLACEHOLDER,
+            ))
+        })
+        .collect();
+    segmented_faces(ui, id_salt, faces, selected, mark)
+}
+
+/// [`segmented`] with a pictogram in each segment instead of words: for a choice whose options read
+/// at a glance and whose words would make the control too wide for where it sits. Each segment
+/// still says its name, on hover and to a screen reader.
+pub fn segmented_icons(
+    ui: &mut egui::Ui,
+    id_salt: impl std::hash::Hash + std::fmt::Debug,
+    options: &[(Glyph, &str)],
+    selected: Option<usize>,
+) -> Option<usize> {
+    let faces = options
+        .iter()
+        .map(|&(glyph, name)| SegmentFace::Icon(glyph, name.to_owned()))
+        .collect();
+    segmented_faces(ui, id_salt, faces, selected, None)
+}
+
+/// The width a row of [`segmented_icons`] asks for, track included.
+pub fn segmented_icons_width(count: usize) -> f32 {
+    segment_width(glyphs::SIZE) * count as f32
+        + SEGMENT_GAP * count.saturating_sub(1) as f32
+        + 2.0 * 3.0
+}
+
+/// What a segment shows: its words, laid out, or a pictogram and the name it stands for.
+enum SegmentFace {
+    Words(std::sync::Arc<egui::Galley>),
+    Icon(Glyph, String),
+}
+
+impl SegmentFace {
+    fn width(&self) -> f32 {
+        match self {
+            SegmentFace::Words(galley) => segment_width(galley.size().x),
+            SegmentFace::Icon(..) => segment_width(glyphs::SIZE),
+        }
+    }
+}
+
+fn segmented_faces(
+    ui: &mut egui::Ui,
+    id_salt: impl std::hash::Hash + std::fmt::Debug,
+    faces: Vec<SegmentFace>,
+    selected: Option<usize>,
+    mark: Option<SegmentMark>,
+) -> Option<usize> {
+    if faces.is_empty() {
         return None;
     }
 
@@ -880,23 +939,8 @@ pub fn segmented_marked<S: AsRef<str>>(
     const GAP: f32 = SEGMENT_GAP;
 
     let is_light = !ui.visuals().dark_mode;
-    let font = egui::TextStyle::Button.resolve(ui.style());
-    let galleys: Vec<_> = labels
-        .iter()
-        .map(|label| {
-            ui.painter().layout_no_wrap(
-                label.as_ref().to_owned(),
-                font.clone(),
-                egui::Color32::PLACEHOLDER,
-            )
-        })
-        .collect();
-
-    let mut widths: Vec<f32> = galleys
-        .iter()
-        .map(|g| segment_width(g.size().x))
-        .collect();
-    let gaps = GAP * (labels.len() - 1) as f32;
+    let mut widths: Vec<f32> = faces.iter().map(SegmentFace::width).collect();
+    let gaps = GAP * (faces.len() - 1) as f32;
     let natural: f32 = widths.iter().sum::<f32>() + gaps;
 
     // On a narrow window the track shrinks rather than running off the edge. Each segment then
@@ -922,7 +966,7 @@ pub fn segmented_marked<S: AsRef<str>>(
             egui::Layout::left_to_right(egui::Align::Center),
             |ui| {
                 ui.spacing_mut().item_spacing.x = GAP;
-                for (i, (galley, width)) in galleys.into_iter().zip(widths).enumerate() {
+                for (i, (face, width)) in faces.into_iter().zip(widths).enumerate() {
                     let is_selected = selected == Some(i);
                     let (rect, response) = ui.allocate_exact_size(
                         egui::vec2(width, HEIGHT),
@@ -969,11 +1013,32 @@ pub fn segmented_marked<S: AsRef<str>>(
                         } else {
                             secondary_text(is_light)
                         };
-                        let at = rect.center() - galley.size() * 0.5;
-                        ui.painter()
-                            .with_clip_rect(rect.intersect(ui.clip_rect()))
-                            .galley(at, galley, ink);
+                        match &face {
+                            SegmentFace::Words(galley) => {
+                                let at = rect.center() - galley.size() * 0.5;
+                                ui.painter()
+                                    .with_clip_rect(rect.intersect(ui.clip_rect()))
+                                    .galley(at, galley.clone(), ink);
+                            }
+                            SegmentFace::Icon(glyph, _) => {
+                                glyphs::paint(ui, rect, *glyph, glyphs::SIZE, ink);
+                            }
+                        }
                     }
+                    let response = match face {
+                        SegmentFace::Icon(_, name) => {
+                            response.widget_info(|| {
+                                egui::WidgetInfo::selected(
+                                    egui::WidgetType::RadioButton,
+                                    true,
+                                    is_selected,
+                                    &name,
+                                )
+                            });
+                            response.on_hover_text(name)
+                        }
+                        SegmentFace::Words(_) => response,
+                    };
 
                     if response.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -1321,9 +1386,9 @@ const MENU_CHOICE_INSET: f32 = 4.0;
 /// A segmented track's height: the segments, the track's margin either side and its edge.
 const MENU_CHOICE_TRACK: f32 = SEGMENT_HEIGHT + 2.0 * 2.0 + 2.0;
 
-/// How wide a [`menu_choice`] line has to be for its words and its choices to fit uncut. A flyout
-/// that holds one is opened at least this wide.
-pub fn menu_choice_width<S: AsRef<str>>(ui: &egui::Ui, label: &str, options: &[S]) -> f32 {
+/// How wide a [`menu_choice_icons`] line has to be for its words and its choices to fit uncut. A
+/// flyout that holds one is opened at least this wide.
+pub fn menu_choice_icons_width(ui: &egui::Ui, label: &str, count: usize) -> f32 {
     let words = ui.painter().layout_no_wrap(
         label.to_owned(),
         egui::TextStyle::Button.resolve(ui.style()),
@@ -1333,31 +1398,41 @@ pub fn menu_choice_width<S: AsRef<str>>(ui: &egui::Ui, label: &str, options: &[S
         + MENU_ICON_COLUMN
         + words.size().x
         + MENU_KEYS_GAP
-        + segmented_natural_width(ui, options)
+        + segmented_icons_width(count)
         + MENU_CHOICE_INSET
 }
 
 /// A flyout line that is a setting rather than a command: the icon and the words where every line
-/// has them, and the choices at the far end in a segmented track — the way a browser's menu sets
-/// its sidebar or its zoom without sending anyone to its settings. Returns the choice just picked.
+/// has them, and the choices at the far end in a segmented track of pictograms, each naming itself
+/// on hover — the way a browser's menu sets its sidebar or its zoom without sending anyone to its
+/// settings. Words in the segments made the flyout as wide as the three of them. Returns the choice
+/// just picked.
 ///
 /// It does not close the flyout: the change shows at once behind it, which is the point of making
 /// it here.
-pub fn menu_choice<S: AsRef<str>>(
+pub fn menu_choice_icons(
     ui: &mut egui::Ui,
     glyph: Option<Glyph>,
     label: &str,
     id_salt: impl std::hash::Hash + std::fmt::Debug,
-    options: &[S],
+    options: &[(Glyph, &str)],
     selected: Option<usize>,
 ) -> Option<usize> {
+    let width = menu_choice_icons_width(ui, label, options.len());
+    let mut track = menu_choice_line(ui, glyph, label, width);
+    segmented_icons(&mut track, id_salt, options, selected)
+}
+
+/// Lays out a [`menu_choice_icons`] line's icon and words, and hands back the room at its far end where
+/// the choices go.
+fn menu_choice_line(ui: &mut egui::Ui, glyph: Option<Glyph>, label: &str, width: f32) -> egui::Ui {
     let ink = ui.visuals().text_color();
     let words = ui.painter().layout_no_wrap(
         label.to_owned(),
         egui::TextStyle::Button.resolve(ui.style()),
         ink,
     );
-    let width = menu_choice_width(ui, label, options).max(ui.available_width());
+    let width = width.max(ui.available_width());
     let height = MENU_ROW.max(MENU_CHOICE_TRACK + 2.0 * GAP_TIGHT);
     let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
     if ui.is_rect_visible(rect) {
@@ -1376,15 +1451,14 @@ pub fn menu_choice<S: AsRef<str>>(
     }
     // Laid out from the right, so the track ends the same distance from the edge whatever the
     // words beside it take.
-    let mut track = ui.new_child(
+    ui.new_child(
         egui::UiBuilder::new()
             .max_rect(egui::Rect::from_min_max(
                 rect.left_top(),
                 egui::pos2(rect.right() - MENU_CHOICE_INSET, rect.bottom()),
             ))
             .layout(egui::Layout::right_to_left(egui::Align::Center)),
-    );
-    segmented(&mut track, id_salt, options, selected)
+    )
 }
 
 /// The faint line between two groups of a flyout.

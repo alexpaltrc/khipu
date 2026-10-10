@@ -1706,8 +1706,8 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
                 .clone()
                 .unwrap_or_else(|| t.no_folder.to_string())
         };
-        // «Nueva carpeta» has a button of its own beside the list: at the foot of a long list of
-        // folders it was out of sight until the list was scrolled.
+        // «Nueva carpeta» is the button beside the list, and only that: at the foot of a long list of
+        // folders it was out of sight until the list was scrolled, and in both places it was said twice.
         let new_tip = t.add_new_folder.trim_start_matches(['+', ' ']).trim_end_matches('…');
         let add_clicked = ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
@@ -1736,12 +1736,6 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
                             edit.folder = Some(name.clone());
                             edit.choosing_new_folder = false;
                         }
-                    }
-                    if ui
-                        .selectable_label(edit.choosing_new_folder, t.add_new_folder)
-                        .clicked()
-                    {
-                        edit.choosing_new_folder = true;
                     }
                 });
             controls::icon_button(ui, Glyph::Add, new_tip, true).clicked()

@@ -62,6 +62,9 @@ pub enum Glyph {
     Star,
     StarFilled,
     View,
+    ViewComfortable,
+    ViewCompact,
+    ViewGrid,
 }
 
 impl Glyph {
@@ -93,7 +96,10 @@ impl Glyph {
             Glyph::Volume => '\u{E767}',
             Glyph::Star => '\u{E734}',
             Glyph::StarFilled => '\u{E735}',
-            Glyph::View => '\u{E8FD}',
+            Glyph::View => '\u{E890}',
+            Glyph::ViewComfortable => '\u{E8FD}',
+            Glyph::ViewCompact => '\u{E15C}',
+            Glyph::ViewGrid => '\u{E8A9}',
         }
     }
 }

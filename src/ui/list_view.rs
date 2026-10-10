@@ -876,8 +876,12 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
     );
     let picking = select_mode(ui.ctx());
     let shown = if state.settings.grid_view { 2 } else { usize::from(state.settings.compact_view) };
-    let views = [t.view_comfortable, t.view_compact, t.view_grid];
-    let width = MENU_WIDTH.max(controls::menu_choice_width(ui, t.view_label, &views));
+    let views = [
+        (Glyph::ViewComfortable, t.view_comfortable),
+        (Glyph::ViewCompact, t.view_compact),
+        (Glyph::ViewGrid, t.view_grid),
+    ];
+    let width = MENU_WIDTH.max(controls::menu_choice_icons_width(ui, t.view_label, views.len()));
     let mut toggle_picking = false;
     let mut pick_view: Option<usize> = None;
     let mut go: Option<View> = None;
@@ -893,7 +897,7 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
         }
         controls::menu_separator(ui);
         if let Some(picked) =
-            controls::menu_choice(ui, Some(Glyph::View), t.view_label, "list-view", &views, Some(shown))
+            controls::menu_choice_icons(ui, Some(Glyph::View), t.view_label, "list-view", &views, Some(shown))
         {
             pick_view = Some(picked);
         }
@@ -1759,7 +1763,8 @@ fn show_grid(
         ui.add_space(gap);
         let dragging = pass.dragged_id.is_some_and(|id| line.iter().any(|&i| row_id(&list.rows[i].trigger) == id));
         let height = ui.cursor().top() - before;
-        if !dragging && height > 1.0 && pass.known_height != Some(height) {
+        // Under half a point is not a change: see the same test in [`show_row`].
+        if !dragging && height > 1.0 && pass.known_height.is_none_or(|known| (known - height).abs() >= 0.5) {
             ui.ctx().data_mut(|d| {
                 d.insert_temp(row_height_key(pass.compact, pass.grid, pass.select_mode), height)
             });
@@ -2055,7 +2060,11 @@ fn show_row(
         // `known_height` is this frame's snapshot, so on the one frame where the height actually
         // changes — a switch between the two densities, or entering the picking mode — every drawn
         // row writes it once instead of just the first.
-        if height > 1.0 && pass.known_height != Some(height) {
+        //
+        // A difference under half a point is not a change. Were two rows ever a hair apart again,
+        // each frame would otherwise write the other's height, and the gaps standing in for the
+        // skipped rows would grow and shrink by turns: rows shaking for as long as the window is open.
+        if height > 1.0 && pass.known_height.is_none_or(|known| (known - height).abs() >= 0.5) {
             ui.ctx().data_mut(|d| {
                 d.insert_temp(row_height_key(pass.compact, pass.grid, pass.select_mode), height)
             });
@@ -2306,7 +2315,12 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                 } else {
                     ui.visuals().strong_text_color()
                 };
-                let trigger_text = || egui::RichText::new(&row.trigger).monospace().color(strong);
+                // The trigger in the accent, as in the comfortable rows and the grid; where a search
+                // found something in it, the rest steps back so the find is what stays lit.
+                let code_ink = if row.off { strong } else { accent(ui.visuals()) };
+                let trigger_text = || egui::RichText::new(&row.trigger).monospace().color(code_ink);
+                let found = !row.off && !controls::find_ignoring_case(&row.trigger, pass.needle).is_empty();
+                let trigger_ink = if found { crate::app::secondary_text(is_light) } else { code_ink };
                 // A hard column, not a minimum: a trigger wider than the column is cut short here
                 // and shown whole in the detail. Letting it push past instead would move the start
                 // of the replacement from row to row.
@@ -2316,7 +2330,7 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                 // replacement. See [`controls::baseline_drop`].
                 let mono = egui::TextStyle::Monospace.resolve(ui.style());
                 let mut job = egui::text::LayoutJob::default();
-                controls::marked(&mut job, &row.trigger, pass.needle, &mono, strong, accent(ui.visuals()));
+                controls::marked(&mut job, &row.trigger, pass.needle, &mono, trigger_ink, accent(ui.visuals()));
                 let trigger = egui::WidgetText::from(job).into_galley(
                     ui,
                     Some(egui::TextWrapMode::Truncate),
@@ -2535,15 +2549,18 @@ fn comfortable_first_line(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, i
         pass.baseline_drop.set(Some(drop));
         drop
     });
-    // As tall as a name would make it, name or not: a row without one may not come out shorter.
+    // The same height on every row, name or not, from the fonts alone and never from what a row
+    // holds: a row with a name came out a sixteenth of a point taller at 150 %, and the list, which
+    // measures rows to stand in for the ones it skips, then flipped between the two heights on every
+    // frame, shaking the rows and never resting. See [`show_row`].
     let name_font = egui::FontId::new(
         egui::TextStyle::Body.resolve(ui.style()).size,
         crate::fonts::semibold_family(),
     );
-    let height = ui
-        .fonts_mut(|f| f.row_height(&name_font))
-        .max(left.size().y)
-        .max(right.as_ref().map_or(0.0, |g| g.size().y));
+    let mono = egui::TextStyle::Monospace.resolve(ui.style());
+    let ppp = ui.ctx().pixels_per_point();
+    let height =
+        (ui.fonts_mut(|f| f.row_height(&name_font).max(f.row_height(&mono))) * ppp).ceil() / ppp;
     let (rect, hover) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
 
     let left_is_trigger = right.is_none();

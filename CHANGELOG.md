@@ -85,15 +85,16 @@ was published.
   The welcome screen's tip under the example of an expansion now begins with Khipu's name
   («Khipu is extremely light»), so it no longer reads as if it described the expansion above it.
 - **Two views of your list: Comfortable and Compact.** The **…** menu now has a **View** line with
-  both choices side by side, and the list changes behind the menu as you pick. **Comfortable**,
+  the choices side by side, each as a small picture whose name shows when you point at it, and
+  the list changes behind the menu as you pick. **Comfortable**,
   the new default, shows each expansion as a small card: its name in bold, its trigger on the
   right in your accent colour, and what it writes on a second line. An expansion without a name
-  shows its trigger in the name's place. **Compact** is the one-line list you already know, so
-  if you had picked it, nothing changes for you.
+  shows its trigger in the name's place. **Compact** is the one-line list you already know, with
+  its triggers now in the accent colour too, the same in all three views.
 - **A new folder is one click away.** When you create or edit an expansion, a **+** now sits
   right beside the folder list. With many folders, **New folder…** was at the bottom of that
   list and you had to scroll to find it; the **+** opens the box for the new folder's name
-  straight away. **New folder…** is still in the list too.
+  straight away. The list now holds only your folders, so the same choice is not offered twice.
 - **Search shows where it found your words.** As you type in the search box of the main window
   or of the launcher, the letters you typed light up in your accent colour wherever they appear in
   the results: in the trigger, the name and the text. A trigger, already in the accent in the
@@ -105,6 +106,15 @@ was published.
   the list could run past the bottom edge and hide **Edit** and the **⋯** menu. Now its text box
   gives up lines first, down to three whole ones, and if that is still not enough, the detail
   scrolls.
+- **The list holds still.** With Windows' display scaling at 150 %, an expansion with a name came
+  out a hair taller than one without, and the list kept switching between the two heights: the
+  rows shook, the text looked doubled, and Khipu kept working while you did nothing. Every row
+  is now exactly the same height.
+- **A form's window shows which field you are in.** When a form opened over another app, that
+  app could take the window's turn back a moment later: the form stayed on top but greyed, and
+  the field you were typing in showed no accent edge however much you clicked, as if the window
+  were stuck. The form now takes the keyboard back in that first moment, and keeps checking with
+  Windows, so the field you are in always looks it.
 
 ## 0.0.6 — 2026-10-06
 
