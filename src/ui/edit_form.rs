@@ -634,6 +634,10 @@ fn confirm_discard_key() -> egui::Id {
     egui::Id::new("editor-confirm-discard")
 }
 
+fn word_field_id() -> egui::Id {
+    egui::Id::new("edit-word-field")
+}
+
 pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
     let View::Edit(edit) = &state.view else {
         return;
@@ -660,6 +664,11 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             d.remove::<bool>(confirm_discard_key());
             d.remove::<bool>(trying_key());
         });
+        // A new expansion starts at its word: the box that has the caret is the first step, and
+        // nobody has to be told where to begin.
+        if edit.editing_index.is_none() {
+            ctx.memory_mut(|m| m.request_focus(word_field_id()));
+        }
     }
     let dirty = ctx
         .data(|d| d.get_temp::<EditState>(original_key()))
@@ -962,6 +971,7 @@ fn when_you_type(
             );
             ui.add(
                 controls::text_field(&mut edit.word)
+                    .id(word_field_id())
                     .desired_width(ui.available_width().max(90.0))
                     .hint_text(t.word_field_hint),
             );

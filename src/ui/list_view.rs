@@ -906,6 +906,10 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
         if controls::menu_item(ui, Some(Glyph::Help), guide, None, Tone::Normal, true).clicked() {
             go = Some(View::Tips);
         }
+        let news = studio::text(state, "Novedades", "What's new", "Mga bago", "नया क्या है");
+        if controls::menu_item(ui, Some(Glyph::News), news, None, Tone::Normal, true).clicked() {
+            state.whats_new_open = true;
+        }
         if controls::menu_item(ui, Some(Glyph::Settings), t.settings_button, None, Tone::Normal, true)
             .clicked()
         {

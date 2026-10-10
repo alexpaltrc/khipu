@@ -89,10 +89,10 @@ fn items(state: &AppState) -> Vec<Item> {
             line: crate::i18n::fill(
                 in_lang(
                     lang,
-                    "Pulsa la estrella de una expansión y saldrá la primera en el buscador ({keys}).",
-                    "Press the star on an expansion and it comes first in search ({keys}).",
-                    "Pindutin ang bituin ng isang expansion at mauuna ito sa paghahanap ({keys}).",
-                    "किसी विस्तार का तारा दबाएँ, वह खोज में सबसे पहले आएगा ({keys})।",
+                    "Marca con la estrella las que más usas: salen primero en el buscador ({keys}), y la estrella de arriba te muestra solo esas.",
+                    "Star the ones you use most: they come first in search ({keys}), and the star at the top shows only them.",
+                    "Lagyan ng bituin ang mga madalas mong gamitin: mauuna sila sa paghahanap ({keys}), at ang bituin sa itaas ay sila lang ang ipapakita.",
+                    "जिनका आप सबसे ज़्यादा उपयोग करते हैं उन पर तारा लगाएँ: वे खोज ({keys}) में सबसे पहले आएँगे, और ऊपर का तारा सिर्फ़ उन्हें दिखाता है।",
                 ),
                 &[("keys", &shortcut)],
             ),

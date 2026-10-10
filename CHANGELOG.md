@@ -9,7 +9,10 @@ was published.
 
 - **«What's new» after an update.** The first time Khipu opens after an update, a short card
   rises with the few new things worth trying and where to start each one. It stays until you
-  close it with ✕ or «Great!», and does not come back until the next update with news.
+  close it with ✕ or «Great!», and does not come back on its own until the next update with news;
+  «What's new» in the ⋯ menu shows it again whenever you want.
+- **A new expansion starts at its word.** Opening a new expansion, from + or from Tips, puts the
+  cursor in the «word» box, so the first step is plain.
 - **The welcome screen helps when the trial does not work.** If what is in the trial box is
   not on its way to the trigger and a moment passes, a quiet line under it says to clear the box
   and type the trigger in one go: correcting a typo half way through can make Khipu lose track of
