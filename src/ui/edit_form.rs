@@ -1694,71 +1694,105 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
         ));
         ui.add_space(controls::GAP_ROW);
 
-        let folder_names = state.settings.all_folder_names();
-        let selected_text = if edit.choosing_new_folder {
-            if edit.new_folder_input.trim().is_empty() {
-                t.new_folder_placeholder.to_string()
-            } else {
-                edit.new_folder_input.clone()
-            }
-        } else {
-            edit.folder
-                .clone()
-                .unwrap_or_else(|| t.no_folder.to_string())
-        };
-        // «Nueva carpeta» is the button beside the list, and only that: at the foot of a long list of
-        // folders it was out of sight until the list was scrolled, and in both places it was said twice.
-        let new_tip = t.add_new_folder.trim_start_matches(['+', ' ']).trim_end_matches('…');
-        let add_clicked = ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
-            let combo_w = ui.available_width() - controls::GAP_TIGHT - controls::FIELD_HEIGHT;
-            // Truncating rather than extending: a long folder name may not push the control out past
-            // the edge of the card it is in.
-            egui::ComboBox::from_id_salt("edit_folder_combo")
-                .selected_text(selected_text)
-                .truncate()
-                .width(combo_w)
-                .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_label(
-                            edit.folder.is_none() && !edit.choosing_new_folder,
-                            t.no_folder,
-                        )
-                        .clicked()
-                    {
-                        edit.folder = None;
-                        edit.choosing_new_folder = false;
-                    }
-                    for name in &folder_names {
-                        let selected =
-                            !edit.choosing_new_folder && edit.folder.as_deref() == Some(name.as_str());
-                        if ui.selectable_label(selected, name).clicked() {
-                            edit.folder = Some(name.clone());
-                            edit.choosing_new_folder = false;
-                        }
-                    }
-                });
-            controls::icon_button(ui, Glyph::Add, new_tip, true).clicked()
-        })
-        .inner;
-        if add_clicked {
-            edit.choosing_new_folder = true;
-            ui.memory_mut(|m| m.request_focus(new_folder_field_id()));
+        let mut folder_names = state.settings.all_folder_names();
+        // A folder named with ✓ exists only in this draft until Guardar, but it is the one chosen,
+        // so the list has to be able to show it as chosen.
+        if let Some(pending) = edit.folder.as_ref().filter(|f| !folder_names.contains(f)) {
+            folder_names.push(pending.clone());
+            folder_names.sort_by_key(|f| f.to_lowercase());
         }
-        // The box for the new name appears next to the choice that asked for it, which is the
-        // plan's rule about creating a folder from here rather than going somewhere else to do it.
-        if edit.choosing_new_folder {
-            ui.add_space(controls::GAP_ROW);
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = controls::GAP;
-                ui.label(controls::field_label(t.name_label));
-                ui.add(
+        // «Nueva carpeta» is the «+» before the list, and only that. Pressed, the list itself becomes
+        // the box for the new name — nothing opens below it — and «+» gives way to ✓ and ✗, which
+        // are never on screen at the same time as it.
+        let new_tip = t.add_new_folder.trim_start_matches(['+', ' ']).trim_end_matches('…');
+        let create_tip = studio::text(state, "Crear carpeta", "Create folder", "Gumawa ng folder", "फ़ोल्डर बनाएँ");
+        let creating = edit.choosing_new_folder;
+        let shift = ui.ctx().animate_bool_with_time(egui::Id::new("edit-new-folder-shift"), creating, 0.22);
+        // Smoothstep, so the slot eases out of one shape and into the other instead of sliding at
+        // one speed and stopping dead.
+        let eased = shift * shift * (3.0 - 2.0 * shift);
+        let mut add = false;
+        let mut confirm = false;
+        let mut cancel = false;
+        let name = edit.new_folder_input.trim().to_string();
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
+            let one = controls::FIELD_HEIGHT;
+            let two = 2.0 * one + controls::GAP_TIGHT;
+            let (slot, _) =
+                ui.allocate_exact_size(egui::vec2(egui::lerp(one..=two, eased), one), egui::Sense::hover());
+            // «+» leaves in the first half of the move and ✓ ✗ arrive in the second, so the two never
+            // share a frame.
+            if eased < 0.5 {
+                let fade = 1.0 - eased * 2.0;
+                let at = egui::Rect::from_min_size(slot.min, egui::Vec2::splat(one));
+                ui.scope_builder(egui::UiBuilder::new().max_rect(at), |ui| {
+                    ui.set_opacity(fade);
+                    add = controls::icon_button(ui, Glyph::Add, new_tip, !creating).clicked();
+                });
+            } else {
+                let fade = eased * 2.0 - 1.0;
+                let from = slot.min + egui::vec2(-6.0 * (1.0 - fade), 0.0);
+                let at = egui::Rect::from_min_size(from, egui::vec2(two, one));
+                ui.scope_builder(egui::UiBuilder::new().max_rect(at).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
+                    ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
+                    ui.set_opacity(fade);
+                    let ok = !name.is_empty() && creating;
+                    confirm = controls::icon_button(ui, Glyph::Check, create_tip, ok).clicked();
+                    cancel = controls::icon_button(ui, Glyph::Close, t.cancel, creating).clicked();
+                });
+            }
+            let rest = ui.available_width();
+            if creating {
+                // The box takes the list's place at the list's height, so the row does not jump: a
+                // field's own padding would make it four points taller than the list it replaces.
+                let field = ui.add_sized(
+                    [rest, one],
                     controls::text_field(&mut edit.new_folder_input)
+                        .margin(egui::Margin::symmetric(12, 7))
                         .id(new_folder_field_id())
-                        .desired_width(ui.available_width().max(120.0))
                         .hint_text(t.new_folder_placeholder),
                 );
-            });
+                if field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !name.is_empty() {
+                    confirm = true;
+                }
+            } else {
+                let selected_text = edit.folder.clone().unwrap_or_else(|| t.no_folder.to_string());
+                // Truncating rather than extending: a long folder name may not push the control out
+                // past the edge of the card it is in.
+                egui::ComboBox::from_id_salt("edit_folder_combo")
+                    .selected_text(selected_text)
+                    .truncate()
+                    .width(rest)
+                    .show_ui(ui, |ui| {
+                        if ui.selectable_label(edit.folder.is_none(), t.no_folder).clicked() {
+                            edit.folder = None;
+                        }
+                        for name in &folder_names {
+                            if ui.selectable_label(edit.folder.as_deref() == Some(name.as_str()), name).clicked() {
+                                edit.folder = Some(name.clone());
+                            }
+                        }
+                    });
+            }
+        });
+        // Esc while naming a folder backs out of the naming, not out of the whole form.
+        if creating && !confirm && keys::pressed(ui.ctx(), keys::BACK) {
+            cancel = true;
+        }
+        if add {
+            edit.choosing_new_folder = true;
+            edit.new_folder_input.clear();
+            ui.memory_mut(|m| m.request_focus(new_folder_field_id()));
+        } else if confirm {
+            // An existing name typed again is that folder, chosen; a new one is made with Guardar.
+            let existing = folder_names.iter().find(|f| f.to_lowercase() == name.to_lowercase());
+            edit.folder = Some(existing.cloned().unwrap_or(name));
+            edit.choosing_new_folder = false;
+            edit.new_folder_input.clear();
+        } else if cancel {
+            edit.choosing_new_folder = false;
+            edit.new_folder_input.clear();
         }
     });
 }

@@ -93,9 +93,10 @@ was published.
   shows its trigger in the name's place. **Compact** is the one-line list you already know, with
   its triggers now in the accent colour too, the same in all three views.
 - **A new folder is one click away.** When you create or edit an expansion, a **+** now sits
-  right beside the folder list. With many folders, **New folder…** was at the bottom of that
-  list and you had to scroll to find it; the **+** opens the box for the new folder's name
-  straight away. The list now holds only your folders, so the same choice is not offered twice.
+  right before the folder list. With many folders, **New folder…** was at the bottom of that
+  list and you had to scroll to find it. Press **+** and the list itself becomes the box for the
+  new folder's name: type it, then **✓** (or Enter) to keep it, or **✗** (or Esc) to go back.
+  The list now holds only your folders, so the same choice is not offered twice.
 - **Search shows where it found your words.** As you type in the search box of the main window
   or of the launcher, the letters you typed light up in your accent colour wherever they appear in
   the results: in the trigger, the name and the text. A trigger, already in the accent in the

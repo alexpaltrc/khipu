@@ -291,7 +291,6 @@ pub struct Strings {
     pub no_folder: &'static str,
     pub new_folder_placeholder: &'static str,
     pub add_new_folder: &'static str,
-    pub name_label: &'static str,
     pub save: &'static str,
 
     // --- settings ------------------------------------------------------------------------
@@ -525,7 +524,6 @@ pub static EN: Strings = Strings {
     no_folder: "No folder",
     new_folder_placeholder: "New folder…",
     add_new_folder: "+ New folder…",
-    name_label: "Name:",
     save: "Save",
 
     back: "Back",
@@ -738,7 +736,6 @@ pub static ES: Strings = Strings {
     no_folder: "Sin carpeta",
     new_folder_placeholder: "Nueva carpeta…",
     add_new_folder: "+ Nueva carpeta…",
-    name_label: "Nombre:",
     save: "Guardar",
 
     back: "Volver",
@@ -951,7 +948,6 @@ pub static FIL: Strings = Strings {
     no_folder: "Walang folder",
     new_folder_placeholder: "Bagong folder…",
     add_new_folder: "+ Bagong folder…",
-    name_label: "Pangalan:",
     save: "I-save",
 
     back: "Bumalik",
@@ -1164,7 +1160,6 @@ pub static HI: Strings = Strings {
     no_folder: "कोई फ़ोल्डर नहीं",
     new_folder_placeholder: "नया फ़ोल्डर…",
     add_new_folder: "+ नया फ़ोल्डर…",
-    name_label: "नाम:",
     save: "सहेजें",
 
     back: "वापस",

@@ -3252,6 +3252,11 @@ impl eframe::App for KhipuApp {
         if let Some(focused) = hwnd.and_then(crate::display::has_keyboard_focus) {
             raw_input.focused = focused;
         }
+        // The studio is never brought to the front, so without this no capture could show what a
+        // focused field looks like.
+        if cfg!(feature = "preview") && std::env::var_os("EM_PREVIEW_FOCUSED").is_some() {
+            raw_input.focused = true;
+        }
     }
 
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
