@@ -115,6 +115,9 @@ pub struct Settings {
     /// Whether the launcher lists starred expansions ahead of the rest. On unless switched off,
     /// which is also what a file written before the field existed reads back as.
     pub favorites_first: bool,
+    /// The release whose «Novedades» card has been closed. Nothing, as in a file from before the
+    /// card existed, means an update nobody has been told about yet.
+    pub whats_new_seen: Option<String>,
 }
 
 impl Default for Settings {
@@ -135,6 +138,7 @@ impl Default for Settings {
             launcher_shortcut: None,
             favorites: BTreeSet::new(),
             favorites_first: true,
+            whats_new_seen: None,
         }
     }
 }
@@ -533,6 +537,19 @@ mod tests {
         let compact = read("grid-old-compact", r#"{"compact_view": true}"#);
         assert!(compact.compact_view && !compact.grid_view);
         assert!(!read("grid-said-no", r#"{"compact_view": false, "grid_view": false}"#).grid_view);
+    }
+
+    #[test]
+    fn an_update_from_before_the_news_card_has_not_seen_it() {
+        let dir = scratch("whats-new-seen");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("settings.json"), r#"{"compact_view": false}"#).unwrap();
+        let store = SettingsStore::new(&dir);
+        let (mut back, _) = store.load();
+        assert_eq!(back.whats_new_seen, None);
+        back.whats_new_seen = Some("0.0.7".into());
+        store.save(&back).unwrap();
+        assert_eq!(store.load().0.whats_new_seen.as_deref(), Some("0.0.7"));
     }
 
     #[test]

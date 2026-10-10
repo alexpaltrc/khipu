@@ -7,6 +7,9 @@ was published.
 
 ### Added
 
+- **«What's new» after an update.** The first time Khipu opens after an update, a short card
+  rises with the few new things worth trying and where to start each one. It stays until you
+  close it with ✕ or «Great!», and does not come back until the next update with news.
 - **The welcome screen helps when the trial does not work.** If what is in the trial box is
   not on its way to the trigger and a moment passes, a quiet line under it says to clear the box
   and type the trigger in one go: correcting a typo half way through can make Khipu lose track of

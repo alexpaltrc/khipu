@@ -34,3 +34,4 @@ pub mod onboarding_view;
 pub mod search_view;
 pub mod settings_view;
 pub mod tips_view;
+pub mod whats_new_view;

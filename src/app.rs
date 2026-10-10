@@ -353,6 +353,8 @@ pub struct AppState {
     /// What was said while Ajustes was open. It is shown inside the dialog, because the banner
     /// behind it is under the dimmed backdrop, and it is dropped when the dialog closes.
     pub settings_note: Option<Banner>,
+    /// «Novedades», over the list after an update. See [crate::ui::whats_new_view].
+    pub whats_new_open: bool,
     pub search: String,
     pub banner: Option<Banner>,
     /// Why the expansions file could not be read, if it could not. Saving is refused while this
@@ -559,6 +561,15 @@ impl AppState {
     pub fn finish_onboarding(&mut self) {
         self.clear_onboarding_match();
         self.settings.onboarding_done = true;
+        // Everything is new to somebody who has just arrived: there is no update to tell them about.
+        self.settings.whats_new_seen = Some(crate::ui::whats_new_view::RELEASE.to_string());
+        let _ = self.settings_store.save(&self.settings);
+    }
+
+    /// Closes «Novedades» for good, until a release with new things.
+    pub fn dismiss_whats_new(&mut self) {
+        self.whats_new_open = false;
+        self.settings.whats_new_seen = Some(crate::ui::whats_new_view::RELEASE.to_string());
         let _ = self.settings_store.save(&self.settings);
     }
 
@@ -2649,6 +2660,7 @@ impl KhipuApp {
             ctl: ctx.ctl,
             view: View::List,
             settings_open: false,
+            whats_new_open: false,
             settings_note: None,
             search: String::new(),
             banner: None,
@@ -2704,6 +2716,14 @@ impl KhipuApp {
                 .is_some_and(|flag| flag.exists());
         if state.settings.onboarding_done && !replay {
             state.clear_onboarding_match();
+            // After an update, the few new things worth trying, once. The studio shows it only when
+            // asked, so that every other capture is of the screen it was meant to be of.
+            let studio = cfg!(feature = "preview");
+            state.whats_new_open = if studio {
+                ui::whats_new_view::studio_wants_it()
+            } else {
+                state.settings.whats_new_seen.as_deref() != Some(ui::whats_new_view::RELEASE)
+            };
         } else {
             // Starting with Windows is on from the first run: an expander that is not running is
             // one that does nothing, and the last step of the welcome says where to turn it off.
@@ -3424,6 +3444,7 @@ impl eframe::App for KhipuApp {
         ui::list_view::show_create_folder_modal(ui.ctx(), &mut self.state);
         ui::list_view::show_pending_confirm(ui.ctx(), &mut self.state);
         // Before the folder picker, which opens from it and has to be the one on top.
+        ui::whats_new_view::show(ui.ctx(), &mut self.state);
         ui::settings_view::show(ui.ctx(), &mut self.state);
         ui::settings_view::show_folder_picker(ui.ctx(), &mut self.state);
         ui::glide::end_frame(ui.ctx());
