@@ -129,6 +129,24 @@ pub fn tip(label: &str, shortcut: Shortcut, lang: Lang) -> String {
     format!("{label} ({})", text(shortcut, lang))
 }
 
+/// Holds back, for the next frame, whatever arrived after a key that moves the focus: Tab,
+/// Shift+Tab or Enter. egui moves the focus at the end of the frame the key arrived in, so a letter
+/// typed right behind the Tab, in the same frame, went to the field being left — «AnaR» and
+/// «oble1» for «Ana», Tab, «Roble1», measured on the form window (2026-10-12). Returns whether
+/// anything is being held, so the caller asks for the frame that delivers it.
+pub fn hold_after_focus_move(events: &mut Vec<egui::Event>, held: &mut Vec<egui::Event>) -> bool {
+    let mut all = std::mem::take(held);
+    all.append(events);
+    let mover = all.iter().position(|e| {
+        matches!(e, egui::Event::Key { key: egui::Key::Tab | egui::Key::Enter, pressed: true, .. })
+    });
+    if let Some(at) = mover {
+        *held = all.split_off(at + 1);
+    }
+    *events = all;
+    !held.is_empty()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,5 +170,24 @@ mod tests {
                 assert_ne!(a, b);
             }
         }
+    }
+
+    #[test]
+    fn what_follows_a_tab_waits_for_the_next_frame() {
+        let key = |key, pressed| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let text = |t: &str| egui::Event::Text(t.to_owned());
+        let mut held = Vec::new();
+        let mut frame = vec![text("Ana"), key(egui::Key::Tab, true), key(egui::Key::Tab, false), text("R")];
+        assert!(hold_after_focus_move(&mut frame, &mut held));
+        assert_eq!(frame, vec![text("Ana"), key(egui::Key::Tab, true)]);
+        let mut next = vec![text("o")];
+        assert!(!hold_after_focus_move(&mut next, &mut held));
+        assert_eq!(next, vec![key(egui::Key::Tab, false), text("R"), text("o")]);
     }
 }

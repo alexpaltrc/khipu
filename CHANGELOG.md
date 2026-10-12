@@ -41,7 +41,9 @@ was published.
   long text can start with a value, and the first option of a list starts picked. **Try** shows
   the form and the text it will write, without writing anything. When you type the trigger, a
   small Khipu window asks for the blanks, in Khipu's own look and theme, and writes the finished
-  text where you were typing; Esc or **Cancel** leaves the trigger as you typed it. The edit screen
+  text where you were typing; Esc or **Cancel** leaves the trigger as you typed it. The window
+  opens with the cursor in the first blank, and Tab or Enter moves to the next, so a whole form
+  fills in from the keyboard, however fast you type. The edit screen
   and the launcher say how many fields an expansion asks for. Note: an existing expansion whose
   text already contains `[[…]]` becomes a form the next time you save it in the edit screen.
 - **Grid view.** **…** › **View** has a third choice, **Grid**: one card per expansion, with its

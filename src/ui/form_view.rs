@@ -233,6 +233,9 @@ struct FormApp {
     /// The window that was being typed into when espanso opened this one.
     previous: windows::Win32::Foundation::HWND,
     opened: std::time::Instant,
+    /// What arrived behind a Tab or an Enter, kept for the frame after: see
+    /// [`crate::ui::keys::hold_after_focus_move`].
+    held: Vec<egui::Event>,
 }
 
 /// How long after opening the window takes the foreground back from the window it was opened
@@ -257,10 +260,11 @@ impl eframe::App for FormApp {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         if self.studio {
             crate::app::studio_clicks(ctx, raw_input);
-            return;
-        }
-        if let Some(focused) = self.window.as_deref().and_then(crate::app::hwnd_of).and_then(crate::display::has_keyboard_focus) {
+        } else if let Some(focused) = self.window.as_deref().and_then(crate::app::hwnd_of).and_then(crate::display::has_keyboard_focus) {
             raw_input.focused = focused;
+        }
+        if crate::ui::keys::hold_after_focus_move(&mut raw_input.events, &mut self.held) {
+            ctx.request_repaint();
         }
     }
 
@@ -456,6 +460,7 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
                 tallest,
                 previous,
                 opened: std::time::Instant::now(),
+                held: Vec::new(),
             }))
         }),
     );
