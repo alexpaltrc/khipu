@@ -38,12 +38,14 @@
 //! deliberately does not warn about the pair the prefix box itself produces. Read its own comment
 //! before adding a case to it; espanso's matcher makes most of the pairs that look dangerous safe.
 //!
-//! ## Four parts, no cards and no numbers
+//! ## Three questions, in order
 //!
-//! The form reads **Cuando escribes**, **Aparece este texto**, then the name and the folder, both
-//! optional, in that order, each under a plain heading on the window itself. They were once
-//! numbered cards; the order already says which comes first, and a card around every part is a
-//! frame around nothing.
+//! A sentence on top says what the expansion will do, as it is being written: «Cuando escribas
+//! :hola, Khipu lo cambiará por…». Under it, three numbered questions: **¿Qué vas a escribir?**,
+//! **¿Qué quieres que aparezca?** and **¿Algo más?**. A step whose previous one is still empty is
+//! drawn faint, never locked: the order is a suggestion, and anybody may fill them in any order.
+//! The date and the blanks wait under «+ Añadir» until somebody asks for them; the name, the folder
+//! and the star wait folded inside the third step, which is optional and says so.
 //!
 //! ## Leaving is asked about only when there is something to lose
 //!
@@ -642,7 +644,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
     let View::Edit(edit) = &state.view else {
         return;
     };
-    let mut edit = edit.clone();
+    let edit = edit.clone();
     let t = state.t();
     let lang = state.settings.lang;
     let is_light = !ui.visuals().dark_mode;
@@ -663,6 +665,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             d.insert_temp(original_key(), edit.clone());
             d.remove::<bool>(confirm_discard_key());
             d.remove::<bool>(trying_key());
+            d.remove::<bool>(more_open_key());
         });
         // A new expansion starts at its word: the box that has the caret is the first step, and
         // nobody has to be told where to begin.
@@ -706,28 +709,6 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             ui.vertical_centered(|ui| {
                 ui.add(egui::Label::new(controls::h1(title)).wrap());
             });
-            // The star, at the right edge of the form's own column, level with the title.
-            let full = ui.max_rect();
-            let margin = ((full.width() - full.width().min(FORM_MAX_WIDTH)) * 0.5).max(0.0);
-            let star = egui::Rect::from_min_size(
-                egui::pos2(full.right() - margin - controls::FIELD_HEIGHT, full.top()),
-                egui::Vec2::splat(controls::FIELD_HEIGHT),
-            );
-            let tip = if edit.favorite {
-                studio::text(state, "Quitar de favoritos", "Remove from favorites", "Alisin sa mga paborito", "पसंदीदा से हटाएँ")
-            } else {
-                studio::text(state, "Añadir a favoritos", "Add to favorites", "Idagdag sa mga paborito", "पसंदीदा में जोड़ें")
-            };
-            let on = edit.favorite;
-            if ui
-                .scope_builder(egui::UiBuilder::new().max_rect(star), |ui| {
-                    controls::star_button(ui, on, tip)
-                })
-                .inner
-                .clicked()
-            {
-                edit.favorite = !on;
-            }
         });
 
     // The actions get a strip of their own at the foot of the window, in the same place whatever
@@ -895,41 +876,170 @@ fn discard_dialog(ctx: &egui::Context, state: &AppState) -> bool {
     discard
 }
 
-/// The name of one part of the form. Plain words: the parts come in the order they are filled in,
-/// and a number beside each would only say so again.
-fn section_heading(ui: &mut egui::Ui, title: &str) {
-    ui.add(egui::Label::new(controls::h3(title)).wrap());
+/// The disc a step's number sits in, and how far the step's contents stand in from the left so
+/// they start under its question rather than under its number.
+const STEP_DOT: f32 = 26.0;
+const STEP_INDENT: f32 = STEP_DOT + controls::GAP_WIDE;
+/// How faint a step is while the one before it is still empty. Faint enough to read as «later»,
+/// not so faint that it reads as switched off: it can still be filled in.
+const STEP_FAINT: f32 = 0.45;
+
+/// Open while «¿Algo más?» shows the name, the folder and the star.
+fn more_open_key() -> egui::Id {
+    egui::Id::new("editor-more-open")
 }
 
-/// "Escribirás: `:firma`" — the two boxes read back as the one thing espanso will watch for.
+/// A step's number in its disc and its question beside it. `trailing` is drawn after the question
+/// in the muted colour — «(opcional)» on the last step.
+fn step_heading(ui: &mut egui::Ui, number: usize, question: &str, trailing: Option<&str>, sense: egui::Sense) -> egui::Response {
+    let is_light = !ui.visuals().dark_mode;
+    let (fill, ink) = crate::app::accent_fill(ui.visuals());
+    let mut job = egui::text::LayoutJob::default();
+    controls::h3(question).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
+    if let Some(trailing) = trailing {
+        controls::muted(format!("  {trailing}"), is_light).append_to(
+            &mut job,
+            ui.style(),
+            egui::FontSelection::Default,
+            egui::Align::Center,
+        );
+    }
+    job.wrap.max_width = (ui.available_width() - STEP_INDENT).max(1.0);
+    let galley = ui.painter().layout_job(job);
+    // The disc is centred on the question's first line, and a question that wraps hangs below it.
+    let first = galley.rows.first().map_or(galley.size().y, |row| row.height());
+    let line = first.max(STEP_DOT);
+    let height = galley.size().y + (line - first);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), height), egui::Sense::hover());
+    // Its own id rather than the next automatic one, which the faint scope around it can share with
+    // the step before.
+    let response = ui.interact(rect, egui::Id::new(("editor-step-heading", number)), sense);
+    let center = egui::pos2(rect.left() + STEP_DOT * 0.5, rect.top() + line * 0.5);
+    ui.painter().circle_filled(center, STEP_DOT * 0.5, fill);
+    ui.painter().text(
+        center,
+        egui::Align2::CENTER_CENTER,
+        number.to_string(),
+        egui::TextStyle::Body.resolve(ui.style()),
+        ink,
+    );
+    ui.painter().galley(
+        egui::pos2(rect.left() + STEP_INDENT, center.y - first * 0.5),
+        galley,
+        ui.visuals().text_color(),
+    );
+    if response.hovered() && sense.senses_click() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    response
+}
+
+/// What a step holds, set in under its question, and as faint as the step is.
+fn step_body<R>(ui: &mut egui::Ui, opacity: f32, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let spacing = ui.spacing().item_spacing;
+    ui.horizontal_top(|ui| {
+        // The indent is the whole point of the horizontal, so nothing else may add to it.
+        ui.spacing_mut().item_spacing.x = 0.0;
+        ui.add_space(STEP_INDENT);
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing = spacing;
+            ui.set_width(ui.available_width());
+            ui.set_opacity(opacity);
+            body(ui)
+        })
+        .inner
+    })
+    .inner
+}
+
+/// How faint step `number` is this frame: eased between faint and full, so filling in the step
+/// before it brings this one up rather than switching it on.
+fn step_opacity(ui: &egui::Ui, number: usize, lit: bool) -> f32 {
+    let t = ui.ctx().animate_bool_with_time(egui::Id::new(("editor-step-lit", number)), lit, 0.2);
+    egui::lerp(STEP_FAINT..=1.0, t)
+}
+
+/// The first line of what will appear, short enough to quote inside a sentence.
+fn quoted_result(edit: &EditState) -> Option<String> {
+    const LONGEST: usize = 48;
+    let whole = match &edit.kind {
+        Kind::Text { replace } => replace.clone(),
+        Kind::Date { preset, custom_format, custom_tz, month_lang } => match preset {
+            Some(p) => p.sample(*month_lang),
+            None if custom_format.trim().is_empty() => String::new(),
+            None => datefmt::sample(custom_format, (!custom_tz.trim().is_empty()).then(|| custom_tz.trim()), *month_lang),
+        },
+    };
+    let mut lines = whole.lines().map(str::trim).filter(|l| !l.is_empty());
+    let first = lines.next()?;
+    let more = lines.next().is_some();
+    if first.chars().count() > LONGEST {
+        let cut: String = first.chars().take(LONGEST).collect();
+        Some(format!("{}…", cut.trim_end()))
+    } else if more {
+        // «Saludos,…» reads as a typo; «Saludos…» as a line that goes on.
+        Some(format!("{}…", first.trim_end_matches([',', ';', ':'])))
+    } else {
+        Some(first.to_string())
+    }
+}
+
+/// «Cuando escribas :hola, Khipu lo cambiará por "Hola, ¿qué tal?".» — the whole expansion in one
+/// sentence, kept up to date as it is written.
 ///
-/// Drawn in pieces rather than as one filled-in sentence, so the trigger itself carries the accent
-/// and the monospace: it is a literal string to type, and the words around it are prose. The
-/// template is split at its own placeholder, which leaves each of the four languages its own word
-/// order — and falls back to filling the template whole if a translation ever loses the placeholder.
-fn trigger_line(ui: &mut egui::Ui, t: &'static Strings, trigger: &str, is_light: bool) {
-    let shown = if trigger.is_empty() { "…" } else { trigger };
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
-        match t.trigger_preview.split_once("{trigger}") {
-            Some((before, after)) => {
-                let (before, after) = (before.trim_end(), after.trim_start());
-                if !before.is_empty() {
-                    ui.label(controls::muted(before, is_light));
-                }
-                ui.label(controls::code(shown, ui.visuals()).strong());
-                if !after.is_empty() {
-                    ui.label(controls::muted(after, is_light));
-                }
-            }
-            None => {
-                ui.label(controls::muted(
-                    fill(t.trigger_preview, &[("trigger", shown)]),
-                    is_light,
-                ));
-            }
+/// One wrapped label rather than a row of pieces, so a long result wraps like the prose it is part
+/// of. The trigger carries the accent and the monospace, as it does everywhere it is something to
+/// type; what appears is in the ordinary ink, and the words around both are muted.
+fn live_sentence(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light: bool) {
+    let template = studio::text(
+        state,
+        "Cuando escribas {trigger}, Khipu lo cambiará por {result}.",
+        "When you type {trigger}, Khipu will change it to {result}.",
+        "Kapag tinype mo ang {trigger}, papalitan ito ng Khipu ng {result}.",
+        "जब आप {trigger} लिखेंगे, Khipu उसे {result} से बदल देगा।",
+    );
+    let (open, close) = match state.settings.lang {
+        Lang::Es => ("«", "»"),
+        _ => ("“", "”"),
+    };
+    let trigger = edit.trigger();
+    let trigger = if trigger.is_empty() { "…".to_string() } else { trigger };
+    let result = match quoted_result(edit) {
+        Some(result) => egui::RichText::new(format!("{open}{result}{close}")).color(ui.visuals().text_color()),
+        None => controls::muted(
+            studio::text(
+                state,
+                "lo que escribas en el paso 2",
+                "what you write in step 2",
+                "ang isusulat mo sa hakbang 2",
+                "चरण 2 में आप जो लिखेंगे",
+            ),
+            is_light,
+        ),
+    };
+    let mut job = egui::text::LayoutJob::default();
+    let style = ui.style().clone();
+    let mut put = |text: egui::RichText| {
+        text.append_to(&mut job, &style, egui::FontSelection::Default, egui::Align::Center);
+    };
+    let mut rest = template;
+    while let Some(at) = rest.find('{') {
+        put(controls::muted(&rest[..at], is_light));
+        let tail = &rest[at..];
+        if let Some(after) = tail.strip_prefix("{trigger}") {
+            put(controls::code(trigger.clone(), ui.visuals()).strong());
+            rest = after;
+        } else if let Some(after) = tail.strip_prefix("{result}") {
+            put(result.clone());
+            rest = after;
+        } else {
+            put(controls::muted("{", is_light));
+            rest = &tail[1..];
         }
-    });
+    }
+    put(controls::muted(rest, is_light));
+    job.wrap.max_width = ui.available_width();
+    ui.add(egui::Label::new(job).wrap());
 }
 
 /// What you type: the two boxes that make the trigger, what they add up to, and anything wrong with it.
@@ -943,18 +1053,6 @@ fn when_you_type(
     let t = state.t();
     ui.vertical(|ui| {
         ui.set_width(ui.available_width());
-        section_heading(
-            ui,
-            studio::text(
-                state,
-                "Cuando escribes",
-                "When you type",
-                "Kapag tina-type mo",
-                "जब आप लिखते हैं",
-            ),
-        );
-        ui.add_space(controls::GAP_WIDE);
-
         // Prefix and word are separate boxes so it is obvious which part is which — and so that
         // "apply this prefix everywhere" has an unambiguous piece to replace.
         //
@@ -969,16 +1067,17 @@ fn when_you_type(
                     .desired_width(PREFIX_FIELD_WIDTH)
                     .hint_text(t.prefix_field_hint),
             );
-            ui.add(
+            let word = ui.add(
                 controls::text_field(&mut edit.word)
                     .id(word_field_id())
                     .desired_width(ui.available_width().max(90.0))
                     .hint_text(t.word_field_hint),
             );
+            // Enter is «next question»: on to the text, the way Tab would go.
+            if word.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                ui.memory_mut(|m| m.request_focus(replace_id()));
+            }
         });
-
-        ui.add_space(controls::GAP_ROW);
-        trigger_line(ui, t, &edit.trigger(), is_light);
 
         if let Some(problem) = problem.filter(|p| !matches!(p, Problem::EmptyList(_))) {
             ui.add_space(controls::GAP_ROW);
@@ -1012,68 +1111,62 @@ fn when_you_type(
     });
 }
 
+/// Text to date or back again.
+///
+/// The half being left behind goes into `stashed_kind`, and whatever was waiting there comes back.
+/// It used to throw the old half away and start the new one from its defaults, which meant a
+/// mis-click emptied the replacement box of an expansion being edited, and going straight back gave
+/// an empty box — the text was gone, and pressing Guardar wrote that emptiness over the stored
+/// version. Going to a date for the first time still starts from the defaults.
+fn switch_kind(edit: &mut EditState, to_date: bool) {
+    if matches!(edit.kind, Kind::Date { .. }) == to_date {
+        return;
+    }
+    let fresh = if to_date {
+        Kind::Date {
+            preset: Some(DatePreset::IsoDateOnly),
+            custom_format: DatePreset::IsoDateOnly.format().to_string(),
+            custom_tz: String::new(),
+            month_lang: Lang::En,
+        }
+    } else {
+        Kind::Text {
+            replace: String::new(),
+        }
+    };
+    let restored = match edit.stashed_kind.take() {
+        Some(kind) if matches!(&kind, Kind::Date { .. }) == to_date => kind,
+        _ => fresh,
+    };
+    edit.stashed_kind = Some(std::mem::replace(&mut edit.kind, restored));
+}
+
 /// What appears: text or date, whichever this is, and what it will actually produce.
 fn appears_here(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
     let t = state.t();
     ui.vertical(|ui| {
         ui.set_width(ui.available_width());
-        section_heading(
-            ui,
-            studio::text(
-                state,
-                "Aparece este texto",
-                "This text appears",
-                "Lalabas ang tekstong ito",
-                "यह टेक्स्ट दिखता है",
-            ),
-        );
-        ui.add_space(controls::GAP_WIDE);
-
-        let was_date = matches!(edit.kind, Kind::Date { .. });
-        let mut is_date_mode = was_date;
-        // Two positions of one switch, so drawn as one.
-        let kinds = [t.kind_text, t.kind_date];
-        if let Some(picked) = controls::segmented(ui, "kind", &kinds, Some(is_date_mode as usize)) {
-            is_date_mode = picked == 1;
+        // The switch back to plain text, shown only once a date has been asked for: until then a
+        // text is all there is, and the date waits under «+ Añadir» like the blanks.
+        if matches!(edit.kind, Kind::Date { .. }) {
+            let kinds = [t.kind_text, t.kind_date];
+            if controls::segmented(ui, "kind", &kinds, Some(1)) == Some(0) {
+                switch_kind(edit, false);
+            }
+            ui.add_space(controls::GAP_WIDE);
         }
 
-        // Crossing the switch puts the half being left behind into `stashed_kind` and brings back
-        // whatever was waiting there. It used to throw the old half away and start the new one from
-        // its defaults, which meant a mis-click on a two-position control emptied the replacement
-        // box of an expansion being edited, and clicking straight back gave an empty box — the text
-        // was gone, and pressing Guardar wrote that emptiness over the stored version.
-        //
-        // Coming to the switch for the first time still starts from the defaults, so nothing looks
-        // any different until you cross back.
-        if is_date_mode != was_date {
-            let fresh = if is_date_mode {
-                Kind::Date {
-                    preset: Some(DatePreset::IsoDateOnly),
-                    custom_format: DatePreset::IsoDateOnly.format().to_string(),
-                    custom_tz: String::new(),
-                    month_lang: Lang::En,
-                }
-            } else {
-                Kind::Text {
-                    replace: String::new(),
-                }
-            };
-            let restored = match edit.stashed_kind.take() {
-                Some(kind) if matches!(&kind, Kind::Date { .. }) == is_date_mode => kind,
-                _ => fresh,
-            };
-            edit.stashed_kind = Some(std::mem::replace(&mut edit.kind, restored));
-        }
-
-        ui.add_space(controls::GAP_WIDE);
         match &mut edit.kind {
             Kind::Text { replace } => {
                 // Out of the draft while it is drawn, so the field list below can reach the rest
                 // of the draft at the same time.
                 let mut text = std::mem::take(replace);
-                text_with_blanks(ui, state, edit, &mut text, is_light);
+                let to_date = text_with_blanks(ui, state, edit, &mut text, is_light);
                 if let Kind::Text { replace } = &mut edit.kind {
                     *replace = text;
+                }
+                if to_date {
+                    switch_kind(edit, true);
                 }
             }
             Kind::Date {
@@ -1148,14 +1241,15 @@ fn insert_blank(ctx: &egui::Context, state: &AppState, text: &mut String) {
     ctx.memory_mut(|m| m.request_focus(replace_id()));
 }
 
-/// The text box, the buttons that add a blank and try the form out, and one row per blank.
+/// The text box, «+ Añadir» with a blank or the date under it, «Probar» once there is a blank,
+/// and one row per blank. Returns true on the frame the date is asked for.
 fn text_with_blanks(
     ui: &mut egui::Ui,
     state: &AppState,
     edit: &mut EditState,
     text: &mut String,
     is_light: bool,
-) {
+) -> bool {
     // A floor, not a box: `add_sized` gives the field at least this much and the field grows past
     // it as the text does, with the page scrolling rather than the words being cut off.
     let height = ui.text_style_height(&egui::TextStyle::Body) * TEXT_AREA_ROWS + 16.0;
@@ -1171,27 +1265,66 @@ fn text_with_blanks(
     ui.add_space(controls::GAP);
     let spec = edit.form(text);
     let mut open_try = false;
+    let mut add_blank = false;
+    let mut to_date = false;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = controls::GAP;
-        let label = studio::text(state, "Insertar campo", "Insert field", "Magdagdag ng field", "फ़ील्ड जोड़ें");
-        let tip = studio::text(
+        let add = studio::text(state, "Añadir", "Add", "Magdagdag", "जोड़ें");
+        let menu = controls::subtle_button(ui, Some(Glyph::Add), add, Some(Glyph::ChevronDown));
+        let by_keyboard = menu.clicked() && menu.has_focus();
+        let blank = studio::text(
+            state,
+            "Un campo para rellenar",
+            "A field to fill in",
+            "Isang field na pupunan",
+            "भरने के लिए एक फ़ील्ड",
+        );
+        let blank_tip = studio::text(
             state,
             "Un hueco que rellenas al usar la expansión",
             "A blank you fill in each time you use it",
             "Isang patlang na pupunan mo tuwing gagamitin ito",
             "एक खाली जगह जिसे हर बार उपयोग पर भरते हैं",
         );
-        if controls::button(ui, label, Tone::Normal, true).on_hover_text(tip).clicked() {
-            insert_blank(ui.ctx(), state, text);
-        }
+        let date = studio::text(
+            state,
+            "La fecha o la hora de ese momento",
+            "The date or time at that moment",
+            "Ang petsa o oras sa sandaling iyon",
+            "उस समय की दिनांक या समय",
+        );
+        // As wide as the list's own flyouts.
+        egui::Popup::menu(&menu)
+            .align(egui::RectAlign::BOTTOM_START)
+            .gap(controls::GAP_TIGHT)
+            .width(240.0)
+            .show(|ui| {
+                ui.spacing_mut().item_spacing.y = 0.0;
+                let first = ui.next_auto_id();
+                if controls::menu_item(ui, Some(Glyph::Rename), blank, None, Tone::Normal, true)
+                    .on_hover_text(blank_tip)
+                    .clicked()
+                {
+                    add_blank = true;
+                }
+                if by_keyboard {
+                    ui.memory_mut(|m| m.request_focus(first));
+                }
+                if controls::menu_item(ui, Some(Glyph::Calendar), date, None, Tone::Normal, true).clicked() {
+                    to_date = true;
+                }
+            });
         if spec.is_some() {
             let label = studio::text(state, "Probar", "Try it", "Subukan", "आज़माएँ");
             open_try = controls::button(ui, label, Tone::Normal, true).clicked();
         }
     });
+    if add_blank {
+        insert_blank(ui.ctx(), state, text);
+    }
 
     let Some(spec) = spec else {
-        return;
+        return to_date;
     };
     if open_try {
         let answers = crate::ui::form_view::initial_answers(&spec);
@@ -1215,6 +1348,7 @@ fn text_with_blanks(
     }
 
     try_dialog(ui.ctx(), state, edit, &spec);
+    to_date
 }
 
 /// One blank: its name, what kind it is, and what it starts with.
@@ -1640,20 +1774,13 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light:
     ui.label(controls::small_muted(footnote, is_light));
 }
 
-/// Where this expansion is filed. Last, and quieter than the other two: it changes nothing about
-/// what espanso does.
 /// What it is called, if the trigger alone does not say. Laid out like the folder below it: both
 /// are optional, both are for finding it again, and neither changes what gets written.
 fn name_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
     ui.vertical(|ui| {
         ui.set_width(ui.available_width());
-        ui.label(controls::h3(studio::text(
-            state,
-            "Nombre (opcional)",
-            "Name (optional)",
-            "Pangalan (opsyonal)",
-            "नाम (वैकल्पिक)",
-        )));
+        // «(opcional)» is said once, on the step these are under.
+        ui.label(controls::h3(studio::text(state, "Nombre", "Name", "Pangalan", "नाम")));
         ui.add_space(controls::GAP_TIGHT);
         ui.label(controls::muted(
             studio::text(
@@ -1685,12 +1812,12 @@ fn new_folder_field_id() -> egui::Id {
     egui::Id::new("edit-new-folder-name")
 }
 
+/// Where this expansion is filed. It changes nothing about what espanso does.
 fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
     let t = state.t();
     ui.vertical(|ui| {
         ui.set_width(ui.available_width());
-        // The string carries the colon it needs as a field label; as a heading it does not.
-        ui.label(controls::h3(t.folder_optional.trim_end_matches(':')));
+        ui.label(controls::h3(studio::text(state, "Carpeta", "Folder", "Folder", "फ़ोल्डर")));
         ui.add_space(controls::GAP_TIGHT);
         ui.label(controls::muted(
             studio::text(
@@ -1807,8 +1934,34 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
     });
 }
 
-/// The form itself: what you type, what appears, its name and its folder. The title sits above it, outside
-/// the scroll.
+/// The star, as a switch with words beside it: on the edit screen there is room to say what it does.
+fn favorite_row(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = controls::GAP_WIDE;
+        controls::toggle(ui, &mut edit.favorite);
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = controls::GAP_TIGHT;
+            ui.label(controls::h3(studio::text(state, "Favorita", "Favorite", "Paborito", "पसंदीदा")));
+            ui.add(
+                egui::Label::new(controls::muted(
+                    studio::text(
+                        state,
+                        "Lleva una estrella y sale primero en la lista y en el buscador.",
+                        "It gets a star and comes first in the list and in search.",
+                        "May bituin ito at nauuna sa listahan at sa paghahanap.",
+                        "इसे एक तारा मिलता है और यह सूची व खोज में सबसे पहले आता है।",
+                    ),
+                    is_light,
+                ))
+                .wrap(),
+            );
+        });
+    });
+}
+
+/// The form itself: the sentence that sums it up, then three numbered questions — what you type,
+/// what appears, and «¿Algo más?» with the name, the folder and the star folded under it. The title
+/// sits above it, outside the scroll.
 ///
 /// It takes `edit` by value and puts it back at the end, which is what lets the parts hold
 /// `&mut EditState` without the borrow checker having to reason about `state.view` at the same
@@ -1820,13 +1973,74 @@ fn show_form(
     problem: Option<&Problem>,
     is_light: bool,
 ) {
-    when_you_type(ui, state, &mut edit, problem, is_light);
+    live_sentence(ui, state, &edit, is_light);
     ui.add_space(PART_GAP);
-    appears_here(ui, state, &mut edit, is_light);
+
+    let first = studio::text(state, "¿Qué vas a escribir?", "What will you type?", "Ano ang ita-type mo?", "आप क्या लिखेंगे?");
+    step_heading(ui, 1, first, None, egui::Sense::hover());
+    ui.add_space(controls::GAP_ROW);
+    step_body(ui, 1.0, |ui| when_you_type(ui, state, &mut edit, problem, is_light));
     ui.add_space(PART_GAP);
-    name_card(ui, state, &mut edit, is_light);
+
+    // Each later step is faint until the one before it has something in it — never locked: the
+    // order is a suggestion, and someone who starts with the text is not stopped from doing so.
+    let second = studio::text(
+        state,
+        "¿Qué quieres que aparezca?",
+        "What do you want to appear?",
+        "Ano ang gusto mong lumabas?",
+        "आप क्या दिखाना चाहते हैं?",
+    );
+    let lit = step_opacity(ui, 2, !edit.word.trim().is_empty());
+    ui.scope(|ui| {
+        ui.set_opacity(lit);
+        step_heading(ui, 2, second, None, egui::Sense::hover());
+    });
+    ui.add_space(controls::GAP_ROW);
+    step_body(ui, lit, |ui| appears_here(ui, state, &mut edit, is_light));
     ui.add_space(PART_GAP);
-    folder_card(ui, state, &mut edit, is_light);
+
+    let third = studio::text(state, "¿Algo más?", "Anything else?", "May iba pa?", "और कुछ?");
+    let optional = studio::text(state, "(opcional)", "(optional)", "(opsyonal)", "(वैकल्पिक)");
+    let something = match &edit.kind {
+        Kind::Text { replace } => !replace.trim().is_empty(),
+        Kind::Date { .. } => true,
+    };
+    // Open by default only on an expansion that already has one of the three, so what it has is
+    // in sight; a new one starts with them folded away.
+    let had_any = edit.editing_index.is_some() && (!edit.name.trim().is_empty() || edit.folder.is_some() || edit.favorite);
+    let open = ui.data(|d| d.get_temp::<bool>(more_open_key())).unwrap_or(had_any);
+    let lit = step_opacity(ui, 3, something);
+    let heading = ui
+        .scope(|ui| {
+            ui.set_opacity(lit);
+            step_heading(ui, 3, third, Some(optional), egui::Sense::click())
+        })
+        .inner;
+    if heading.clicked() {
+        ui.data_mut(|d| d.insert_temp(more_open_key(), !open));
+    }
+    ui.add_space(controls::GAP_ROW);
+    step_body(ui, lit, |ui| {
+        if !open {
+            let hint = studio::text(
+                state,
+                "Un nombre, una carpeta o marcarla como favorita.",
+                "A name, a folder, or marking it as a favorite.",
+                "Pangalan, folder, o gawin itong paborito.",
+                "एक नाम, एक फ़ोल्डर, या इसे पसंदीदा बनाना।",
+            );
+            if ui.add(egui::Label::new(controls::muted(hint, is_light)).sense(egui::Sense::click())).clicked() {
+                ui.data_mut(|d| d.insert_temp(more_open_key(), true));
+            }
+            return;
+        }
+        name_card(ui, state, &mut edit, is_light);
+        ui.add_space(PART_GAP);
+        folder_card(ui, state, &mut edit, is_light);
+        ui.add_space(PART_GAP);
+        favorite_row(ui, state, &mut edit, is_light);
+    });
     ui.add_space(controls::GAP);
 
     // The draft is its own state, and a change to it has to show up on the next frame rather than

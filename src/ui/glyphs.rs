@@ -66,6 +66,7 @@ pub enum Glyph {
     ViewCompact,
     ViewGrid,
     News,
+    Calendar,
 }
 
 impl Glyph {
@@ -102,6 +103,7 @@ impl Glyph {
             Glyph::ViewCompact => '\u{E15C}',
             Glyph::ViewGrid => '\u{E8A9}',
             Glyph::News => '\u{E789}',
+            Glyph::Calendar => '\u{E787}',
         }
     }
 }
