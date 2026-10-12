@@ -44,6 +44,12 @@ pub enum ThemeMode {
     System,
     Light,
     Dark,
+    /// «Ultra oscuro»: the dark theme on pure black, for OLED screens, where a black pixel is a pixel
+    /// switched off. Dark as far as egui and the title bar are concerned, with the dark palette's
+    /// surfaces taken down to black in `app.rs`.
+    ///
+    /// Never written to disk under this name: see [`crate::settings::Settings::ultra_dark`].
+    UltraDark,
     /// «I got chiiills»: the hidden theme, Khipu's own violet. Found in Consejos (↑ ↑ ↓ ↓ ← → ← →)
     /// and only offered once found. A light theme as far as egui and the title bar are concerned —
     /// its window is a pale violet — with its own palette laid over the light one in `app.rs`.
@@ -53,15 +59,15 @@ pub enum ThemeMode {
 }
 
 impl ThemeMode {
-    /// The three anyone is offered. The hidden one is added by Ajustes once it has been found.
-    pub const ALL: [ThemeMode; 3] = [ThemeMode::System, ThemeMode::Light, ThemeMode::Dark];
+    /// The four anyone is offered. The hidden one is added by Ajustes once it has been found.
+    pub const ALL: [ThemeMode; 4] = [ThemeMode::System, ThemeMode::Light, ThemeMode::Dark, ThemeMode::UltraDark];
 
     /// Resolves to the appearance that should actually be drawn right now.
     pub fn is_light(self) -> bool {
         match self {
             ThemeMode::System => is_light_theme(),
             ThemeMode::Light | ThemeMode::Khipu => true,
-            ThemeMode::Dark => false,
+            ThemeMode::Dark | ThemeMode::UltraDark => false,
         }
     }
 

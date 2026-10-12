@@ -145,6 +145,19 @@ pub const SPOTLIGHT: std::time::Duration = std::time::Duration::from_secs(4);
 /// One beat of the halo while it is pointed out, in seconds.
 const SPOTLIGHT_BEAT: f32 = 1.2;
 
+/// A theme's name in the row: in full, or without the word «theme» where the full names do not fit.
+fn theme_name(t: &crate::i18n::Strings, mode: ThemeMode, short: bool) -> &'static str {
+    match (mode, short) {
+        (ThemeMode::System, _) => t.theme_system,
+        (ThemeMode::Light, false) => t.theme_light,
+        (ThemeMode::Light, true) => t.theme_light_short,
+        (ThemeMode::Dark, false) => t.theme_dark,
+        (ThemeMode::Dark, true) => t.theme_dark_short,
+        (ThemeMode::UltraDark, _) => t.theme_ultra_dark,
+        (ThemeMode::Khipu, _) => t.theme_khipu,
+    }
+}
+
 /// Sistema, claro, oscuro — and, once found in Consejos, «I got chiiills», outlined in violet.
 ///
 /// The fourth option makes the row longer than the dialog in Filipino («Maliwanag na tema»). Cut
@@ -158,15 +171,11 @@ fn theme_row(ui: &mut egui::Ui, state: &mut AppState) {
         modes.push(ThemeMode::Khipu);
     }
     let n = modes.len();
-    let full = [t.theme_system, t.theme_light, t.theme_dark, t.theme_khipu];
-    let short = [t.theme_system, t.theme_light_short, t.theme_dark_short, t.theme_khipu];
+    let full: Vec<&str> = modes.iter().map(|m| theme_name(t, *m, false)).collect();
+    let short: Vec<&str> = modes.iter().map(|m| theme_name(t, *m, true)).collect();
     // The same room `segmented` measures itself against.
     let room = ui.available_width() - 8.0;
-    let labels = if found && controls::segmented_natural_width(ui, &full[..n]) > room {
-        &short[..n]
-    } else {
-        &full[..n]
-    };
+    let labels = if controls::segmented_natural_width(ui, &full) > room { &short } else { &full };
     let selected = modes.iter().position(|m| *m == state.settings.theme_mode);
 
     let mark = found.then(|| {
@@ -646,13 +655,16 @@ mod tests {
                 }
                 for lang in Lang::ALL {
                     let t = lang.strings();
-                    let three = [t.theme_system, t.theme_light, t.theme_dark];
-                    let full = [t.theme_system, t.theme_light, t.theme_dark, t.theme_khipu];
-                    let short = [t.theme_system, t.theme_light_short, t.theme_dark_short, t.theme_khipu];
-                    let width = |labels: &[&str]| controls::segmented_natural_width(ui, labels);
-                    assert!(width(&three) <= ROOM, "{lang:?}: {}", width(&three));
-                    let four = width(&full).min(width(&short));
-                    assert!(four <= ROOM, "{lang:?}: {four} > {ROOM}");
+                    let width = |modes: &[ThemeMode]| {
+                        let full: Vec<&str> = modes.iter().map(|m| theme_name(t, *m, false)).collect();
+                        let short: Vec<&str> = modes.iter().map(|m| theme_name(t, *m, true)).collect();
+                        controls::segmented_natural_width(ui, &full).min(controls::segmented_natural_width(ui, &short))
+                    };
+                    let offered = ThemeMode::ALL.to_vec();
+                    let mut found = offered.clone();
+                    found.push(ThemeMode::Khipu);
+                    assert!(width(&offered) <= ROOM, "{lang:?}: {}", width(&offered));
+                    assert!(width(&found) <= ROOM, "{lang:?}: {} > {ROOM}", width(&found));
                 }
             });
             out.textures_delta.clear();

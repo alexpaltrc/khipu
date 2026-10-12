@@ -818,6 +818,7 @@ impl AppState {
         }
         self.settings.theme_mode = mode;
         self.settings.khipu_theme = mode == ThemeMode::Khipu;
+        self.settings.ultra_dark = mode == ThemeMode::UltraDark;
         self.save_theme_settings();
         self.pending_theme_refresh = true;
     }
@@ -1838,6 +1839,42 @@ fn khipu_palette() -> bool {
     KHIPU.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+/// Whether «Ultra oscuro» is the one being worn: the dark palette with its surfaces on black. A
+/// flag for the same reason as [`KHIPU`].
+static ULTRA_DARK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn ultra_dark_palette() -> bool {
+    ULTRA_DARK.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Puts on the palette `mode` asks for, over light or dark. Takes effect at the next
+/// [`apply_theme`].
+pub fn set_palette_for(mode: ThemeMode) {
+    set_khipu_palette(mode == ThemeMode::Khipu);
+    ULTRA_DARK.store(mode == ThemeMode::UltraDark, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// A dark surface as «Ultra oscuro» draws it. The window is black, the one colour an OLED screen
+/// does not light at all; every layer keeps the step it had over the window in the dark theme,
+/// only smaller, so a card, a field and a chosen row are still told apart. Text, the accent and
+/// the status colours are not surfaces and pass through as they are: on black they only read
+/// better.
+fn ultra_dark_of(dark: u32) -> u32 {
+    match dark {
+        0x202020 => 0x000000, // window
+        0x1C1C1C => 0x000000, // sunken: set into a layer, as the window is
+        0x2B2B2B => 0x121212, // layer
+        0x2D2D2D => 0x1C1C1C, // control, chosen row, InfoBar
+        0x323232 => 0x242424, // control under the pointer, chosen row under it
+        0x272727 => 0x171717, // control pressed
+        0x292929 => 0x141414, // row under the pointer
+        0x333333 => 0x262626, // divider
+        0x454545 => 0x3A3A3A, // border of a control
+        0x442726 => 0x3A1C1B, // InfoBar that failed
+        other => other,
+    }
+}
+
 /// One token: its dark value, its light value, its value in the hidden theme, and what it becomes
 /// under a contrast theme.
 ///
@@ -1858,6 +1895,7 @@ fn token(
     let v = match (is_light, khipu_palette()) {
         (true, true) => khipu,
         (true, false) => light,
+        (false, _) if ultra_dark_palette() => ultra_dark_of(dark),
         (false, _) => dark,
     };
     hex(v)
@@ -2213,10 +2251,12 @@ pub fn apply_theme(
         // The hidden theme dresses the title bar too, in the window's own violet and ink; every
         // other theme hands it back to Windows, Mica and all. Decided on every apply, so leaving
         // the theme — or a contrast theme taking over — undoes it on the same frame.
+        // «Ultra oscuro» does the same in black, or the one grey strip left would be the title bar.
         let violet = khipu_palette() && is_light && contrast().is_none();
+        let black = ultra_dark_palette() && !is_light && contrast().is_none();
         set_title_bar_colours(
             window,
-            violet.then(|| (win_background(true), win_text(true))),
+            (violet || black).then(|| (win_background(is_light), win_text(is_light))),
         );
     }
 }
@@ -2566,7 +2606,7 @@ impl KhipuApp {
         }
         crate::theme::refresh_animations();
         apply_motion(&cc.egui_ctx);
-        set_khipu_palette(ctx.settings.theme_mode == ThemeMode::Khipu);
+        set_palette_for(ctx.settings.theme_mode);
         apply_theme(&cc.egui_ctx, window.as_deref(), is_light);
         // The title bar is the one strip of this window that Windows draws, and on Windows 11 it can
         // wear Mica — the wallpaper, blurred and tinted to the theme — as Explorer's and Settings'
@@ -3327,7 +3367,7 @@ impl eframe::App for KhipuApp {
             self.apply_language_change(ctx);
         }
         if std::mem::take(&mut self.state.pending_theme_refresh) {
-            set_khipu_palette(self.state.settings.theme_mode == ThemeMode::Khipu);
+            set_palette_for(self.state.settings.theme_mode);
             refresh_contrast();
             self.is_light = contrast_is_light().unwrap_or(self.state.settings.theme_mode.is_light());
             self.last_accent = read_system_accent(self.is_light);

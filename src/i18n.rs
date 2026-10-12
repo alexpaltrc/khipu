@@ -302,6 +302,9 @@ pub struct Strings {
     pub theme_system: &'static str,
     pub theme_light: &'static str,
     pub theme_dark: &'static str,
+    /// The dark theme on pure black, for OLED screens. Named for anyone, not for who knows what
+    /// OLED is; short enough to need no short form.
+    pub theme_ultra_dark: &'static str,
     /// The hidden theme. The same words in every language: it is a name, not a description.
     pub theme_khipu: &'static str,
     /// Light and dark without the word «theme», for when the hidden theme makes the row too long
@@ -534,6 +537,7 @@ pub static EN: Strings = Strings {
     theme_system: "System",
     theme_light: "Light theme",
     theme_dark: "Dark theme",
+    theme_ultra_dark: "Ultra dark",
     theme_khipu: "I got chiiills",
     theme_light_short: "Light",
     theme_dark_short: "Dark",
@@ -746,6 +750,7 @@ pub static ES: Strings = Strings {
     theme_system: "Sistema",
     theme_light: "Tema claro",
     theme_dark: "Tema oscuro",
+    theme_ultra_dark: "Ultra oscuro",
     theme_khipu: "I got chiiills",
     theme_light_short: "Claro",
     theme_dark_short: "Oscuro",
@@ -958,6 +963,7 @@ pub static FIL: Strings = Strings {
     theme_system: "Sistema",
     theme_light: "Maliwanag na tema",
     theme_dark: "Madilim na tema",
+    theme_ultra_dark: "Itim",
     theme_khipu: "I got chiiills",
     theme_light_short: "Maliwanag",
     theme_dark_short: "Madilim",
@@ -1170,6 +1176,7 @@ pub static HI: Strings = Strings {
     theme_system: "सिस्टम",
     theme_light: "हल्की थीम",
     theme_dark: "गहरी थीम",
+    theme_ultra_dark: "अति गहरी",
     theme_khipu: "I got chiiills",
     theme_light_short: "हल्की",
     theme_dark_short: "गहरी",

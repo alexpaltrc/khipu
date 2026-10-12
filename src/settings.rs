@@ -99,6 +99,10 @@ pub struct Settings {
     pub khipu_theme: bool,
     /// Whether the hidden theme has been found, which is what puts it in Ajustes.
     pub khipu_theme_found: bool,
+    /// Whether «Ultra oscuro» is the theme being worn. Written beside a `theme_mode` of `Dark`, for
+    /// the reason [`khipu_theme`](Self::khipu_theme) is: a version from before it reads the plain
+    /// dark theme, the nearest it has, instead of a damaged file.
+    pub ultra_dark: bool,
     /// Whether the first-run screen has been seen. Defaults to `false`, which is also what an
     /// older settings file without the field deserialises to — so an existing install shows the
     /// screen once and then never again, and a fresh one shows it on its very first start.
@@ -134,6 +138,7 @@ impl Default for Settings {
             theme_mode: ThemeMode::default(),
             khipu_theme: false,
             khipu_theme_found: false,
+            ultra_dark: false,
             onboarding_done: false,
             launcher_shortcut: None,
             favorites: BTreeSet::new(),
@@ -147,6 +152,7 @@ impl Default for Settings {
 fn theme_on_disk<S: serde::Serializer>(mode: &ThemeMode, out: S) -> Result<S::Ok, S::Error> {
     match mode {
         ThemeMode::Khipu => ThemeMode::Light.serialize(out),
+        ThemeMode::UltraDark => ThemeMode::Dark.serialize(out),
         other => other.serialize(out),
     }
 }
@@ -339,6 +345,8 @@ impl SettingsStore {
         if settings.khipu_theme {
             settings.theme_mode = ThemeMode::Khipu;
             settings.khipu_theme_found = true;
+        } else if settings.ultra_dark && settings.theme_mode == ThemeMode::Dark {
+            settings.theme_mode = ThemeMode::UltraDark;
         }
         (settings, issue)
     }
@@ -521,6 +529,28 @@ mod tests {
         }
         let older: Older = serde_json::from_str(&text).unwrap();
         assert_eq!(older.theme_mode, ThemeMode::Light);
+    }
+
+    /// «Ultra oscuro» comes back as itself, and an older version reads the plain dark theme.
+    #[test]
+    fn ultra_dark_round_trips_and_an_older_version_reads_dark() {
+        let dir = scratch("ultra-dark");
+        let store = SettingsStore::new(&dir);
+        let s = Settings { theme_mode: ThemeMode::UltraDark, ultra_dark: true, ..Settings::default() };
+        store.save(&s).unwrap();
+        let text = std::fs::read_to_string(dir.join("settings.json")).unwrap();
+        assert!(!text.contains("UltraDark"), "{text}");
+        let (back, issue) = store.load();
+        assert!(issue.is_none());
+        assert_eq!(back.theme_mode, ThemeMode::UltraDark);
+
+        #[derive(Deserialize)]
+        #[allow(dead_code)]
+        struct Older {
+            theme_mode: ThemeMode,
+        }
+        let older: Older = serde_json::from_str(&text).unwrap();
+        assert_eq!(older.theme_mode, ThemeMode::Dark);
     }
 
     /// Worn means found, even when the file forgot to say so: the option must be there to leave by.

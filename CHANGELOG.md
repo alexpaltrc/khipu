@@ -7,6 +7,10 @@ was published.
 
 ### Added
 
+- **Ultra dark theme.** Settings › Appearance has a fourth theme, **Ultra dark**: the dark theme
+  on pure black, for OLED screens. Cards, boxes and buttons keep a step of gray each, so they
+  still stand apart, and the title bar goes black too. An older version reading these settings
+  opens in the plain dark theme.
 - **«What's new» after an update.** The first time Khipu opens after an update, a short card
   rises with the few new things worth trying and where to start each one. It stays until you
   close it with ✕ or «Great!», and does not come back on its own until the next update with news;

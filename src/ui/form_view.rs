@@ -485,7 +485,7 @@ fn dress(
     lang: Lang,
     theme_mode: crate::theme::ThemeMode,
 ) -> bool {
-    use crate::app::{apply_layout_style, apply_motion, apply_theme, contrast_is_light, refresh_contrast, set_khipu_palette};
+    use crate::app::{apply_layout_style, apply_motion, apply_theme, contrast_is_light, refresh_contrast, set_palette_for};
     refresh_contrast();
     let is_light = contrast_is_light().unwrap_or(theme_mode.is_light());
     if let Some(window) = window {
@@ -502,7 +502,7 @@ fn dress(
     }
     crate::theme::refresh_animations();
     apply_motion(&cc.egui_ctx);
-    set_khipu_palette(theme_mode == crate::theme::ThemeMode::Khipu);
+    set_palette_for(theme_mode);
     apply_theme(&cc.egui_ctx, window, is_light);
     if let Some(window) = window {
         use winit::platform::windows::{BackdropType, WindowExtWindows as _};
