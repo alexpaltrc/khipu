@@ -3396,8 +3396,9 @@ impl eframe::App for KhipuApp {
         if self.state.pending_confirm.is_some() && esc(ctx) {
             self.state.cancel_pending_confirm();
         }
-        // Ajustes last: the picker it opens sits in front of it and has already had its Esc.
-        if self.state.settings_open && esc(ctx) {
+        // Ajustes last: the picker it opens sits in front of it and has already had its Esc. An
+        // open drop-down (the language) takes its own Esc and closes, and Ajustes stays.
+        if self.state.settings_open && !egui::Popup::is_any_open(ctx) && esc(ctx) {
             self.state.close_settings();
         }
 

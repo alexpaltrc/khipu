@@ -337,7 +337,6 @@ pub struct Strings {
     pub transfer_pick_import_go: &'static str,
     pub prefix_section: &'static str,
     pub prefix_hint: &'static str,
-    pub custom_label: &'static str,
     pub apply_prefix: &'static str,
     pub apply_prefix_hint: &'static str,
 
@@ -565,7 +564,6 @@ pub static EN: Strings = Strings {
     transfer_pick_import_go: "Import",
     prefix_section: "Prefix for new expansions",
     prefix_hint: "The prefix is what you type before each trigger, for example \":\" in \":hello\". Pick the one you prefer.",
-    custom_label: "Custom:",
     apply_prefix: "Apply the current prefix to my existing expansions",
     apply_prefix_hint: "Changes the leading prefix of every expansion you already have to the one selected above (for example, from \"::hello\" to \":hello\").",
 
@@ -778,7 +776,6 @@ pub static ES: Strings = Strings {
     transfer_pick_import_go: "Importar",
     prefix_section: "Prefijo para nuevas expansiones",
     prefix_hint: "El prefijo es el texto que escribes antes de cada activador, por ejemplo \":\" en \":hola\". Elige el que prefieras.",
-    custom_label: "Personalizado:",
     apply_prefix: "Aplicar el prefijo actual a mis expansiones existentes",
     apply_prefix_hint: "Cambia el prefijo inicial de cada expansión que ya tienes por el que elegiste arriba (por ejemplo, de \"::hola\" a \":hola\").",
 
@@ -991,7 +988,6 @@ pub static FIL: Strings = Strings {
     transfer_pick_import_go: "I-import",
     prefix_section: "Prefix para sa mga bagong expansion",
     prefix_hint: "Ang prefix ang tine-type mo bago ang bawat trigger, halimbawa \":\" sa \":kumusta\". Piliin ang gusto mo.",
-    custom_label: "Pasadya:",
     apply_prefix: "Ilapat ang kasalukuyang prefix sa mga umiiral kong expansion",
     apply_prefix_hint: "Binabago nito ang paunang prefix ng bawat expansion na mayroon ka na tungo sa napili mo sa itaas (halimbawa, mula \"::kumusta\" tungong \":kumusta\").",
 
@@ -1204,7 +1200,6 @@ pub static HI: Strings = Strings {
     transfer_pick_import_go: "आयात करें",
     prefix_section: "नए विस्तारों के लिए उपसर्ग",
     prefix_hint: "उपसर्ग वह है जो आप हर ट्रिगर से पहले टाइप करते हैं, जैसे \":नमस्ते\" में \":\"। अपनी पसंद का चुनें।",
-    custom_label: "कस्टम:",
     apply_prefix: "वर्तमान उपसर्ग को मेरे मौजूदा विस्तारों पर लागू करें",
     apply_prefix_hint: "यह आपके पास पहले से मौजूद हर विस्तार के शुरुआती उपसर्ग को ऊपर चुने गए उपसर्ग में बदल देता है (उदाहरण के लिए, \"::नमस्ते\" से \":नमस्ते\")।",
 

@@ -37,7 +37,7 @@ was published.
   marks it as a favorite. Favorites wear a star at the end of their row. The star beside the
   folder picker shows only the favorites, inside whatever folder is showing. Favorites always
   come first in your list, and in every folder. In the launcher they come first too, unless you
-  turn off **Favorites first in search** in Settings. A renamed
+  turn off **Favorites first** in Settings › Search. A renamed
   expansion keeps its star, and stars travel with export and import.
 - **Forms: expansions with blanks to fill in.** In the edit screen, **Insert field** puts a blank
   where the cursor is. It shows in the text as `[[name]]`, in the accent color. Under the text,
@@ -59,6 +59,12 @@ was published.
 
 ### Changed
 
+- **Settings, in one page.** No more tabs: everything is in one scroll, in four groups —
+  **General** (starting with Windows, language, appearance), **While you type** (the prefix),
+  **Search** (the shortcut, favorites first) and **Your expansions** (export and import). Each
+  line says in a few words what it is for. The language is a drop-down. The prefix is one row of
+  choices, with **Other** for any prefix of your own: it opens a box beside them, ready to type
+  in. The version and the credits are at the bottom.
 - **New installs start with Windows.** An expander that is not running does nothing, so the first
   run turns on **Start Khipu with Windows** by itself. The last step of the welcome screen no
   longer asks: it explains that closing Khipu leaves it in the system tray, among the hidden
@@ -70,8 +76,8 @@ was published.
   `:hi` before it can expand. A semicolon followed by a letter means nothing to any of them. The
   three starter expansions are now `;hi`, `;date` and `;today`. **Nothing changes for anyone
   who already uses Khipu**: your expansions and your prefix stay as they are. To move all of them
-  to `;`, pick it in Settings under **Prefix for new expansions**, then press **Apply the current
-  prefix to my existing expansions**.
+  to `;`, pick it in Settings under **Prefix for new expansions**, then press **Apply…** beside
+  **Use it on the ones you have**.
 - **Tips names the two halves of an expansion.** The example at the top of Tips now labels
   what you type (the trigger) and what appears (the text), says that together they make an
   expansion, and uses your own prefix. It is outside the sections, so nobody has to open
@@ -176,6 +182,12 @@ was published.
 
 ### Changed
 
+- **Settings, in one page.** No more tabs: everything is in one scroll, in four groups —
+  **General** (starting with Windows, language, appearance), **While you type** (the prefix),
+  **Search** (the shortcut, favorites first) and **Your expansions** (export and import). Each
+  line says in a few words what it is for. The language is a drop-down. The prefix is one row of
+  choices, with **Other** for any prefix of your own: it opens a box beside them, ready to type
+  in. The version and the credits are at the bottom.
 - **Espanso Manager is now Khipu.** The name is Quechua, for the knotted cords the Incas kept
   their records in. It is the new name everywhere: the window, Start, the tray, the program
   file, `Khipu.exe`, and the ZIP and the folder inside it. A new copy does not take over an old
@@ -210,6 +222,12 @@ was published.
 
 ### Changed
 
+- **Settings, in one page.** No more tabs: everything is in one scroll, in four groups —
+  **General** (starting with Windows, language, appearance), **While you type** (the prefix),
+  **Search** (the shortcut, favorites first) and **Your expansions** (export and import). Each
+  line says in a few words what it is for. The language is a drop-down. The prefix is one row of
+  choices, with **Other** for any prefix of your own: it opens a box beside them, ready to type
+  in. The version and the credits are at the bottom.
 - **The first run is a new welcome, four short steps instead of one long page.** The app's mark,
   name and version; then what an expansion is, shown rather than told — `:hola` turning into a
   greeting, `:fecha` into today's date, `:firma` into a signature at the foot of an email, typed
@@ -263,6 +281,12 @@ was published.
 
 ### Changed
 
+- **Settings, in one page.** No more tabs: everything is in one scroll, in four groups —
+  **General** (starting with Windows, language, appearance), **While you type** (the prefix),
+  **Search** (the shortcut, favorites first) and **Your expansions** (export and import). Each
+  line says in a few words what it is for. The language is a drop-down. The prefix is one row of
+  choices, with **Other** for any prefix of your own: it opens a box beside them, ready to type
+  in. The version and the credits are at the bottom.
 - **Moving the pointer over the list, and scrolling it, costs about a third of the processor it
   did.** Each frame used to wait for the monitor inside the graphics driver, which on NVIDIA
   keeps a core busy the whole time it waits. It now waits for Windows' compositor instead, which
@@ -367,6 +391,12 @@ are not listed.
 
 ### Changed
 
+- **Settings, in one page.** No more tabs: everything is in one scroll, in four groups —
+  **General** (starting with Windows, language, appearance), **While you type** (the prefix),
+  **Search** (the shortcut, favorites first) and **Your expansions** (export and import). Each
+  line says in a few words what it is for. The language is a drop-down. The prefix is one row of
+  choices, with **Other** for any prefix of your own: it opens a box beside them, ready to type
+  in. The version and the credits are at the bottom.
 - **A new, quieter interface.** One library with nothing permanently docked beside it:
   - A centred title, with the real state of Espanso on its left — a dot and **Active**,
     **Paused** or **Not responding**, which is what Espanso answered, not what the app assumes —

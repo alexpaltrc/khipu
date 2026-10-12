@@ -21,10 +21,11 @@
 //! Ajustes: a dialog in the middle of the window, over the dimmed screen behind it. It is not a
 //! screen, and it cannot be moved.
 //!
-//! **Five settings and no explanations.** Start with Windows, theme, language, prefix, export and
-//! import, each under its name and nothing else. The sentence that used to sit under each one
-//! lives in the guide now (Consejos → Ajustes), which is where someone goes when they want to
-//! know. A dialog that explains every control ends up as a page, which is what this stopped being.
+//! **One scroll, four cards.** General, Al escribir, Buscador and Tus expansiones, each a card of
+//! rows the way Windows' own settings are laid out: a setting's name, one quiet line on what it is
+//! for, and its control at the right edge. One line and no more — the whole story of each lives
+//! in the guide (Consejos → Ajustes). A row of options too wide to sit beside its name (the
+//! themes, the prefixes) goes under it, across the card.
 //!
 //! Everything on it is a call into `AppState`, which is what saves and reports; nothing is written
 //! from here. What `AppState` says while the dialog is open comes back as
@@ -42,12 +43,12 @@ use crate::ui::glyphs::Glyph;
 use crate::ui::keys;
 use crate::ui::studio;
 
-/// The widest the dialog's contents get. Enough for the language row and the prefix row on one
-/// line each; less on a small window, through [`controls::dialog_width`].
-const WIDEST: f32 = 440.0;
+/// The widest the dialog's contents get. Enough for every theme in a row inside its card, and for
+/// a setting's words beside the shortcut box; less on a small window, through
+/// [`controls::dialog_width`].
+const WIDEST: f32 = 480.0;
 
-/// Between two settings. The dialog has no headings above its groups, so this space is the only
-/// thing that separates them; it is wider than anything inside a group.
+/// Between one card and the next group's name.
 const GROUP_GAP: f32 = 20.0;
 
 pub fn show(ctx: &egui::Context, state: &mut AppState) {
@@ -56,6 +57,7 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
         // again from the saved one.
         ctx.data_mut(|d| {
             d.remove::<String>(custom_prefix_id());
+            d.remove::<bool>(prefix_other_id());
             d.insert_temp(fresh_id(), true);
         });
         return;
@@ -133,10 +135,118 @@ const BAR_MAKES_WAY: f32 = 0.5;
 /// The title row and the space under it.
 const TITLE_ROW: f32 = controls::FIELD_HEIGHT + controls::GAP_WIDE;
 
-/// The name over one setting.
-fn label(ui: &mut egui::Ui, text: &str) {
-    ui.label(controls::field_label(text));
+/// Inside a card, from its edge to a row's words and controls: what a Windows settings card keeps.
+const CARD_PAD_X: f32 = controls::ROW_PAD_X;
+
+/// Above and below each row's contents, so a divider sits halfway between two rows.
+const CARD_PAD_Y: f32 = controls::ROW_PAD_COMFORTABLE;
+
+/// Between a setting's name and the quiet line under it.
+const ABOUT_GAP: f32 = 2.0;
+
+/// A group's name over its card.
+fn heading(ui: &mut egui::Ui, text: &str) {
+    ui.label(controls::semibold(text));
     ui.add_space(controls::GAP);
+}
+
+/// One card of settings, rows inside it divided by the hairline.
+fn card(ui: &mut egui::Ui, rows: impl FnOnce(&mut egui::Ui)) {
+    let is_light = !ui.visuals().dark_mode;
+    egui::Frame::default()
+        .fill(crate::app::win_control_for(is_light))
+        .stroke(egui::Stroke::new(1.0, crate::app::hairline(is_light)))
+        .corner_radius(controls::RADIUS_SECTION)
+        .inner_margin(egui::Margin::symmetric(CARD_PAD_X as i8, 0))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.spacing_mut().item_spacing.y = 0.0;
+            rows(ui);
+        });
+}
+
+/// The hairline between two rows of a card, from one edge of the card to the other.
+fn divider(ui: &mut egui::Ui) {
+    let is_light = !ui.visuals().dark_mode;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
+    let line = rect.expand2(egui::vec2(CARD_PAD_X, 0.0));
+    ui.painter().rect_filled(line, 0.0, crate::app::hairline(is_light));
+}
+
+/// A setting's name and the quiet line on what it is for, laid out `width` wide: the two galleys
+/// and the height they take together.
+fn words(ui: &egui::Ui, title: &str, about: &str, width: f32) -> (std::sync::Arc<egui::Galley>, std::sync::Arc<egui::Galley>, f32) {
+    let is_light = !ui.visuals().dark_mode;
+    let wrap = Some(egui::TextWrapMode::Wrap);
+    let title = egui::WidgetText::from(title).into_galley(ui, wrap, width, egui::TextStyle::Body);
+    let about = egui::WidgetText::from(controls::small_muted(about, is_light)).into_galley(
+        ui,
+        wrap,
+        width,
+        egui::TextStyle::Small,
+    );
+    let height = title.size().y + ABOUT_GAP + about.size().y;
+    (title, about, height)
+}
+
+/// Puts [`words`] in place, as labels, at the top of `rect`.
+fn put_words(ui: &mut egui::Ui, rect: egui::Rect, title: std::sync::Arc<egui::Galley>, about: std::sync::Arc<egui::Galley>) {
+    let mut column = ui.new_child(
+        egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)),
+    );
+    column.spacing_mut().item_spacing.y = ABOUT_GAP;
+    column.add(egui::Label::new(title));
+    column.add(egui::Label::new(about));
+}
+
+/// One setting: its name and a quiet line on what it is for, with its control at the card's right
+/// edge, centred on the words. `control_width` is what the control takes, so the words wrap before
+/// they reach it.
+fn row<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    about: &str,
+    control_width: f32,
+    control: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let width = ui.available_width();
+    let room = (width - control_width - controls::GAP_WIDE).max(80.0);
+    let (title, about, text_height) = words(ui, title, about, room);
+    let height = text_height.max(controls::FIELD_HEIGHT);
+    ui.add_space(CARD_PAD_Y);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    let top = rect.center().y - text_height * 0.5;
+    put_words(ui, egui::Rect::from_min_size(egui::pos2(rect.left(), top), egui::vec2(room, text_height)), title, about);
+    let place = egui::Rect::from_min_max(egui::pos2(rect.left() + room, rect.top()), rect.max);
+    let mut right = ui.new_child(
+        egui::UiBuilder::new().max_rect(place).layout(egui::Layout::right_to_left(egui::Align::Center)),
+    );
+    let out = control(&mut right);
+    ui.add_space(CARD_PAD_Y);
+    out
+}
+
+/// A setting whose control needs the card's whole width — a row of options: the name and the
+/// quiet line, and the control under them.
+fn stacked_row(ui: &mut egui::Ui, title: &str, about: &str, control: impl FnOnce(&mut egui::Ui)) {
+    let width = ui.available_width();
+    let (title, about, text_height) = words(ui, title, about, width);
+    ui.add_space(CARD_PAD_Y);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, text_height), egui::Sense::hover());
+    put_words(ui, rect, title, about);
+    ui.add_space(controls::GAP_ROW);
+    control(ui);
+    ui.add_space(CARD_PAD_Y);
+}
+
+/// What a [`controls::button`] with `label` takes across.
+fn button_width(ui: &egui::Ui, label: &str) -> f32 {
+    let font = egui::FontId::new(
+        egui::TextStyle::Button.resolve(ui.style()).size,
+        crate::fonts::icons_family(),
+    );
+    let text = ui.painter().layout_no_wrap(label.to_owned(), font, egui::Color32::PLACEHOLDER);
+    text.size().x + 2.0 * ui.spacing().button_padding.x
 }
 
 /// How long the hidden theme's option is pointed out after it has been found.
@@ -224,116 +334,167 @@ fn theme_row(ui: &mut egui::Ui, state: &mut AppState) {
 
 fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     let t = state.t();
+    let is_light = !ui.visuals().dark_mode;
 
-    // In a dialog the switch goes to the far edge, where Windows puts it on a settings card: the
-    // dialog's edge is right there, so it reads as the end of this line rather than as adrift.
-    let mut autostart = state.autostart_enabled && !crate::EXPERIMENTAL;
-    let mut changed = false;
-    ui.horizontal(|ui| {
-        ui.label(t.autostart_checkbox);
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.add_enabled_ui(!crate::EXPERIMENTAL, |ui| {
-                changed = controls::toggle(ui, &mut autostart).changed();
-            });
+    heading(ui, studio::text(state, "General", "General", "Pangkalahatan", "सामान्य"));
+    card(ui, |ui| {
+        let mut autostart = state.autostart_enabled && !crate::EXPERIMENTAL;
+        let changed = row(ui, t.autostart_checkbox, t.autostart_hint, 40.0, |ui| {
+            ui.add_enabled_ui(!crate::EXPERIMENTAL, |ui| controls::toggle(ui, &mut autostart).changed())
+                .inner
         });
-    });
-    if changed {
-        state.set_autostart(autostart);
-    }
-    ui.add_space(GROUP_GAP);
-
-    label(ui, t.appearance_section);
-    theme_row(ui, state);
-    ui.add_space(GROUP_GAP);
-
-    label(ui, t.language_section);
-    // Each option is written in its own language, so someone who cannot read the current
-    // interface language can still find theirs — falling back to a Latin spelling for any
-    // script the loaded fonts can't draw yet.
-    let labels: Vec<&str> = Lang::ALL
-        .iter()
-        .map(|lang| lang.picker_label(ui.ctx()))
-        .collect();
-    let selected = Lang::ALL.iter().position(|l| *l == state.settings.lang);
-    if let Some(picked) = controls::segmented(ui, "language", &labels, selected) {
-        state.set_language(Lang::ALL[picked]);
-    }
-    ui.add_space(GROUP_GAP);
-
-    label(ui, t.prefix_section);
-    // Wrapped, so on a narrow window the typed-in prefix drops under the suggestions instead of
-    // running off the dialog.
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = egui::vec2(controls::GAP_WIDE, controls::GAP);
-        // No segment is lit when the prefix was typed by hand and matches none of these — which is
-        // the honest answer, rather than lighting whichever one happens to be closest.
-        let labels: Vec<String> = PREFIX_SUGGESTIONS
-            .iter()
-            .map(|p| format!("\"{p}\""))
-            .collect();
-        let selected = PREFIX_SUGGESTIONS
-            .iter()
-            .position(|p| *p == state.settings.prefix);
-        if let Some(picked) = controls::segmented(ui, "prefix", &labels, selected) {
-            state.set_prefix(PREFIX_SUGGESTIONS[picked].to_string());
+        if changed {
+            state.set_autostart(autostart);
         }
-        custom_prefix(ui, state);
+        divider(ui);
+
+        // Each language is written in itself, so someone who cannot read the current interface
+        // language can still find theirs — falling back to a Latin spelling for any script the
+        // loaded fonts can't draw yet.
+        let names: Vec<&str> = Lang::ALL.iter().map(|lang| lang.picker_label(ui.ctx())).collect();
+        let widest = names
+            .iter()
+            .map(|n| button_width(ui, n))
+            .fold(0.0_f32, f32::max);
+        let combo = widest + LANGUAGE_ARROW;
+        let current = state.settings.lang;
+        let mut picked = None;
+        row(ui, t.language_section, t.language_hint, combo, |ui| {
+            let shown = names[Lang::ALL.iter().position(|l| *l == current).unwrap_or(0)];
+            egui::ComboBox::from_id_salt("settings_language")
+                .selected_text(shown)
+                .width(combo)
+                .show_ui(ui, |ui| {
+                    for (lang, name) in Lang::ALL.iter().zip(&names) {
+                        if ui.selectable_label(*lang == current, *name).clicked() && *lang != current {
+                            picked = Some(*lang);
+                        }
+                    }
+                });
+        });
+        if let Some(lang) = picked {
+            state.set_language(lang);
+        }
+        divider(ui);
+
+        stacked_row(ui, t.appearance_section, t.theme_hint, |ui| theme_row(ui, state));
     });
-    ui.add_space(controls::GAP_ROW);
-    if controls::button(ui, t.apply_prefix, Tone::Normal, true).clicked() {
-        state.apply_prefix_to_existing();
-    }
+
     ui.add_space(GROUP_GAP);
+    heading(ui, studio::text(state, "Al escribir", "While you type", "Habang nagta-type", "टाइप करते समय"));
+    card(ui, |ui| {
+        let about = studio::text(
+            state,
+            "Lo que escribes antes de la palabra, como \":\" en \":hola\".",
+            "What you type before the word, like \":\" in \":hello\".",
+            "Ang tine-type mo bago ang salita, gaya ng \":\" sa \":kumusta\".",
+            "शब्द से पहले जो आप टाइप करते हैं, जैसे \":नमस्ते\" में \":\"।",
+        );
+        stacked_row(ui, t.prefix_section, about, |ui| prefix_row(ui, state));
+        divider(ui);
+
+        let go = studio::text(state, "Aplicar…", "Apply…", "Ilapat…", "लागू करें…");
+        let width = button_width(ui, go);
+        let apply = row(
+            ui,
+            apply_title(state),
+            studio::text(
+                state,
+                "Cambia el prefijo de tus expansiones de ahora por el de arriba.",
+                "Changes the prefix of the expansions you have to the one above.",
+                "Papalitan ang prefix ng mga expansion mo ng nasa itaas.",
+                "आपके मौजूदा विस्तारों का उपसर्ग ऊपर वाले से बदल देता है।",
+            ),
+            width,
+            |ui| controls::button(ui, go, Tone::Normal, true).clicked(),
+        );
+        if apply {
+            state.apply_prefix_to_existing();
+        }
+    });
 
     // Only while this app owns the shortcut. With espanso's own bar in charge there is nothing of
     // ours for it to change.
     if state.hotkey.is_some() {
-        label(ui, t.launcher_shortcut_section);
-        launcher_shortcut(ui, state);
-        ui.add_space(controls::GAP_ROW);
-        let mut first = state.settings.favorites_first;
-        let mut changed = false;
-        ui.horizontal(|ui| {
-            ui.label(studio::text(
-                state,
-                "Favoritos primero en el buscador",
-                "Favorites first in search",
-                "Mga paborito muna sa paghahanap",
-                "खोज में पसंदीदा पहले",
-            ));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                changed = controls::toggle(ui, &mut first).changed();
-            });
-        });
-        if changed {
-            state.set_favorites_first(first);
-        }
         ui.add_space(GROUP_GAP);
+        heading(ui, studio::text(state, "Buscador", "Search", "Paghahanap", "खोज"));
+        card(ui, |ui| {
+            let width = shortcut_box_width(ui, state) + controls::GAP + controls::FIELD_HEIGHT;
+            let about = studio::text(
+                state,
+                "Abre el buscador desde cualquier programa.",
+                "Opens search from any program.",
+                "Binubuksan ang paghahanap mula sa kahit anong program.",
+                "किसी भी प्रोग्राम से खोज खोलता है।",
+            );
+            row(ui, t.launcher_shortcut_section, about, width, |ui| launcher_shortcut(ui, state));
+            if let Some(taken) = state.shortcut_taken {
+                let lang = state.settings.lang;
+                let text = fill(t.launcher_shortcut_taken, &[("keys", &taken.label(lang))]);
+                ui.add(egui::Label::new(egui::RichText::new(text).color(crate::app::danger(is_light))).wrap());
+                ui.add_space(CARD_PAD_Y);
+            }
+            divider(ui);
+
+            let mut first = state.settings.favorites_first;
+            let changed = row(
+                ui,
+                studio::text(state, "Favoritos primero", "Favorites first", "Mga paborito muna", "पसंदीदा पहले"),
+                studio::text(
+                    state,
+                    "Las expansiones con estrella salen arriba al buscar.",
+                    "Starred expansions come first when you search.",
+                    "Nauuna ang mga expansion na may bituin kapag naghahanap.",
+                    "खोजने पर तारांकित विस्तार सबसे ऊपर आते हैं।",
+                ),
+                40.0,
+                |ui| controls::toggle(ui, &mut first).changed(),
+            );
+            if changed {
+                state.set_favorites_first(first);
+            }
+        });
     }
 
-    label(ui, t.transfer_section);
-    // Wrapped so the two buttons stack instead of running off the edge on a narrow window.
-    ui.horizontal_wrapped(|ui| {
-        if controls::button(ui, t.export_button, Tone::Normal, true).clicked() {
+    ui.add_space(GROUP_GAP);
+    heading(ui, studio::text(state, "Tus expansiones", "Your expansions", "Ang iyong mga expansion", "आपके विस्तार"));
+    card(ui, |ui| {
+        let export = studio::text(state, "Exportar…", "Export…", "I-export…", "निर्यात…");
+        let import = studio::text(state, "Importar…", "Import…", "I-import…", "आयात…");
+        let width = button_width(ui, export) + controls::GAP + button_width(ui, import);
+        let about = studio::text(
+            state,
+            "Guárdalas en un archivo, o trae las de otra computadora.",
+            "Save them to a file, or bring in the ones from another computer.",
+            "I-save sa isang file, o kunin ang mula sa ibang kompyuter.",
+            "इन्हें फ़ाइल में सहेजें, या दूसरे कंप्यूटर से लाएँ।",
+        );
+        let (exporting, importing) = row(ui, t.transfer_section, about, width, |ui| {
+            ui.spacing_mut().item_spacing.x = controls::GAP;
+            // Right to left: the second button first.
+            let importing = controls::button(ui, import, Tone::Normal, true).clicked();
+            let exporting = controls::button(ui, export, Tone::Normal, true).clicked();
+            (exporting, importing)
+        });
+        if exporting {
             state.export_expansions();
         }
-        if controls::button(ui, t.import_button, Tone::Normal, true).clicked() {
+        if importing {
             state.import_expansions();
         }
     });
 
     // What the last action said — an export's count, an import's result, a refusal — right under
-    // the buttons that caused it.
+    // the card that caused it.
     if let Some(note) = &state.settings_note {
-        ui.add_space(GROUP_GAP);
+        ui.add_space(controls::GAP_WIDE);
         let (closed, _) = crate::app::infobar(ui, note, t);
         if closed {
             state.settings_note = None;
         }
     }
 
-    ui.add_space(GROUP_GAP + controls::GAP);
-    let is_light = !ui.visuals().dark_mode;
+    ui.add_space(GROUP_GAP);
     let quiet = text_tertiary(is_light);
     // Espanso's version, stated and left alone. No comparison against what this build was tested
     // with, and no nudge to update: in an office the right thing is usually to stay on a version
@@ -342,8 +503,77 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
         Some(espanso) => format!("v{} · Espanso {espanso}", env!("CARGO_PKG_VERSION")),
         None => format!("v{}", env!("CARGO_PKG_VERSION")),
     };
-    ui.label(egui::RichText::new(versions).small().color(quiet));
-    ui.label(egui::RichText::new(t.made_by).small().color(quiet));
+    let footer = format!("{versions} · {}", t.made_by);
+    ui.vertical_centered(|ui| {
+        ui.add(egui::Label::new(egui::RichText::new(footer).small().color(quiet)).wrap());
+    });
+}
+
+/// The row that puts the prefix on the expansions you already have; Tips names it the same.
+pub(crate) fn apply_title(state: &AppState) -> &'static str {
+    studio::text(
+        state,
+        "Usarlo en las que ya tienes",
+        "Use it on the ones you have",
+        "Gamitin sa mga mayroon ka na",
+        "मौजूदा विस्तारों पर लगाएँ",
+    )
+}
+
+/// Room a drop-down keeps beside its words for the arrow.
+const LANGUAGE_ARROW: f32 = 28.0;
+
+fn prefix_other_id() -> egui::Id {
+    egui::Id::new("settings_prefix_other")
+}
+
+/// The suggested prefixes and «Otro», which opens a field beside them for any other. Wrapped, so on
+/// a narrow window the field drops under the row instead of running off the card.
+fn prefix_row(ui: &mut egui::Ui, state: &mut AppState) {
+    let mut labels: Vec<String> = PREFIX_SUGGESTIONS.iter().map(|p| format!("\"{p}\"")).collect();
+    labels.push(other_label(state).to_string());
+    let other = PREFIX_SUGGESTIONS.len();
+    let chosen = PREFIX_SUGGESTIONS.iter().position(|p| *p == state.settings.prefix);
+    let asked = ui.data(|d| d.get_temp::<bool>(prefix_other_id())).unwrap_or(false);
+    // A prefix typed by hand is «Otro» by definition; so is the moment after «Otro» was clicked,
+    // while the field still holds a suggestion.
+    let selected = if asked || chosen.is_none() { other } else { chosen.unwrap_or(other) };
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(controls::GAP_WIDE, controls::GAP);
+        if let Some(picked) = controls::segmented(ui, "prefix", &labels, Some(selected)) {
+            if picked == other {
+                // The field takes the keyboard once the click is over; see below.
+                ui.data_mut(|d| {
+                    d.insert_temp(prefix_other_id(), true);
+                    d.insert_temp(focus_other_id(), true);
+                });
+                ui.ctx().request_repaint();
+            } else {
+                ui.data_mut(|d| d.remove::<bool>(prefix_other_id()));
+                state.set_prefix(PREFIX_SUGGESTIONS[picked].to_string());
+            }
+        }
+        let open = ui.data(|d| d.get_temp::<bool>(prefix_other_id())).unwrap_or(false) || chosen.is_none();
+        if open {
+            let pending = ui.data(|d| d.get_temp::<bool>(focus_other_id())).unwrap_or(false);
+            // Not while the click that chose «Otro» is still in the input: a field handed the keyboard
+            // in that frame gives it up again, to the click it was not under.
+            if pending && !ui.input(|i| i.pointer.any_down() || i.pointer.any_released()) {
+                ui.data_mut(|d| d.remove::<bool>(focus_other_id()));
+                ui.memory_mut(|m| m.request_focus(custom_prefix_field_id()));
+            }
+            custom_prefix(ui, state);
+        }
+    });
+}
+
+fn focus_other_id() -> egui::Id {
+    egui::Id::new("settings_prefix_other_focus")
+}
+
+/// «Otro», the segment for a prefix none of the suggestions offers.
+fn other_label(state: &AppState) -> &'static str {
+    studio::text(state, "Otro", "Other", "Iba", "अन्य")
 }
 
 /// Set while the dialog is closed, so the frame that opens it knows it is the first.
@@ -355,12 +585,13 @@ fn custom_prefix_id() -> egui::Id {
     egui::Id::new("settings_custom_prefix")
 }
 
-/// The field for a prefix none of the suggestions offers, after its own short name.
+fn custom_prefix_field_id() -> egui::Id {
+    egui::Id::new("settings_custom_prefix_field")
+}
+
+/// The field for a prefix none of the suggestions offers, opened by «Otro».
 fn custom_prefix(ui: &mut egui::Ui, state: &mut AppState) {
-    let t = state.t();
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = controls::GAP;
-        ui.label(t.custom_label);
         // The field keeps its own buffer while it is being typed in, instead of being re-cloned
         // from the committed prefix on every frame.
         //
@@ -376,7 +607,7 @@ fn custom_prefix(ui: &mut egui::Ui, state: &mut AppState) {
         let mut custom = ui
             .data(|d| d.get_temp::<String>(buffer_id))
             .unwrap_or_else(|| state.settings.prefix.clone());
-        let response = ui.add(controls::text_field(&mut custom).desired_width(64.0));
+        let response = ui.add(controls::text_field(&mut custom).id(custom_prefix_field_id()).desired_width(64.0));
         if response.changed() {
             ui.data_mut(|d| d.insert_temp(buffer_id, custom.clone()));
             if !custom.trim().is_empty() {
@@ -410,22 +641,16 @@ const SHORTCUT_BOX_PAD: f32 = 12.0;
 fn launcher_shortcut(ui: &mut egui::Ui, state: &mut AppState) {
     let t = state.t();
     let lang = state.settings.lang;
-    let is_light = !ui.visuals().dark_mode;
     let capturing = state.shortcut_capture;
     let default = crate::hotkey::DEFAULT;
 
-    let mut reset = false;
-    let field = ui
-        .horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = controls::GAP;
-            let field = shortcut_box(ui, state);
-            let tip = fill(t.launcher_shortcut_reset_tip, &[("keys", &default.label(lang))]);
-            // Greyed rather than gone when there is nothing to put back, like every action here.
-            let enabled = state.search_shortcut != default;
-            reset = controls::icon_button(ui, Glyph::Undo, &tip, enabled).clicked();
-            field
-        })
-        .inner;
+    // Laid out right to left, from the card's edge: the reset button there, the box before it.
+    ui.spacing_mut().item_spacing.x = controls::GAP;
+    let tip = fill(t.launcher_shortcut_reset_tip, &[("keys", &default.label(lang))]);
+    // Greyed rather than gone when there is nothing to put back, like every action here.
+    let enabled = state.search_shortcut != default;
+    let reset = controls::icon_button(ui, Glyph::Undo, &tip, enabled).clicked();
+    let field = shortcut_box(ui, state);
 
     if capturing.is_some() {
         let elsewhere = ui.input(|i| i.pointer.any_pressed()) && !field.hovered();
@@ -439,12 +664,16 @@ fn launcher_shortcut(ui: &mut egui::Ui, state: &mut AppState) {
     if reset {
         state.set_launcher_shortcut(default);
     }
+}
 
-    if let Some(taken) = state.shortcut_taken {
-        ui.add_space(controls::GAP);
-        let text = fill(t.launcher_shortcut_taken, &[("keys", &taken.label(lang))]);
-        ui.add(egui::Label::new(egui::RichText::new(text).color(crate::app::danger(is_light))).wrap());
-    }
+/// How wide the shortcut box is: room for the shortcut and for the prompt, whichever is longer.
+fn shortcut_box_width(ui: &egui::Ui, state: &AppState) -> f32 {
+    let t = state.t();
+    let lang = state.settings.lang;
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let measure = |s: String| ui.painter().layout_no_wrap(s, font.clone(), egui::Color32::PLACEHOLDER).size().x;
+    let natural = measure(state.search_shortcut.label(lang)).max(measure(t.launcher_shortcut_prompt.into()));
+    (natural + 2.0 * SHORTCUT_BOX_PAD).max(SHORTCUT_BOX_MIN)
 }
 
 /// The box itself, drawn as a text field is: the same fill, border and accent line while it has
@@ -461,13 +690,7 @@ fn shortcut_box(ui: &mut egui::Ui, state: &AppState) -> egui::Response {
         None => (state.search_shortcut.label(lang), ink),
     };
 
-    let font = egui::TextStyle::Body.resolve(ui.style());
-    let measure = |s: String| {
-        ui.fonts_mut(|f| f.layout_no_wrap(s, font.clone(), egui::Color32::PLACEHOLDER).size().x)
-    };
-    let natural = measure(state.search_shortcut.label(lang)).max(measure(t.launcher_shortcut_prompt.into()));
-    let room = (ui.available_width() - controls::FIELD_HEIGHT - controls::GAP).max(SHORTCUT_BOX_MIN);
-    let width = (natural + 2.0 * SHORTCUT_BOX_PAD).clamp(SHORTCUT_BOX_MIN, room);
+    let width = shortcut_box_width(ui, state);
     let (rect, response) =
         ui.allocate_exact_size(egui::vec2(width, controls::FIELD_HEIGHT), egui::Sense::click());
 
@@ -641,7 +864,7 @@ mod tests {
     /// window, less the room `segmented` keeps for itself).
     #[test]
     fn the_theme_row_fits_in_every_language() {
-        const ROOM: f32 = WIDEST - 10.0 - 8.0;
+        const ROOM: f32 = WIDEST - 10.0 - 8.0 - 2.0 * CARD_PAD_X - 2.0;
         let ctx = egui::Context::default();
         crate::fonts::install(&ctx, true);
         ctx.all_styles_mut(|s| {
