@@ -1195,7 +1195,10 @@ pub fn icon_button(ui: &mut egui::Ui, glyph: Glyph, tip: &str, enabled: bool) ->
     response
 }
 
-/// The star that marks a favourite: an [`icon_button`] whose icon fills in the accent when `on`.
+/// How long a star's pop lasts, in seconds.
+const STAR_POP: f64 = 0.28;
+
+/// The star that marks a favourite:an [`icon_button`] whose icon fills in the accent when `on`.
 ///
 /// The star is the one place besides the chosen row where the list wears the accent: a favourite
 /// has to be found at a glance, and an outline in the text colour does not stand out from one.
@@ -1204,13 +1207,32 @@ pub fn star_button(ui: &mut egui::Ui, on: bool, tip: &str) -> egui::Response {
         ui.allocate_exact_size(egui::Vec2::splat(FIELD_HEIGHT), egui::Sense::click());
     let response = response.on_hover_text(tip);
     subtle_wash(ui, &response, true);
+    // Starring is answered with a small pop: the filled star swells and settles. Only a click that
+    // turns it on starts one, so opening an expansion that is already a favourite stays still.
+    let pop_key = response.id.with("pop");
+    let now = ui.input(|i| i.time);
+    if response.clicked() && !on && crate::theme::animations_enabled() {
+        ui.data_mut(|d| d.insert_temp(pop_key, now));
+    }
+    let mut size = glyphs::SIZE;
+    if let Some(start) = ui.data(|d| d.get_temp::<f64>(pop_key)) {
+        let p = ((now - start) / STAR_POP) as f32;
+        if (0.0..1.0).contains(&p) {
+            // Half-point steps: every size of the glyph is one more entry in the font atlas.
+            let swell = 1.0 + 0.3 * (std::f32::consts::PI * p).sin();
+            size = (glyphs::SIZE * swell * 2.0).round() * 0.5;
+            ui.ctx().request_repaint();
+        } else {
+            ui.data_mut(|d| d.remove::<f64>(pop_key));
+        }
+    }
     if ui.is_rect_visible(rect) {
         let (glyph, ink) = if on {
             (Glyph::StarFilled, accent(ui.visuals()))
         } else {
             (Glyph::Star, ui.visuals().text_color())
         };
-        glyphs::paint(ui, rect, glyph, glyphs::SIZE, ink);
+        glyphs::paint(ui, rect, glyph, size, ink);
     }
     if response.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
