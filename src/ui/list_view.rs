@@ -1056,6 +1056,7 @@ fn search_row(
     }
     if star.is_some_and(|s| s.clicked()) {
         studio::set_favorites_only(ui.ctx(), state, !starred);
+        start_list_fade(ui.ctx());
     }
     if let Some(picker) = picker {
         folder_menu(ui, state, list, active, &picker, all, is_light);
@@ -1174,6 +1175,7 @@ fn folder_menu(
 fn pick_folder(ctx: &egui::Context, state: &mut AppState, folder: Option<&str>) {
     let had_selection = !state.selected.is_empty();
     studio::set_filter(ctx, state, folder);
+    start_list_fade(ctx);
     set_select_mode(ctx, false);
     set_open_row(ctx, None);
     if had_selection {
@@ -1545,7 +1547,40 @@ fn library(
     }
     let list_top = ui.available_rect_before_wrap();
     drop_targets(ui, state, list, list_top);
-    show_list(ui, state, list, visible, active, picking, is_light);
+    let fade = list_fade(ui.ctx());
+    ui.scope(|ui| {
+        ui.set_opacity(fade);
+        show_list(ui, state, list, visible, active, picking, is_light);
+    });
+}
+
+fn list_fade_key() -> egui::Id {
+    egui::Id::new("list-fade-started")
+}
+
+/// How long the list takes to come in after its folder, or its favorites-only filter, changes.
+const LIST_FADE: f64 = 0.12;
+
+/// The list fades in when what it shows is swapped for something else, so a new folder arrives
+/// instead of replacing the old one in a single frame.
+fn start_list_fade(ctx: &egui::Context) {
+    if crate::theme::animations_enabled() {
+        let now = ctx.input(|i| i.time);
+        ctx.data_mut(|d| d.insert_temp(list_fade_key(), now));
+    }
+}
+
+/// The list's opacity on this frame: 1 unless a fade is under way.
+fn list_fade(ctx: &egui::Context) -> f32 {
+    let Some(start) = ctx.data(|d| d.get_temp::<f64>(list_fade_key())) else { return 1.0 };
+    let p = ((ctx.input(|i| i.time) - start) / LIST_FADE) as f32;
+    if p >= 1.0 {
+        ctx.data_mut(|d| d.remove::<f64>(list_fade_key()));
+        return 1.0;
+    }
+    ctx.request_repaint();
+    let p = p.max(0.0);
+    1.0 - (1.0 - p) * (1.0 - p)
 }
 
 fn show_list(
