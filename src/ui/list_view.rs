@@ -2483,16 +2483,25 @@ fn show_row_inner(
     }
 
     // A short bar in the accent beside the chosen row; the only other accent in the list is the
-    // favourites' star.
-    if is_open && pass.grid {
+    // favourites' star. It grows in when the row is chosen, and the card's ring fades in, and both
+    // go the same way out when the choice moves on. Asked every frame, chosen or not, so the first
+    // frame of a choice is the start of the way in rather than the end of it.
+    let pace = if crate::theme::animations_enabled() { CHOSEN_GROW } else { 0.0 };
+    let chosen = ui.ctx().animate_bool_with_time_and_easing(
+        drag_id.with("chosen"),
+        is_open,
+        pace,
+        egui::emath::easing::cubic_out,
+    );
+    if chosen > 0.0 && pass.grid {
         ui.painter().rect_stroke(
             framed.response.rect,
             controls::RADIUS_CONTROL,
-            egui::Stroke::new(2.0, crate::app::accent_fill(ui.visuals()).0),
+            egui::Stroke::new(2.0, crate::app::accent_fill(ui.visuals()).0.gamma_multiply(chosen)),
             egui::StrokeKind::Inside,
         );
-    } else if is_open {
-        controls::accent_bar(ui, framed.response.rect);
+    } else if chosen > 0.0 {
+        controls::accent_bar_grown(ui, framed.response.rect, chosen);
     }
 
     // Brought into view once, on the first frame after the save, or after the arrows moved the
@@ -2695,6 +2704,9 @@ fn comfortable_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selec
             });
         });
 }
+
+/// How long the chosen row's bar takes to grow in, and a card's ring to show.
+const CHOSEN_GROW: f32 = 0.167;
 
 /// How long a card takes to rise under the pointer, and to settle back.
 const CARD_RISE: f32 = 0.1;

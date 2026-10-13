@@ -1576,10 +1576,20 @@ pub fn menu_separator(ui: &mut egui::Ui) {
 /// The small upright bar beside the chosen row: with the favourites' star, the only accent in the
 /// list.
 pub fn accent_bar(ui: &egui::Ui, row: egui::Rect) {
+    accent_bar_grown(ui, row, 1.0);
+}
+
+/// The same bar part of the way in, `grown` from 0 to 1: it grows out from its middle, the way
+/// Windows 11 draws a list's chosen item arriving.
+pub fn accent_bar_grown(ui: &egui::Ui, row: egui::Rect, grown: f32) {
+    if grown <= 0.0 {
+        return;
+    }
     let (fill, _) = accent_fill(ui.visuals());
+    let full = 16.0_f32.min(row.height() - 8.0);
     let bar = egui::Rect::from_center_size(
         egui::pos2(row.left() + 1.5, row.center().y),
-        egui::vec2(3.0, 16.0_f32.min(row.height() - 8.0)),
+        egui::vec2(3.0, (full * grown).max(3.0)),
     );
     ui.painter().rect_filled(bar, 2, fill);
 }

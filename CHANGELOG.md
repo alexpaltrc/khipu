@@ -83,6 +83,8 @@ was published.
   place as before, so nothing moves.
 - **Cards rise under the pointer.** In the grid, the card the pointer is on lifts a little off the
   page with a faint shadow. High contrast themes keep their cards flat.
+- **The choice arrives.** The chosen row's accent bar grows out from its middle, and a chosen
+  card's ring fades in; both leave the same way when you choose another.
 - **The switch moves like Windows' own.** Its knob now gathers speed and settles instead of
   sliding at one pace, grows a little under the pointer and stretches towards the other side
   while it is held down.
