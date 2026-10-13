@@ -70,7 +70,7 @@ was published.
 - **A new expansion, in three questions.** The edit screen, now titled simply **New expansion**
   (or **Edit expansion**), asks, in order, **What will you
   type?**, **What should appear?** and **Anything else?**. Each step stays faint until the one
-  before it is filled in, but you can always use it. A sentence at the top says, as you type,
+  before it is filled in, or until you click or Tab into it: it lights up as soon as you start there. A sentence at the top says, as you type,
   what the expansion will do. The date and the fields to fill in are under **+ Add**, beside the
   text. The name, the folder and the favorite switch are folded under **Anything else?**, and
   open by themselves when you edit an expansion that has any of them. Enter in the word box moves

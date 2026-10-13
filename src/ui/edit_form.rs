@@ -666,6 +666,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             d.remove::<bool>(confirm_discard_key());
             d.remove::<bool>(trying_key());
             d.remove::<bool>(more_open_key());
+            d.remove::<bool>(step_touched_key(2));
+            d.remove::<bool>(step_touched_key(3));
         });
         // A new expansion starts at its word: the box that has the caret is the first step, and
         // nobody has to be told where to begin.
@@ -957,6 +959,35 @@ fn step_body<R>(ui: &mut egui::Ui, opacity: f32, body: impl FnOnce(&mut egui::Ui
 fn step_opacity(ui: &egui::Ui, number: usize, lit: bool) -> f32 {
     let t = ui.ctx().animate_bool_with_time(egui::Id::new(("editor-step-lit", number)), lit, 0.2);
     egui::lerp(STEP_FAINT..=1.0, t)
+}
+
+/// Set once someone has clicked into step `number` or moved the focus into it. From then on it is
+/// lit whether the step before it is filled or not: a step somebody is working in is not «later».
+fn step_touched_key(number: usize) -> egui::Id {
+    egui::Id::new(("editor-step-touched", number))
+}
+
+/// Whether step `number` has been worked in since the editor opened.
+fn step_touched(ui: &egui::Ui, number: usize) -> bool {
+    ui.data(|d| d.get_temp::<bool>(step_touched_key(number))).unwrap_or(false)
+}
+
+/// Marks step `number` as worked in when a press lands in `area` — its question and all it holds —
+/// or the focused widget sits in it, by mouse or by Tab.
+fn note_step_touch(ui: &egui::Ui, number: usize, area: egui::Rect) {
+    if step_touched(ui, number) {
+        return;
+    }
+    let ctx = ui.ctx();
+    let pressed = ctx.input(|i| i.pointer.any_pressed() && i.pointer.press_origin().is_some_and(|p| area.contains(p)));
+    let focused = ctx
+        .memory(|m| m.focused())
+        .and_then(|id| ctx.read_response(id))
+        .is_some_and(|r| area.contains(r.rect.center()));
+    if pressed || focused {
+        ui.data_mut(|d| d.insert_temp(step_touched_key(number), true));
+        ctx.request_repaint();
+    }
 }
 
 /// The first line of what will appear, short enough to quote inside a sentence.
@@ -2012,13 +2043,15 @@ fn show_form(
         "Ano ang gusto mong lumabas?",
         "आप क्या दिखाना चाहते हैं?",
     );
-    let lit = step_opacity(ui, 2, !edit.word.trim().is_empty());
+    let lit = step_opacity(ui, 2, !edit.word.trim().is_empty() || step_touched(ui, 2));
+    let top = ui.cursor().top();
     ui.scope(|ui| {
         ui.set_opacity(lit);
         step_heading(ui, 2, second, None, egui::Sense::hover());
     });
     ui.add_space(controls::GAP_ROW);
     step_body(ui, lit, |ui| appears_here(ui, state, &mut edit, is_light));
+    note_step_touch(ui, 2, egui::Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=ui.cursor().top()));
     ui.add_space(PART_GAP);
 
     let third = studio::text(state, "¿Algo más?", "Anything else?", "May iba pa?", "और कुछ?");
@@ -2031,7 +2064,8 @@ fn show_form(
     // in sight; a new one starts with them folded away.
     let had_any = edit.editing_index.is_some() && (!edit.name.trim().is_empty() || edit.folder.is_some() || edit.favorite);
     let open = ui.data(|d| d.get_temp::<bool>(more_open_key())).unwrap_or(had_any);
-    let lit = step_opacity(ui, 3, something);
+    let lit = step_opacity(ui, 3, something || step_touched(ui, 3));
+    let top = ui.cursor().top();
     let heading = ui
         .scope(|ui| {
             ui.set_opacity(lit);
@@ -2062,6 +2096,7 @@ fn show_form(
         ui.add_space(PART_GAP);
         favorite_row(ui, state, &mut edit, is_light);
     });
+    note_step_touch(ui, 3, egui::Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=ui.cursor().top()));
     ui.add_space(controls::GAP);
 
     // The draft is its own state, and a change to it has to show up on the next frame rather than
