@@ -67,7 +67,8 @@ was published.
   line says in a few words what it is for. The language is a drop-down. The prefix is one row of
   choices, with **Other** for any prefix of your own: it opens a box beside them, ready to type
   in. The version and the credits are at the bottom.
-- **A new expansion, in three questions.** The edit screen asks, in order, **What will you
+- **A new expansion, in three questions.** The edit screen, now titled simply **New expansion**
+  (or **Edit expansion**), asks, in order, **What will you
   type?**, **What should appear?** and **Anything else?**. Each step stays faint until the one
   before it is filled in, but you can always use it. A sentence at the top says, as you type,
   what the expansion will do. The date and the fields to fill in are under **+ Add**, beside the
@@ -145,6 +146,9 @@ was published.
   were stuck. The form now takes the keyboard back in that first moment, and keeps checking with
   Windows, so the field you are in always looks it. Pressing Enter to move to the next field
   also lands there visibly now, instead of leaving no field marked.
+- **Hindi shows in any language.** A date with its month in Hindi, or an expansion written in
+  Hindi, came out as empty boxes unless Khipu itself was in Hindi. The Devanagari font now loads
+  whenever there is Hindi to draw.
 
 ## 0.0.6 — 2026-10-06
 

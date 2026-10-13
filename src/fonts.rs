@@ -29,7 +29,9 @@
 //!
 //! Called again on every language change, which is the moment the Devanagari face is picked up or
 //! let go: it is 5.3 MB, mapped for the life of the process once it has been opened, on a program
-//! that sits in the tray all day, so it is loaded only when Hindi is actually the chosen language.
+//! that sits in the tray all day, so it is loaded only when something needs it: a Hindi interface,
+//! or Hindi on screen in another one — a month spelled in it, an expansion written in it. See
+//! [`crate::app::AppState::needs_devanagari`].
 //! Every face is mapped rather than copied — see [`map_read_only`].
 
 use eframe::egui;

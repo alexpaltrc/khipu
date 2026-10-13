@@ -494,8 +494,8 @@ pub static EN: Strings = Strings {
     confirm_delete_undo: "This cannot be undone.",
     see_more: "Show {n} more",
 
-    edit_title_new: "New text expansion",
-    edit_title_existing: "Edit text expansion",
+    edit_title_new: "New expansion",
+    edit_title_existing: "Edit expansion",
     kind_text: "Text",
     kind_date: "Current date or time",
     preset_date_only: "Date only (ISO 8601)",
@@ -705,8 +705,8 @@ pub static ES: Strings = Strings {
     confirm_delete_undo: "Esta acción no se puede deshacer.",
     see_more: "Ver {n} más",
 
-    edit_title_new: "Nueva expansión de texto",
-    edit_title_existing: "Editar expansión de texto",
+    edit_title_new: "Nueva expansión",
+    edit_title_existing: "Editar expansión",
     kind_text: "Texto",
     kind_date: "Fecha u hora actual",
     preset_date_only: "Solo la fecha (ISO 8601)",
@@ -916,8 +916,8 @@ pub static FIL: Strings = Strings {
     confirm_delete_undo: "Hindi ito maaaring bawiin.",
     see_more: "Ipakita ang {n} pa",
 
-    edit_title_new: "Bagong text expansion",
-    edit_title_existing: "I-edit ang text expansion",
+    edit_title_new: "Bagong expansion",
+    edit_title_existing: "I-edit ang expansion",
     kind_text: "Teksto",
     kind_date: "Kasalukuyang petsa o oras",
     preset_date_only: "Petsa lamang (ISO 8601)",
@@ -1127,8 +1127,8 @@ pub static HI: Strings = Strings {
     confirm_delete_undo: "यह क्रिया पूर्ववत नहीं की जा सकती।",
     see_more: "{n} और दिखाएँ",
 
-    edit_title_new: "नया टेक्स्ट विस्तार",
-    edit_title_existing: "टेक्स्ट विस्तार संपादित करें",
+    edit_title_new: "नया विस्तार",
+    edit_title_existing: "विस्तार संपादित करें",
     kind_text: "टेक्स्ट",
     kind_date: "वर्तमान दिनांक या समय",
     preset_date_only: "केवल दिनांक (ISO 8601)",

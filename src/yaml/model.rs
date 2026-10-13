@@ -294,7 +294,34 @@ pub struct MatchFile {
 /// file in espanso's own format, readable and movable by hand, and none of them fires.
 pub const OFF_FILE: &str = "_disabled.yml";
 
+/// Whether `text` has a character from the Devanagari block, which only the system's Devanagari
+/// face can draw. See [`crate::fonts`].
+pub fn has_devanagari(text: &str) -> bool {
+    text.chars().any(|c| ('\u{0900}'..='\u{097F}').contains(&c))
+}
+
 impl MatchFile {
+    /// Whether anything the list shows needs the Devanagari face: an expansion written in it, or a
+    /// date that spells its month in Hindi. The face is otherwise loaded only for a Hindi interface,
+    /// and without it these come out as rows of empty boxes.
+    pub fn wants_devanagari(&self) -> bool {
+        self.entries.iter().any(|entry| match entry {
+            MatchEntry::Simple(m) => {
+                has_devanagari(&m.trigger)
+                    || has_devanagari(&m.replace)
+                    || m.label.as_deref().is_some_and(has_devanagari)
+                    || m.vars.iter().any(|var| {
+                        crate::datefmt::lang_from_locale_tag(var.param_str("locale"))
+                            == crate::i18n::Lang::Hi
+                            && var.param_str("locale").is_some()
+                    })
+            }
+            MatchEntry::Advanced(_) => {
+                has_devanagari(entry.trigger_str()) || entry.name().is_some_and(has_devanagari)
+            }
+        })
+    }
+
     pub fn from_str(contents: &str) -> Result<Self, serde_norway::Error> {
         let root: Value = serde_norway::from_str(contents)?;
         let mut top = match root {

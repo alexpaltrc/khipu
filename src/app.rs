@@ -440,6 +440,9 @@ pub struct AppState {
     list_revision: u64,
     list_cache: Option<Rc<ListCache>>,
     list_cache_key: Option<ListCacheKey>,
+    /// [`MatchFile::wants_devanagari`] for the list as it was at this revision and length, so the
+    /// question is asked again only when the expansions change, not every frame.
+    devanagari_cache: std::cell::Cell<Option<(u64, usize, bool)>>,
     /// The window that Windows' own confirmations and file pickers belong to. See [`DialogOwner`]:
     /// it is a handle, not the window, and it is the only thing in here that names one.
     dialog_owner: DialogOwner,
@@ -686,6 +689,35 @@ impl AppState {
     /// the interface language are watched by the cache key itself and need no call.
     fn touch_list(&mut self) {
         self.list_revision = self.list_revision.wrapping_add(1);
+    }
+
+    /// Whether something on screen needs the Devanagari face although the interface is not in
+    /// Hindi: an expansion written in it, a date spelled in it, or the one being edited.
+    pub fn needs_devanagari(&self) -> bool {
+        if self.settings.lang == Lang::Hi {
+            return true;
+        }
+        if let View::Edit(edit) = &self.view {
+            let editing = match &edit.kind {
+                ui::edit_form::Kind::Text { replace } => crate::yaml::model::has_devanagari(replace),
+                ui::edit_form::Kind::Date { month_lang, .. } => *month_lang == Lang::Hi,
+            };
+            if editing
+                || crate::yaml::model::has_devanagari(&edit.word)
+                || crate::yaml::model::has_devanagari(&edit.name)
+            {
+                return true;
+            }
+        }
+        let key = (self.list_revision, self.match_file.entries.len());
+        match self.devanagari_cache.get() {
+            Some((revision, len, wants)) if (revision, len) == key => wants,
+            _ => {
+                let wants = self.match_file.wants_devanagari();
+                self.devanagari_cache.set(Some((key.0, key.1, wants)));
+                wants
+            }
+        }
     }
 
     /// The list as it should be drawn, rebuilding it only if something it depends on has changed.
@@ -2518,6 +2550,9 @@ pub struct KhipuApp {
     held_menu: Vec<tray_icon::menu::MenuId>,
     /// The theme `sync_title_bar` last put on the title bar itself, and when.
     title_bar_set: Option<(winit::window::Theme, Instant)>,
+    /// Whether the font set installed now has the Devanagari face. See
+    /// [`AppState::needs_devanagari`].
+    devanagari_on: bool,
 }
 
 /// How long a correction of the title bar's theme stands before `sync_title_bar` makes it again.
@@ -2619,7 +2654,8 @@ impl KhipuApp {
             use winit::platform::windows::{BackdropType, WindowExtWindows as _};
             window.set_system_backdrop(BackdropType::MainWindow);
         }
-        let font_status = fonts::install(&cc.egui_ctx, ctx.settings.lang == Lang::Hi);
+        let devanagari_on = ctx.settings.lang == Lang::Hi;
+        let font_status = fonts::install(&cc.egui_ctx, devanagari_on);
 
         // Everything above ran while espanso was still being asked for — see `EspansoStart` — and
         // nothing below may: the shortcut can restart it, and the banner has to say if it failed.
@@ -2736,6 +2772,7 @@ impl KhipuApp {
             list_revision: 0,
             list_cache: None,
             list_cache_key: None,
+            devanagari_cache: Default::default(),
             dialog_owner: DialogOwner::new(window.as_deref()),
         };
         state.drop_orphan_folders();
@@ -2807,6 +2844,7 @@ impl KhipuApp {
             pacer: Default::default(),
             held_menu: Vec::new(),
             title_bar_set: None,
+            devanagari_on,
         }
     }
 
@@ -2817,11 +2855,25 @@ impl KhipuApp {
         // Devanagari collection is picked up when Hindi is chosen and let go again when it is not.
         // Everything else in the set is the same either way, so this is the only moment it can
         // change and the only moment the missing-font warning can become true or stop being true.
-        let status = fonts::install(ctx, self.state.settings.lang == Lang::Hi);
-        if status.devanagari_missing {
+        self.devanagari_on = self.state.needs_devanagari();
+        let status = fonts::install(ctx, self.devanagari_on);
+        if status.devanagari_missing && self.state.settings.lang == Lang::Hi {
             self.state.set_error_banner(self.state.t().hindi_font_missing);
         }
         self.tray.relabel(self.state.t());
+    }
+
+    /// Picks the Devanagari face up the first frame something on screen needs it although the
+    /// interface is not in Hindi — a month spelled in Hindi, an expansion written in it. Without
+    /// it those came out as empty boxes. It is let go only with a language change: the font set is
+    /// rebuilt then anyway, and rebuilding it back and forth on leaving the editor would only clear
+    /// the glyph atlas for nothing.
+    fn sync_devanagari(&mut self, ctx: &egui::Context) {
+        if !self.devanagari_on && self.state.needs_devanagari() {
+            self.devanagari_on = true;
+            fonts::install(ctx, true);
+            ctx.request_repaint();
+        }
     }
 
     fn hide_to_tray(&self) {
@@ -3386,6 +3438,7 @@ impl eframe::App for KhipuApp {
         if std::mem::take(&mut self.state.pending_language_refresh) {
             self.apply_language_change(ctx);
         }
+        self.sync_devanagari(ctx);
         if std::mem::take(&mut self.state.pending_theme_refresh) {
             set_palette_for(self.state.settings.theme_mode);
             refresh_contrast();
