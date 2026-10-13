@@ -3265,6 +3265,19 @@ pub(crate) fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput)
                 queue.push_back(vec![egui::Event::Text(typed.to_owned())]);
                 continue;
             }
+            // `k:Name` presses and releases one key, by egui's name for it: `k:Tab`, `k:Enter`.
+            if let Some(key) = line.strip_prefix("k:").and_then(|name| egui::Key::from_name(name.trim())) {
+                let event = |pressed| egui::Event::Key {
+                    key,
+                    physical_key: None,
+                    pressed,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                };
+                queue.push_back(vec![event(true)]);
+                queue.push_back(vec![event(false)]);
+                continue;
+            }
             // `s:x,y,dy` turns the wheel over a point: a positive `dy` scrolls down, in pixels.
             if let Some(wheel) = line.strip_prefix("s:") {
                 let n: Vec<f32> = wheel.split(',').filter_map(|n| n.trim().parse().ok()).collect();

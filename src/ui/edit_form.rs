@@ -1075,6 +1075,9 @@ fn when_you_type(
             );
             // Enter is «next question»: on to the text, the way Tab would go.
             if word.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                // The text box takes the focus within this same frame, further down: left in the
+                // queue, this Enter would open it with an empty first line.
+                ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
                 ui.memory_mut(|m| m.request_focus(replace_id()));
             }
         });
@@ -1493,7 +1496,14 @@ fn try_dialog(ctx: &egui::Context, state: &AppState, edit: &EditState, spec: &Fo
         .data(|d| d.get_temp::<Vec<String>>(try_answers_key()))
         .filter(|a| a.len() == spec.fields.len())
         .unwrap_or_else(|| crate::ui::form_view::initial_answers(spec));
-    let first = ctx.data(|d| d.get_temp::<bool>(try_answers_key().with("focused"))).is_none();
+    // Not on the frame of the click that opened it: egui lets go of a focused field that a click
+    // lands outside of, and the click on «Probar» is outside every field of this dialog.
+    let clicking = ctx.input(|i| i.pointer.any_click());
+    let first = !clicking
+        && ctx.data(|d| d.get_temp::<bool>(try_answers_key().with("focused"))).is_none();
+    if clicking {
+        ctx.request_repaint();
+    }
     let mut close = false;
     let modal = controls::dialog(ctx, "editor-try-dialog").show(ctx, |ui| {
         let is_light = !ui.visuals().dark_mode;
@@ -1534,7 +1544,9 @@ fn try_dialog(ctx: &egui::Context, state: &AppState, edit: &EditState, spec: &Fo
             d.remove::<bool>(try_answers_key().with("focused"));
         } else {
             d.insert_temp(try_answers_key(), answers);
-            d.insert_temp(try_answers_key().with("focused"), true);
+            if first {
+                d.insert_temp(try_answers_key().with("focused"), true);
+            }
         }
     });
 }
