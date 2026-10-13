@@ -1647,6 +1647,46 @@ fn start_vanish(ctx: &egui::Context) {
     }
 }
 
+// --- The first time the list is shown ----------------------------------------------------------
+
+/// How far apart the rows set off when the list first comes in, how long each takes, how many of
+/// them wait their turn (the rest come with the last of those), and how far below its place each
+/// one starts.
+const ENTRANCE_STAGGER: f32 = 0.035;
+const ENTRANCE_EACH: f32 = 0.28;
+const ENTRANCE_TURNS: usize = 10;
+const ENTRANCE_RISE: f32 = 8.0;
+
+fn entrance_key() -> egui::Id {
+    egui::Id::new("library-entrance")
+}
+
+/// Seconds since the list was first drawn in this session, while its rows are still coming in;
+/// `None` before and ever after. Once a session: a folder, a search or a return from the editor
+/// redraws the list without it.
+fn entrance_elapsed(ctx: &egui::Context) -> Option<f32> {
+    let now = ctx.input(|i| i.time);
+    let since = match ctx.data(|d| d.get_temp::<f64>(entrance_key())) {
+        Some(since) => since,
+        None => {
+            // NaN marks it done: no comparison with it is ever true.
+            let since = if crate::theme::animations_enabled() { now } else { f64::NAN };
+            ctx.data_mut(|d| d.insert_temp(entrance_key(), since));
+            since
+        }
+    };
+    let elapsed = (now - since) as f32;
+    let total = ENTRANCE_STAGGER * ENTRANCE_TURNS as f32 + ENTRANCE_EACH;
+    if elapsed < total {
+        Some(elapsed)
+    } else {
+        if !since.is_nan() {
+            ctx.data_mut(|d| d.insert_temp(entrance_key(), f64::NAN));
+        }
+        None
+    }
+}
+
 /// One frame of the list's rows: records where each is drawn, and moves the drawn shapes of any
 /// that changed place back towards where they were, by less every frame.
 ///
@@ -1665,6 +1705,10 @@ struct Travels {
     /// The rows a delete confirmation is open for, and what they painted this frame.
     doomed: std::collections::HashSet<egui::Id>,
     doomed_shapes: Vec<egui::epaint::ClippedShape>,
+    /// See [`entrance_elapsed`]; and how many rows this frame has drawn so far, which is each
+    /// row's turn.
+    entrance: Option<f32>,
+    drawn: usize,
 }
 
 impl Travels {
@@ -1684,6 +1728,10 @@ impl Travels {
                 ctx.request_repaint();
             }
         }
+        let entrance = entrance_elapsed(ctx);
+        if entrance.is_some() {
+            ctx.request_repaint();
+        }
         let doomed = state
             .pending_confirm
             .as_ref()
@@ -1698,6 +1746,8 @@ impl Travels {
             lifted: Vec::new(),
             doomed,
             doomed_shapes: Vec::new(),
+            entrance,
+            drawn: 0,
         }
     }
 
@@ -1706,11 +1756,22 @@ impl Travels {
         let layer = ui.layer_id();
         let start = ui.ctx().graphics(|g| g.get(layer).map_or(egui::layers::ShapeIdx(0), |l| l.next_idx()));
         let at = ui.cursor().min - self.origin;
+        // Its share of the first entrance: 0 waiting its turn, 1 in place.
+        let entering = self.entrance.map(|t| {
+            let turn = self.drawn.min(ENTRANCE_TURNS) as f32;
+            ((t - turn * ENTRANCE_STAGGER) / ENTRANCE_EACH).clamp(0.0, 1.0)
+        });
+        let opacity = ui.opacity();
+        if let Some(p) = entering {
+            ui.multiply_opacity(egui::emath::easing::quadratic_out(p));
+        }
         let r = add(ui);
+        ui.set_opacity(opacity);
         let end = ui.ctx().graphics(|g| g.get(layer).map_or(start, |l| l.next_idx()));
         if end.0 == start.0 {
             return r; // A gap standing in for a row far off screen.
         }
+        self.drawn += 1;
         self.seen.insert(id, at);
         if self.doomed.contains(&id) {
             let back = -self.origin.to_vec2();
@@ -1725,10 +1786,16 @@ impl Travels {
                 }
             });
         }
-        let Some(travel) = &self.travel else { return r };
-        let Some(&from) = travel.from.get(&id) else { return r };
-        let lift = travel.lifted == Some(id);
-        let shift = ((from - at) * self.left).round();
+        let ppp = ui.ctx().pixels_per_point();
+        let rise = entering.map_or(0.0, |p| {
+            (ENTRANCE_RISE * (1.0 - egui::emath::easing::cubic_out(p)) * ppp).round() / ppp
+        });
+        let travelled = self.travel.as_ref().and_then(|travel| {
+            let from = travel.from.get(&id)?;
+            Some((((*from - at) * self.left).round(), travel.lifted == Some(id)))
+        });
+        let (glide, lift) = travelled.unwrap_or_default();
+        let shift = glide + egui::vec2(0.0, rise);
         if shift == egui::Vec2::ZERO && !lift {
             return r;
         }

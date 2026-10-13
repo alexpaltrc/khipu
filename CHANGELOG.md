@@ -90,6 +90,8 @@ was published.
 - **Forms show they are forms.** A card or row that asks for its blanks before writing wears a
   quiet mark beside its trigger, the same one the editor uses for a blank; under the pointer it
   says «Form».
+- **The list arrives.** The first time it is shown after Khipu opens, its cards and rows come in
+  one after another, each fading in as it rises into place; never again until the next start.
 - **The switch moves like Windows' own.** Its knob now gathers speed and settles instead of
   sliding at one pace, grows a little under the pointer and stretches towards the other side
   while it is held down.
