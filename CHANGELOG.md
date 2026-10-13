@@ -150,6 +150,10 @@ was published.
 - **Hindi shows in any language.** A date with its month in Hindi, or an expansion written in
   Hindi, came out as empty boxes unless Khipu itself was in Hindi. The Devanagari font now loads
   whenever there is Hindi to draw.
+- **The search box holds still when you change folder.** Its room was worked out from the name
+  of the folder showing, so picking another one moved it sideways, and on a narrow window made it
+  wider or narrower. It is now sized for the longest folder name, and only the folder picker's
+  words change.
 
 ## 0.0.6 — 2026-10-06
 

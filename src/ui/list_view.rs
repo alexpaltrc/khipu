@@ -982,9 +982,16 @@ fn search_row(
         Some("") => t.no_folder.to_owned(),
         Some(folder) => truncate(folder, 28),
     };
-    let picker_w = controls::subtle_button_width(ui, true, &folder_label, true)
-        + controls::GAP_TIGHT
-        + controls::FIELD_HEIGHT;
+    // The room kept for the picker and the star is sized for the longest name the picker can
+    // show, not the one it shows now, so the search box keeps its size and its place when the
+    // folder changes; only the picker's own words change.
+    let widest = [all, t.no_folder, folder_label.as_str()]
+        .into_iter()
+        .map(str::to_owned)
+        .chain(list.folder_names.iter().map(|f| truncate(f, 28)))
+        .map(|label| controls::subtle_button_width(ui, true, &label, true))
+        .fold(0.0, f32::max);
+    let picker_w = widest + controls::GAP_TIGHT + controls::FIELD_HEIGHT;
     let starred = studio::favorites_only(ui.ctx());
     let star_tip = if starred {
         studio::text(state, "Mostrar todas", "Show all", "Ipakita lahat", "सभी दिखाएँ")
