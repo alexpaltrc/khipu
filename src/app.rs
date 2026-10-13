@@ -358,6 +358,9 @@ pub struct AppState {
     /// The theme worn before «Probarlo» in Novedades put on «Ultra oscuro», so that the same button
     /// can offer the way back. Only for this run: after a restart there is nothing to go back from.
     pub whats_new_theme_before: Option<ThemeMode>,
+    /// The prefix in force before Ajustes changed it in this run: the one the expansions still
+    /// carry until «Aplicar». See [`crate::folders::retarget`].
+    prefix_before: Option<String>,
     pub search: String,
     pub banner: Option<Banner>,
     /// Why the expansions file could not be read, if it could not. Saving is refused while this
@@ -841,6 +844,11 @@ impl AppState {
         if prefix.trim().is_empty() {
             return;
         }
+        // The first prefix left behind is the one the expansions still carry, however many are
+        // tried after it (or typed a key at a time) before «Aplicar».
+        if self.prefix_before.is_none() && self.settings.prefix != prefix {
+            self.prefix_before = Some(self.settings.prefix.clone());
+        }
         self.settings.prefix = prefix;
         if let Err(e) = self.settings_store.save(&self.settings) {
             let msg = fill(self.t().prefix_save_error, &[("err", &e.to_string())]);
@@ -894,29 +902,19 @@ impl AppState {
         self.pending_language_refresh = true;
     }
 
-    /// Strips a leading run of non-alphanumeric characters (`:`, `;`, `?`, `//`, ...), treating
-    /// it as "whatever prefix this trigger currently uses".
-    fn strip_leading_prefix(trigger: &str) -> &str {
-        trigger.trim_start_matches(|c: char| !c.is_alphanumeric())
-    }
-
     pub fn apply_prefix_to_existing(&mut self) {
         let new_prefix = self.settings.prefix.clone();
+        let before = self.prefix_before.clone();
         let mut renamed = Vec::new();
         let mut resulting: Vec<String> = Vec::new();
 
         for entry in &self.match_file.entries {
             if let MatchEntry::Simple(m) = entry {
-                // `:--` and its kind keep the trigger they have: with no word after the symbols
-                // there is nothing for a new prefix to sit in front of, and replacing "the prefix"
-                // would consume the whole trigger. Still listed below, so a rename that would
-                // land on one of them is caught as the collision it is.
-                let rest = Self::strip_leading_prefix(&m.trigger);
-                let new_trigger = if crate::folders::has_word(&m.trigger) {
-                    format!("{new_prefix}{rest}")
-                } else {
-                    m.trigger.clone()
-                };
+                // What stays as it is (`:--`, a trigger already wearing the new prefix) is still
+                // listed below, so a rename that would land on one of them is caught as the
+                // collision it is. The rule itself: [`crate::folders::retarget`].
+                let new_trigger = crate::folders::retarget(&m.trigger, before.as_deref(), &new_prefix)
+                    .unwrap_or_else(|| m.trigger.clone());
                 resulting.push(new_trigger.clone());
                 if new_trigger != m.trigger {
                     renamed.push((m.trigger.clone(), new_trigger));
@@ -992,6 +990,8 @@ impl AppState {
         }
         let _ = self.settings_store.save(&self.settings);
         self.touch_list();
+        // From here on the expansions carry the new prefix.
+        self.prefix_before = None;
 
         self.save_and_reload(crate::i18n::fill_count(t.prefix_applied, renamed.len(), &[]));
     }
@@ -2747,6 +2747,7 @@ impl KhipuApp {
             settings_open: false,
             whats_new_open: false,
             whats_new_theme_before: None,
+            prefix_before: None,
             settings_note: None,
             search: String::new(),
             banner: None,

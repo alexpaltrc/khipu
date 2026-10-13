@@ -164,6 +164,11 @@ was published.
 - **Applying a new prefix leaves symbol-only triggers alone.** The question before «Apply» rightly
   left out a trigger with no word in it, like `:--`, but the change itself still rewrote it, to
   the bare new prefix. It now changes exactly the triggers the question listed.
+- **«Apply» works with any prefix, letters included.** A prefix with letters in it, like espanso's
+  own `x` in `xhello`, was put in front again on every press (`xhello`, `xxhello`, …), and moving
+  away from one left it inside the new trigger (`;xhello`). A trigger that already starts with the
+  new prefix is now left alone, and the prefix you just changed from is taken off exactly as it
+  was, so `:-hi` becomes `;-hi`, not `;hi`.
 - **A form written in Hindi reads in Hindi.** The window that asks for a form's blanks loaded the
   Devanagari letters only for a Hindi interface, so a form in Hindi, or an answer typed in it,
   showed boxes. It now loads them whenever the form or an answer needs them. The same went for a
