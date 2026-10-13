@@ -11,7 +11,7 @@
 ![Windows](https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.98-CE422B?logo=rust&logoColor=white)
 ![egui](https://img.shields.io/badge/egui-0.36-7B68EE)
-![Version](https://img.shields.io/badge/version-0.0.6-blue)
+![Version](https://img.shields.io/badge/version-0.0.7-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 ![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-or%20portable-0078D4)
 ![Free](https://img.shields.io/badge/free-forever-2EA043)
@@ -25,7 +25,7 @@
 
 **or**
 
-### [⬇️ Download the portable ZIP](https://github.com/alexpaltrc/khipu/releases/download/v0.0.6/Khipu-Portable-0.0.6.zip)
+### [⬇️ Download the portable ZIP](https://github.com/alexpaltrc/khipu/releases/download/v0.0.7/Khipu-Portable-0.0.7.zip)
 
 <sub>10 MB · nothing gets installed · unzip and open `Khipu.exe`</sub>
 
@@ -77,6 +77,8 @@ expansions from one to the other.
 | ⏸️ | Pause for ten minutes when they are in the way — or until you say otherwise. |
 | 🎨 | Look like Windows 11: its own light and dark colours, your accent colour, contrast themes, and Windows' animation switch. |
 | 📅 | Insert today's date in the format you like, without learning any syntax. |
+| 📝 | Ask for the blanks before writing — a name, a choice from a list — in a small window of its own. |
+| ⭐ | Star the ones you use most, and see them as cards, as a list, or one line each. |
 | 🔔 | Live quietly in the tray, and start with Windows if you want it to. |
 | 🪶 | Stay small while it waits there: about 70 MB of memory, and a few hundredths of one percent of one CPU core. |
 | 📤 | Export the folders you choose and send them to a colleague. |
@@ -90,7 +92,7 @@ There is more than this in there. It is meant to be found by using it.
 
 <br>
 
-There is a fourth theme hidden in Khipu. It is not in Settings until you find it, and you find it
+There is a theme hidden in Khipu. It is not in Settings until you find it, and you find it
 in **Tips**, with the arrow keys, the way an old game would ask for a cheat code.
 
 <details>

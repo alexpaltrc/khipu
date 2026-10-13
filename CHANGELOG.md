@@ -3,11 +3,11 @@
 All notable changes to Khipu, called Espanso Manager until 0.0.5. Dates are the day the work was finished, not the day it
 was published.
 
-## Unreleased
+## 0.0.7 — 2026-10-13
 
 ### Added
 
-- **Ultra dark theme.** Settings › Appearance has a fourth theme, **Ultra dark**: the dark theme
+- **Ultra dark theme.** Settings › Appearance has a new theme, **Ultra dark**: the dark theme
   on pure black, for OLED screens. Cards, boxes and buttons keep a step of gray each, so they
   still stand apart, and the title bar goes black too. An older version reading these settings
   opens in the plain dark theme.
@@ -154,8 +154,8 @@ was published.
   («Khipu is extremely light»), so it no longer reads as if it described the expansion above it.
 - **Two views of your list: Comfortable and Compact.** The **…** menu now has a **View** line with
   the choices side by side, each as a small picture whose name shows when you point at it, and
-  the list changes behind the menu as you pick. **Comfortable**,
-  the new default, shows each expansion as a small card: its name in bold, its trigger on the
+  the list changes behind the menu as you pick. **Comfortable**
+  shows each expansion as a small card: its name in bold, its trigger on the
   right in your accent colour, and what it writes on a second line. An expansion without a name
   shows its trigger in the name's place. **Compact** is the one-line list you already know, with
   its triggers now in the accent colour too, the same in all three views.
