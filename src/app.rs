@@ -229,6 +229,21 @@ pub struct Banner {
     pub kind: BannerKind,
     pub message: String,
     pub undo: Option<UndoAction>,
+    /// When it was posted: a plain message goes away by itself a few seconds after this.
+    pub posted: Instant,
+}
+
+impl Banner {
+    /// How long a message that needs nothing from anyone stays up: long enough to read it twice,
+    /// never so long it outstays the moment. `None` for one that stays until it is closed: an
+    /// error, and a message that carries an undo.
+    pub fn lifetime(&self) -> Option<std::time::Duration> {
+        if self.kind != BannerKind::Info || self.undo.is_some() {
+            return None;
+        }
+        let reading = 4.0 + 0.05 * self.message.chars().count() as f32;
+        Some(std::time::Duration::from_secs_f32(reading.min(10.0)))
+    }
 }
 
 /// One expansion as the list draws it.
@@ -465,7 +480,7 @@ impl AppState {
 
     /// Where a message goes: the banner, or the dialog in front of it while Ajustes is open.
     fn post(&mut self, kind: BannerKind, message: String) {
-        let banner = Some(Banner { kind, message, undo: None });
+        let banner = Some(Banner { kind, message, undo: None, posted: Instant::now() });
         if self.settings_open {
             self.settings_note = banner;
         } else {
@@ -2577,6 +2592,10 @@ pub struct KhipuApp {
     /// Whether the font set installed now has the Devanagari face. See
     /// [`AppState::needs_devanagari`].
     devanagari_on: bool,
+    /// The banner as it was last drawn, kept while it slides away after it has gone.
+    banner_leaving: Option<Banner>,
+    /// Whether the pointer was on the banner last frame: a message being read does not leave.
+    banner_hovered: bool,
 }
 
 /// How long a correction of the title bar's theme stands before `sync_title_bar` makes it again.
@@ -2871,6 +2890,8 @@ impl KhipuApp {
             held_menu: Vec::new(),
             title_bar_set: None,
             devanagari_on,
+            banner_leaving: None,
+            banner_hovered: false,
         }
     }
 
@@ -3555,9 +3576,42 @@ impl eframe::App for KhipuApp {
         // `show_collapsible` slides the panel in/out and correctly shrinks the space given to
         // everything below it as it animates, so the banner appearing or disappearing never
         // overlaps the rest of the interface — it always pushes it, never covers it.
-        if self.state.banner.is_some() {
+        //
+        // A message that needs nothing from anyone leaves by itself once it has been read, unless
+        // the pointer is on it; one that went away is drawn as it was while it slides out.
+        if let Some(banner) = &self.state.banner {
+            match banner.lifetime() {
+                Some(life) if !self.banner_hovered => {
+                    let left = life.saturating_sub(banner.posted.elapsed());
+                    if left.is_zero() {
+                        self.state.banner = None;
+                    } else {
+                        ui.ctx().request_repaint_after(left);
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some(banner) = &self.state.banner {
+            self.banner_leaving = Some(Banner {
+                kind: banner.kind,
+                message: banner.message.clone(),
+                // Only so the leaving copy keeps its button while it slides.
+                undo: banner.undo.as_ref().map(|_| UndoAction::FolderMove(Vec::new())),
+                posted: banner.posted,
+            });
+        }
+        let mut live = self.state.banner.is_some();
+        // Both animations are told every frame, banner or not: egui starts an animation it has not
+        // seen at its target, so one first asked when the banner arrives would not slide at all.
+        let fade = ui.ctx().animate_bool(egui::Id::new("banner-fade"), live);
+        if !live && self.banner_leaving.is_none() {
+            ui.ctx().animate_bool_responsive(egui::Id::new("banner").with("animation"), false);
+        }
+        if live || self.banner_leaving.is_some() {
         let gutter = ui::controls::page_margin(ui.available_width());
-        egui::Panel::top("banner")
+        let shown = egui::Panel::top("banner")
+            .resizable(false)
             .show_separator_line(false)
             .frame(
                 egui::Frame::default()
@@ -3569,9 +3623,18 @@ impl eframe::App for KhipuApp {
                         bottom: 0,
                     }),
             )
-            .show(ui, |ui| {
-                self.show_banner(ui);
+            .show_collapsible(ui, &mut live, |ui| {
+                ui.set_opacity(fade);
+                if self.state.banner.is_some() {
+                    self.show_banner(ui);
+                } else if let Some(leaving) = &self.banner_leaving {
+                    infobar(ui, leaving, self.state.t());
+                }
             });
+        self.banner_hovered = shown.as_ref().is_some_and(|s| ui.rect_contains_pointer(s.response.rect));
+        if shown.is_none() {
+            self.banner_leaving = None;
+        }
         }
 
         // The pause state belongs to the tray; the library only shows it. Copied in before the

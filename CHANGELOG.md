@@ -80,6 +80,9 @@ was published.
   expansion and a form's longer lists now end in the same thin chevron as the folder picker, and
   their lists open exactly as wide as the box, with a check on the chosen line and the same
   highlight gliding under the pointer.
+- **"Expansion saved" comes and goes by itself.** Notices now slide in from the top, and the
+  ones that only inform leave on their own after a few seconds, unless the pointer is resting on
+  them. Errors, and notices with **Undo**, stay until you close them.
 - **A new expansion, in three questions.** The edit screen, now titled simply **New expansion**
   (or **Edit expansion**), asks, in order, **What will you type?**, **What should appear?** and
   **Anything else?**. Each step stays faint until the one before it is filled in, or until you
