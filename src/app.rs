@@ -260,6 +260,8 @@ pub struct ListRow {
     pub off: bool,
     /// Starred: a filled star on its row, and ahead of the rest in the list and the launcher.
     pub favorite: bool,
+    /// A form: it asks for its blanks before it writes, so its card wears a quiet mark that says so.
+    pub form: bool,
 }
 
 /// Everything the list screen needs, derived once from the expansions and the folder assignments.
@@ -790,6 +792,7 @@ impl AppState {
                 preview: truncate(&preview, PREVIEW_MAX_CHARS),
                 off: self.match_file.is_off(entry.trigger_str()),
                 favorite: self.settings.is_favorite(entry.trigger_str()),
+                form: matches!(entry, crate::yaml::model::MatchEntry::Simple(m) if m.as_form().is_some()),
             });
         }
 

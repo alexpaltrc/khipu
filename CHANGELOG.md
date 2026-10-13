@@ -87,6 +87,9 @@ was published.
   card's ring fades in; both leave the same way when you choose another.
 - **The round button answers.** Held down, the «+» sinks a little into the page, and it comes
   back up with a small bounce when you let go.
+- **Forms show they are forms.** A card or row that asks for its blanks before writing wears a
+  quiet mark beside its trigger, the same one the editor uses for a blank; under the pointer it
+  says «Form».
 - **The switch moves like Windows' own.** Its knob now gathers speed and settles instead of
   sliding at one pace, grows a little under the pointer and stretches towards the other side
   while it is held down.

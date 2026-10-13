@@ -459,6 +459,8 @@ struct RowPass<'a> {
     /// What the search box holds, lowercased: drawn in the accent wherever a row contains it, so
     /// the list shows where each row matched.
     needle: &'a str,
+    /// What a form's mark says under the pointer, in the app's language.
+    form_tip: &'a str,
 }
 
 fn row_pass<'a>(
@@ -469,6 +471,7 @@ fn row_pass<'a>(
     trigger_w: f32,
     baseline_drop: &'a std::cell::Cell<Option<f32>>,
     needle: &'a str,
+    form_tip: &'a str,
 ) -> RowPass<'a> {
     RowPass {
         dragged_id: ui.ctx().dragged_id(),
@@ -484,6 +487,7 @@ fn row_pass<'a>(
         flash: flash_now(ui.ctx()),
         glide: None,
         needle,
+        form_tip,
     }
 }
 
@@ -1804,6 +1808,7 @@ fn show_list(
         trigger_w,
         &baseline_drop,
         &needle,
+        studio::text(state, "Formulario", "Form", "Form", "फ़ॉर्म"),
     );
     let open = open_row(ui.ctx());
     let height = ui.available_height().max(LIST_MIN_HEIGHT);
@@ -2798,7 +2803,8 @@ fn grid_card(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: b
         });
 }
 
-/// The name on the left, the trigger on the right, and a favourite's star just before the trigger.
+/// The name on the left, the trigger on the right, and a favourite's star just before the trigger;
+/// a form's mark, quieter, before that.
 /// Painted by hand rather than laid out as labels, for the same reason as the compact row's trigger:
 /// the smaller monospace has to sit a hair low to share a baseline with the words.
 fn comfortable_first_line(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_light: bool) {
@@ -2806,7 +2812,8 @@ fn comfortable_first_line(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, i
     let off = crate::app::disabled_text(is_light);
     let strong = if row.off { off } else { ui.visuals().strong_text_color() };
     let code_ink = if row.off { off } else { accent(ui.visuals()) };
-    let star_room = if row.favorite { ROW_STAR + controls::GAP } else { 0.0 };
+    let marks = row.favorite as u8 + row.form as u8;
+    let star_room = marks as f32 * (ROW_STAR + controls::GAP);
     let gap = controls::GAP_WIDE;
     let trigger_text = || egui::RichText::new(&row.trigger).monospace().color(code_ink);
     let hit = accent(ui.visuals());
@@ -2868,6 +2875,7 @@ fn comfortable_first_line(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, i
     ui.painter().galley(left_rect.min, left, egui::Color32::PLACEHOLDER);
 
     let mut star_right = rect.right();
+    let mut form_mark = egui::Rect::NOTHING;
     if let Some(trigger) = right {
         let at = egui::pos2(
             rect.right() - trigger.size().x,
@@ -2885,9 +2893,34 @@ fn comfortable_first_line(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, i
         );
         let ink = if row.off { off } else { accent(ui.visuals()) };
         glyphs::paint(ui, star, Glyph::StarFilled, ROW_STAR, ink);
+        star_right = star.left() - controls::GAP;
     }
-    if cut_trigger && hover.hover_pos().is_some_and(|p| trigger_rect.contains(p)) {
+    if row.form {
+        // In the secondary ink and never the accent: it tells a form from a text without asking to
+        // be looked at. The same glyph the editor's «add a blank» wears.
+        let mark = egui::Rect::from_center_size(
+            egui::pos2(star_right - ROW_STAR * 0.5, rect.center().y),
+            egui::Vec2::splat(ROW_STAR),
+        );
+        let ink = if row.off { off } else { crate::app::secondary_text(is_light) };
+        glyphs::paint(ui, mark, Glyph::Rename, ROW_STAR, ink);
+        form_mark = mark;
+    }
+    let pointer = hover.hover_pos();
+    if cut_trigger && pointer.is_some_and(|p| trigger_rect.contains(p)) {
         hover.on_hover_text(trigger_text());
+    } else if ui.rect_contains_pointer(form_mark) && pass.dragged_id.is_none() {
+        // Asked of the pointer, not of `hover`: the row's own click area is laid over this line
+        // after it is drawn, so `hover` never hears the pointer while it is on a card. Under the
+        // mark, and after the pause every other tooltip waits for.
+        let delay = ui.style().interaction.tooltip_delay;
+        let still = ui.input(|i| i.pointer.time_since_last_movement());
+        if still >= delay {
+            egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), hover.id.with("form"), form_mark)
+                .show(|ui| ui.label(pass.form_tip));
+        } else {
+            ui.ctx().request_repaint_after_secs(delay - still);
+        }
     }
 }
 
