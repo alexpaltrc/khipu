@@ -166,9 +166,10 @@ fn choice(ui: &mut egui::Ui, salt: &str, index: usize, options: &[String], answe
         .selected_text(answer.as_str())
         .truncate()
         .width(ui.available_width())
+        .icon(controls::dropdown_chevron)
         .show_ui(ui, |ui| {
             for option in &options {
-                if ui.selectable_label(answer.as_str() == *option, *option).clicked() {
+                if controls::dropdown_choice(ui, option, answer.as_str() == *option) {
                     *answer = option.to_string();
                 }
             }

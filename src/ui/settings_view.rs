@@ -356,7 +356,7 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
             .iter()
             .map(|n| button_width(ui, n))
             .fold(0.0_f32, f32::max);
-        let combo = widest + LANGUAGE_ARROW;
+        let combo = (widest + LANGUAGE_ARROW).max(controls::dropdown_list_width(ui, &names));
         let current = state.settings.lang;
         let mut picked = None;
         row(ui, t.language_section, t.language_hint, combo, |ui| {
@@ -364,9 +364,10 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
             egui::ComboBox::from_id_salt("settings_language")
                 .selected_text(shown)
                 .width(combo)
+                .icon(controls::dropdown_chevron)
                 .show_ui(ui, |ui| {
                     for (lang, name) in Lang::ALL.iter().zip(&names) {
-                        if ui.selectable_label(*lang == current, *name).clicked() && *lang != current {
+                        if controls::dropdown_choice(ui, name, *lang == current) && *lang != current {
                             picked = Some(*lang);
                         }
                     }

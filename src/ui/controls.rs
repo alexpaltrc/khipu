@@ -1265,6 +1265,39 @@ pub fn subtle_button_width(ui: &egui::Ui, leading: bool, label: &str, trailing: 
         + if trailing { CHEVRON + SUBTLE_ICON_GAP } else { 0.0 }
 }
 
+/// The end of a drop-down list (`egui::ComboBox::icon`): the same Fluent chevron
+/// [`subtle_button`] carries, instead of egui's filled triangle.
+pub fn dropdown_chevron(ui: &egui::Ui, rect: egui::Rect, _: &egui::style::WidgetVisuals, _: bool) {
+    let icon = egui::Rect::from_center_size(rect.center(), egui::Vec2::splat(CHEVRON));
+    glyphs::paint(ui, icon, Glyph::ChevronDown, CHEVRON, secondary_text(!ui.visuals().dark_mode));
+}
+
+/// How wide a drop-down has to be for its open list, check column included, to end where the
+/// box ends instead of past it.
+pub fn dropdown_list_width(ui: &egui::Ui, labels: &[&str]) -> f32 {
+    let widest = labels
+        .iter()
+        .map(|label| {
+            ui.painter()
+                .layout_no_wrap(
+                    (*label).to_owned(),
+                    egui::TextStyle::Button.resolve(ui.style()),
+                    egui::Color32::PLACEHOLDER,
+                )
+                .size()
+                .x
+        })
+        .fold(0.0_f32, f32::max);
+    MENU_PAD_X * 2.0 + MENU_ICON_COLUMN + widest + ui.spacing().menu_margin.sum().x
+}
+
+/// The choices inside a drop-down list, drawn as the folder menu draws its folders: a check on the
+/// chosen one and the same gliding wash under the pointer. True when `label` was clicked.
+pub fn dropdown_choice(ui: &mut egui::Ui, label: &str, chosen: bool) -> bool {
+    ui.spacing_mut().item_spacing.y = 0.0;
+    menu_check_item(ui, label, None, chosen).clicked()
+}
+
 /// The inner padding of a flyout line, its icon column, and its height.
 const MENU_PAD_X: f32 = 10.0;
 const MENU_ICON_COLUMN: f32 = 28.0;

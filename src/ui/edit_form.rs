@@ -1956,12 +1956,13 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
                     .selected_text(selected_text)
                     .truncate()
                     .width(rest)
+                    .icon(controls::dropdown_chevron)
                     .show_ui(ui, |ui| {
-                        if ui.selectable_label(edit.folder.is_none(), t.no_folder).clicked() {
+                        if controls::dropdown_choice(ui, t.no_folder, edit.folder.is_none()) {
                             edit.folder = None;
                         }
                         for name in &folder_names {
-                            if ui.selectable_label(edit.folder.as_deref() == Some(name.as_str()), name).clicked() {
+                            if controls::dropdown_choice(ui, name, edit.folder.as_deref() == Some(name.as_str())) {
                                 edit.folder = Some(name.clone());
                             }
                         }

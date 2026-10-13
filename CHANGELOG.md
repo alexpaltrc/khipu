@@ -70,6 +70,10 @@ was published.
   choices, with **Other** for any prefix of your own: it opens a box beside them, ready to type
   in. At the bottom, Khipu's version and who made it, with espanso's version under them, smaller.
   The credit now reads simply «Created by Alex Palacios».
+- **Every drop-down, like the folder menu.** The language in Settings, the folder of a new
+  expansion and a form's longer lists now end in the same thin chevron as the folder picker, and
+  their lists open exactly as wide as the box, with a check on the chosen line and the same
+  highlight gliding under the pointer.
 - **A new expansion, in three questions.** The edit screen, now titled simply **New expansion**
   (or **Edit expansion**), asks, in order, **What will you type?**, **What should appear?** and
   **Anything else?**. Each step stays faint until the one before it is filled in, or until you
