@@ -3317,14 +3317,23 @@ pub(crate) fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput)
                 queue.push_back(vec![egui::Event::Text(typed.to_owned())]);
                 continue;
             }
-            // `k:Name` presses and releases one key, by egui's name for it: `k:Tab`, `k:Enter`.
-            if let Some(key) = line.strip_prefix("k:").and_then(|name| egui::Key::from_name(name.trim())) {
+            // `k:Name` presses and releases one key, by egui's name for it: `k:Tab`, `k:Enter`;
+            // `k:Ctrl+S` holds Ctrl through it.
+            let chord = line.strip_prefix("k:").map(|name| {
+                let name = name.trim();
+                match name.strip_prefix("Ctrl+") {
+                    // As Windows sends it: Ctrl, which egui also counts as its command key.
+                    Some(rest) => (rest, egui::Modifiers::CTRL | egui::Modifiers::COMMAND),
+                    None => (name, egui::Modifiers::NONE),
+                }
+            });
+            if let Some((key, modifiers)) = chord.and_then(|(name, mods)| Some((egui::Key::from_name(name)?, mods))) {
                 let event = |pressed| egui::Event::Key {
                     key,
                     physical_key: None,
                     pressed,
                     repeat: false,
-                    modifiers: egui::Modifiers::NONE,
+                    modifiers,
                 };
                 queue.push_back(vec![event(true)]);
                 queue.push_back(vec![event(false)]);

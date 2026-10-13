@@ -780,12 +780,15 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
 
     // Read on every frame so the key never falls through to another screen, and acted on only when
     // the button beside it could have been pressed: the shortcut is the button, not a way past it.
+    // Not under a dialog either: under «Eliminar expansión» it saved the form and left the question
+    // asking about a trigger that, renamed, no longer existed.
+    let dialog_up = confirming || trying || state.pending_confirm.is_some();
     let ctrl_s = keys::pressed(&ctx, keys::SAVE);
-    save |= ctrl_s && can_save && !confirming && !trying;
+    save |= ctrl_s && can_save && !dialog_up;
 
     // Esc is Cancelar. Not while a list is open over the form — that Esc closes the list — nor
     // while a dialog is up, which answers its own Esc.
-    let blocked = popup_was_open || confirming || trying || state.pending_confirm.is_some();
+    let blocked = popup_was_open || dialog_up;
     if !blocked && keys::pressed(&ctx, keys::BACK) {
         cancel = true;
     }

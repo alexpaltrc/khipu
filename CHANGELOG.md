@@ -154,6 +154,10 @@ was published.
   of the folder showing, so picking another one moved it sideways, and on a narrow window made it
   wider or narrower. It is now sized for the longest folder name, and only the folder picker's
   words change.
+- **Ctrl+S waits for the delete question.** With «Delete expansion» open over the editor, Ctrl+S
+  saved the form underneath and left the question asking about a trigger that, if you had just
+  renamed it, no longer existed. It now does nothing until the question is answered, as Esc
+  already did.
 
 ## 0.0.6 — 2026-10-06
 
