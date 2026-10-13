@@ -46,11 +46,27 @@ const WIDEST: f32 = 400.0;
 const RISE: f64 = 0.42;
 const FALL: f64 = 0.24;
 
-/// One new thing: its icon, what it is called, and where to start.
+/// One new thing: its icon, what it is called, where to start, and — when the place is a few
+/// clicks deep — the way there, drawn with the very icons the person will be looking for.
 struct Item {
     glyph: Glyph,
     title: String,
     line: String,
+    path: Vec<Step>,
+}
+
+/// One stop on the way to a new thing: the control's icon, its name, or both, as it looks on screen.
+struct Step {
+    glyph: Option<Glyph>,
+    label: Option<String>,
+}
+
+fn icon(glyph: Glyph) -> Step {
+    Step { glyph: Some(glyph), label: None }
+}
+
+fn named(glyph: Option<Glyph>, label: &str) -> Step {
+    Step { glyph, label: Some(label.to_string()) }
 }
 
 fn items(state: &AppState) -> Vec<Item> {
@@ -62,26 +78,31 @@ fn items(state: &AppState) -> Vec<Item> {
         Item {
             glyph: Glyph::ViewGrid,
             title: s("Vista en cuadrícula", "Grid view", "Grid na view", "ग्रिड दृश्य"),
-            line: crate::i18n::fill(
-                in_lang(
-                    lang,
-                    "Tus expansiones como tarjetas, más fáciles de leer y ordenar. Ya la tienes puesta; las otras están en ⋯ › {view}.",
-                    "Your expansions as cards, quicker to read and to arrange. It is already on; the others are in ⋯ › {view}.",
-                    "Ang mga expansion mo bilang mga card, mas madaling basahin at ayusin. Naka-on na ito; nasa ⋯ › {view} ang iba.",
-                    "आपके विस्तार कार्ड के रूप में, पढ़ने और व्यवस्थित करने में आसान। यह पहले से चालू है; बाकी ⋯ › {view} में हैं।",
-                ),
-                &[("view", t.view_label)],
+            line: s(
+                "Tus expansiones como tarjetas, más fáciles de leer y ordenar. Ya la tienes puesta; las otras vistas siguen aquí:",
+                "Your expansions as cards, quicker to read and to arrange. It is already on; the other views are still here:",
+                "Ang mga expansion mo bilang mga card, mas madaling basahin at ayusin. Naka-on na ito; narito pa rin ang ibang view:",
+                "आपके विस्तार कार्ड के रूप में, पढ़ने और व्यवस्थित करने में आसान। यह पहले से चालू है; बाकी दृश्य यहाँ हैं:",
             ),
+            path: vec![icon(Glyph::More), named(Some(Glyph::View), t.view_label)],
         },
         Item {
             glyph: Glyph::Rename,
             title: s("Formularios", "Forms", "Mga form", "फ़ॉर्म"),
             line: s(
-                "Una expansión que te pregunta los datos antes de escribir. Crea una con + y pulsa «Insertar campo».",
-                "An expansion that asks you for the details before it types. Create one with + and press «Insert field».",
-                "Isang expansion na nagtatanong muna ng detalye bago mag-type. Gumawa gamit ang + at pindutin ang «Magdagdag ng field».",
-                "ऐसा विस्तार जो लिखने से पहले आपसे जानकारी पूछता है। + से एक बनाएँ और «फ़ील्ड जोड़ें» दबाएँ।",
+                "Una expansión que te pregunta los datos antes de escribir. Para crear una:",
+                "An expansion that asks you for the details before it types. To make one:",
+                "Isang expansion na nagtatanong muna ng detalye bago mag-type. Para gumawa ng isa:",
+                "ऐसा विस्तार जो लिखने से पहले आपसे जानकारी पूछता है। एक बनाने के लिए:",
             ),
+            path: vec![
+                icon(Glyph::Add),
+                named(Some(Glyph::Add), in_lang(lang, "Añadir", "Add", "Magdagdag", "जोड़ें")),
+                named(
+                    None,
+                    in_lang(lang, "Un campo para rellenar", "A field to fill in", "Isang field na pupunan", "भरने के लिए एक फ़ील्ड"),
+                ),
+            ],
         },
         Item {
             glyph: Glyph::StarFilled,
@@ -96,8 +117,33 @@ fn items(state: &AppState) -> Vec<Item> {
                 ),
                 &[("keys", &shortcut)],
             ),
+            path: vec![],
         },
     ]
+}
+
+/// The way to a new thing, as one stamped tag: each control's own Fluent icon and name, joined by
+/// a quiet chevron. Typed characters («⋯ › Vista») set in body text read as punctuation, not as
+/// the buttons they stand for.
+fn path(ui: &mut egui::Ui, steps: &[Step], is_light: bool) {
+    let ink = ui.visuals().text_color();
+    let quiet = crate::app::text_tertiary(is_light);
+    controls::tag_frame(is_light).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT + 2.0;
+            for (i, step) in steps.iter().enumerate() {
+                if i > 0 {
+                    glyphs::show(ui, Glyph::ChevronRight, 10.0, quiet);
+                }
+                if let Some(glyph) = step.glyph {
+                    glyphs::show(ui, glyph, 14.0, ink);
+                }
+                if let Some(label) = &step.label {
+                    ui.label(egui::RichText::new(label).color(ink));
+                }
+            }
+        });
+    });
 }
 
 fn opened_id() -> egui::Id {
@@ -175,6 +221,10 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
                         ui.label(controls::h3(item.title));
                         ui.add_space(controls::GAP_TIGHT);
                         ui.add(egui::Label::new(controls::muted(item.line, is_light)).wrap());
+                        if !item.path.is_empty() {
+                            ui.add_space(controls::GAP);
+                            path(ui, &item.path, is_light);
+                        }
                     });
                 });
                 ui.add_space(controls::GAP_SECTION);
