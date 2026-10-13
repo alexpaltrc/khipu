@@ -1583,6 +1583,122 @@ fn list_fade(ctx: &egui::Context) -> f32 {
     1.0 - (1.0 - p) * (1.0 - p)
 }
 
+// --- A row finding its new place ---------------------------------------------------------------
+
+/// How long a row takes to travel to where a new star, or a lost one, puts it.
+const TRAVEL: f64 = 0.3;
+
+/// Where each row drawn last frame sat, measured from the top of the list's content so that
+/// scrolling is not mistaken for moving.
+fn travel_seen_key() -> egui::Id {
+    egui::Id::new("library-travel-seen")
+}
+
+fn travel_key() -> egui::Id {
+    egui::Id::new("library-travel")
+}
+
+/// A reordering under way: where every row set off from, and the one that asked for it, which
+/// is drawn above the others while it passes over them.
+#[derive(Clone)]
+struct Travel {
+    since: f64,
+    from: egui::IdMap<egui::Vec2>,
+    lifted: egui::Id,
+}
+
+/// Starring or unstarring moves a row to the other band of the list; this lets every row that
+/// shifts glide there instead of jumping. Called before the change, while last frame's places are
+/// still the old order's.
+pub(super) fn start_travel(ctx: &egui::Context, trigger: &str) {
+    if !crate::theme::animations_enabled() {
+        return;
+    }
+    let from = ctx.data(|d| d.get_temp::<egui::IdMap<egui::Vec2>>(travel_seen_key())).unwrap_or_default();
+    let since = ctx.input(|i| i.time);
+    ctx.data_mut(|d| d.insert_temp(travel_key(), Travel { since, from, lifted: row_id(trigger) }));
+}
+
+/// One frame of the list's rows: records where each is drawn, and moves the drawn shapes of any
+/// that changed place back towards where they were, by less every frame.
+///
+/// Only what is painted moves. The row's clicks stay at its new place, which for a third of a
+/// second is no loss, and every clip stays where it was, so a travelling row never shows outside
+/// the list.
+struct Travels {
+    origin: egui::Pos2,
+    seen: egui::IdMap<egui::Vec2>,
+    travel: Option<Travel>,
+    /// How much of the way is still left to go: 1 at the start, 0 at the end.
+    left: f32,
+    lifted: Vec<egui::epaint::ClippedShape>,
+}
+
+impl Travels {
+    fn begin(ui: &egui::Ui) -> Self {
+        let ctx = ui.ctx();
+        let mut travel = ctx.data(|d| d.get_temp::<Travel>(travel_key()));
+        let mut left = 0.0;
+        if let Some(t) = &travel {
+            let p = ((ctx.input(|i| i.time) - t.since) / TRAVEL) as f32;
+            if p >= 1.0 {
+                ctx.data_mut(|d| d.remove::<Travel>(travel_key()));
+                travel = None;
+            } else {
+                left = 1.0 - egui::emath::easing::cubic_in_out(p.max(0.0));
+                ctx.request_repaint();
+            }
+        }
+        Self { origin: ui.max_rect().min, seen: egui::IdMap::default(), travel, left, lifted: Vec::new() }
+    }
+
+    /// Draws one row with `add`, at the place the layout gives it, and then shifts what it painted.
+    fn row<R>(&mut self, ui: &mut egui::Ui, id: egui::Id, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+        let layer = ui.layer_id();
+        let start = ui.ctx().graphics(|g| g.get(layer).map_or(egui::layers::ShapeIdx(0), |l| l.next_idx()));
+        let at = ui.cursor().min - self.origin;
+        let r = add(ui);
+        let end = ui.ctx().graphics(|g| g.get(layer).map_or(start, |l| l.next_idx()));
+        if end.0 == start.0 {
+            return r; // A gap standing in for a row far off screen.
+        }
+        self.seen.insert(id, at);
+        let Some(travel) = &self.travel else { return r };
+        let Some(&from) = travel.from.get(&id) else { return r };
+        let shift = ((from - at) * self.left).round();
+        if shift == egui::Vec2::ZERO && travel.lifted != id {
+            return r;
+        }
+        let lift = travel.lifted == id;
+        ui.ctx().graphics_mut(|g| {
+            let list = g.entry(layer);
+            for i in start.0..end.0 {
+                list.mutate_shape(egui::layers::ShapeIdx(i), |clipped| {
+                    clipped.shape.translate(shift);
+                    if lift {
+                        let shape = std::mem::replace(&mut clipped.shape, egui::Shape::Noop);
+                        self.lifted.push(egui::epaint::ClippedShape { clip_rect: clipped.clip_rect, shape });
+                    }
+                });
+            }
+        });
+        r
+    }
+
+    fn end(self, ui: &egui::Ui) {
+        let layer = ui.layer_id();
+        if !self.lifted.is_empty() {
+            ui.ctx().graphics_mut(|g| {
+                let list = g.entry(layer);
+                for clipped in self.lifted {
+                    list.add(clipped.clip_rect, clipped.shape);
+                }
+            });
+        }
+        ui.ctx().data_mut(|d| d.insert_temp(travel_seen_key(), self.seen));
+    }
+}
+
 fn show_list(
     ui: &mut egui::Ui,
     state: &mut AppState,
@@ -1685,8 +1801,10 @@ fn show_list(
 
             ui.set_width(ui.available_width());
             ui.spacing_mut().item_spacing.y = 0.0;
+            let mut travels = Travels::begin(ui);
             if pass.grid {
-                show_grid(ui, state, list, visible, pass, open.as_deref(), tab_stop.as_deref());
+                show_grid(ui, state, list, visible, pass, open.as_deref(), tab_stop.as_deref(), &mut travels);
+                travels.end(ui);
                 ui.add_space(NEW_BUTTON_ROOM);
                 return;
             }
@@ -1714,20 +1832,13 @@ fn show_list(
                 let row = &list.rows[visible[next]];
                 let is_open = open.as_deref() == Some(row.trigger.as_str());
                 let focusable = tab_stop.as_deref() == Some(row.trigger.as_str());
-                previous_lit = show_row(
-                    ui,
-                    state,
-                    list,
-                    row,
-                    visible,
-                    pass,
-                    is_open,
-                    focusable,
-                    previous_lit,
-                );
+                previous_lit = travels.row(ui, row_id(&row.trigger), |ui| {
+                    show_row(ui, state, list, row, visible, pass, is_open, focusable, previous_lit)
+                });
                 next += 1;
             }
             glide(ui, slot, origin, is_light);
+            travels.end(ui);
             // Room to scroll the last row clear of the round button, so nothing stays under it.
             ui.add_space(NEW_BUTTON_ROOM);
         });
@@ -1757,6 +1868,7 @@ fn show_grid(
     pass: RowPass<'_>,
     open: Option<&str>,
     tab_stop: Option<&str>,
+    travels: &mut Travels,
 ) {
     let gap = controls::GAP;
     let width = ui.available_width();
@@ -1796,14 +1908,16 @@ fn show_grid(
                 let trigger = row.trigger.as_str();
                 let is_open = open == Some(trigger);
                 let focusable = tab_stop == Some(trigger);
-                ui.allocate_ui_with_layout(
-                    egui::vec2(card_w, 0.0),
-                    egui::Layout::top_down(egui::Align::Min),
-                    |ui| {
-                        ui.set_width(card_w);
-                        show_row_inner(ui, state, list, row, row_id(trigger), visible, pass, is_open, focusable, true);
-                    },
-                );
+                travels.row(ui, row_id(trigger), |ui| {
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(card_w, 0.0),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            ui.set_width(card_w);
+                            show_row_inner(ui, state, list, row, row_id(trigger), visible, pass, is_open, focusable, true);
+                        },
+                    );
+                });
             }
         });
         ui.add_space(gap);
@@ -2932,6 +3046,7 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
         state.assign_folder_to_triggers(&[trigger.to_owned()], None);
     }
     if let Some(on) = star_to {
+        start_travel(ui.ctx(), trigger);
         state.set_favorite(trigger, on);
     }
     if let Some(off) = switch_to {
