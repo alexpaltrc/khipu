@@ -2051,6 +2051,19 @@ pub fn rewind_new_button(ctx: &egui::Context) {
     ctx.data_mut(|d| d.remove::<Rise>(rise_id()));
 }
 
+/// How far the round button sinks while held down, as a share of its size, and how long it takes
+/// to sink and to come back up.
+const PRESS_SINK: f32 = 0.08;
+const PRESS_SINK_TIME: f32 = 0.1;
+const PRESS_RETURN_TIME: f32 = 0.3;
+
+/// The way back up from a press. egui reads a curve backwards on the way down, so this one,
+/// passing 1 before it ends, is the button coming up a hair past its size before it settles.
+fn press_return(x: f32) -> f32 {
+    const C1: f32 = 2.5;
+    1.0 + (C1 + 1.0) * (x - 1.0).powi(3) + C1 * (x - 1.0).powi(2)
+}
+
 /// Ease-out with an overshoot: arrives past 1, comes back to it, and stops.
 fn ease_out_back(x: f32) -> f32 {
     let c1 = BOUNCE;
@@ -2103,6 +2116,20 @@ fn new_button(ui: &mut egui::Ui, state: &mut AppState, area: egui::Rect) {
         ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
     }
 
+    // Held down, it sinks a little into the page; let go, it comes back up a hair past its size
+    // and settles. Only the drawing moves: what is clicked stays the circle at rest.
+    let down = response.is_pointer_button_down_on();
+    let (pace, easing): (f32, fn(f32) -> f32) = if !crate::theme::animations_enabled() {
+        (0.0, egui::emath::easing::linear)
+    } else if down {
+        (PRESS_SINK_TIME, egui::emath::easing::cubic_out)
+    } else {
+        (PRESS_RETURN_TIME, press_return)
+    };
+    let sunk = ctx.animate_bool_with_time_and_easing(egui::Id::new("new-expansion-press"), down, pace, easing);
+    let rect = egui::Rect::from_center_size(rect.center(), rect.size() * (1.0 - PRESS_SINK * sunk));
+    let scale = rect.width() / NEW_BUTTON;
+
     // Windows' accent buttons: the fill a little weaker on hover and weaker again while pressed,
     // the plus a little dimmer while pressed. Mixed with the page, not made see-through, so the
     // row under it never shows through.
@@ -2130,9 +2157,9 @@ fn new_button(ui: &mut egui::Ui, state: &mut AppState, area: egui::Rect) {
         painter.add(shadow(6, 18, wide).as_shape(rect, round));
         painter.add(shadow(1, 3, tight).as_shape(rect, round));
     }
-    painter.circle_filled(rect.center(), NEW_BUTTON * 0.5, fill);
+    painter.circle_filled(rect.center(), rect.width() * 0.5, fill);
     if crate::app::contrast().is_some() {
-        painter.circle_stroke(rect.center(), NEW_BUTTON * 0.5 - 0.5, egui::Stroke::new(1.0, ink));
+        painter.circle_stroke(rect.center(), rect.width() * 0.5 - 0.5, egui::Stroke::new(1.0, ink));
     }
     let bar = |size: egui::Vec2| {
         painter.rect_filled(
@@ -2141,8 +2168,8 @@ fn new_button(ui: &mut egui::Ui, state: &mut AppState, area: egui::Rect) {
             ink,
         );
     };
-    bar(egui::vec2(PLUS_ARM, PLUS_STROKE));
-    bar(egui::vec2(PLUS_STROKE, PLUS_ARM));
+    bar(egui::vec2(PLUS_ARM * scale, PLUS_STROKE));
+    bar(egui::vec2(PLUS_STROKE, PLUS_ARM * scale));
     if response.has_focus() {
         painter.circle_stroke(
             rect.center(),

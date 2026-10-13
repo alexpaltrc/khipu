@@ -85,6 +85,8 @@ was published.
   page with a faint shadow. High contrast themes keep their cards flat.
 - **The choice arrives.** The chosen row's accent bar grows out from its middle, and a chosen
   card's ring fades in; both leave the same way when you choose another.
+- **The round button answers.** Held down, the «+» sinks a little into the page, and it comes
+  back up with a small bounce when you let go.
 - **The switch moves like Windows' own.** Its knob now gathers speed and settles instead of
   sliding at one pace, grows a little under the pointer and stretches towards the other side
   while it is held down.

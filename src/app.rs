@@ -3401,6 +3401,23 @@ pub(crate) fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput)
                 }
                 continue;
             }
+            // `d:x,y` presses there and holds; `u:x,y` moves there and lets go — a press held, or
+            // one dragged off what it was on.
+            let held = line.strip_prefix("d:").map(|rest| (rest, true));
+            if let Some((rest, pressed)) = held.or_else(|| line.strip_prefix("u:").map(|rest| (rest, false))) {
+                let n: Vec<f32> = rest.split(',').filter_map(|n| n.trim().parse().ok()).collect();
+                if let [x, y] = n[..] {
+                    let pos = egui::pos2(x / ppp, y / ppp);
+                    queue.push_back(vec![egui::Event::PointerMoved(pos)]);
+                    queue.push_back(vec![egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    }]);
+                }
+                continue;
+            }
             let mut xy = line.split(',').filter_map(|n| n.trim().parse::<f32>().ok());
             let (Some(x), Some(y)) = (xy.next(), xy.next()) else { continue };
             let pos = egui::pos2(x / ppp, y / ppp);
