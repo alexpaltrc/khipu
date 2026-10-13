@@ -1063,9 +1063,8 @@ fn segmented_faces(
 /// switch turns a thing on. "Start with Windows" is the second kind, and it is the only setting in
 /// this app that is, so it gets the control Windows itself uses for it.
 ///
-/// The travel is animated through egui's own `animate_bool_with_time`, the same easing already
-/// driving the selection bar — one animation system for the whole app, and it costs a repaint only
-/// while the knob is actually moving.
+/// The travel is animated through egui's own bool animations, one animation system for the whole
+/// app, and it costs a repaint only while the knob is actually moving.
 pub fn toggle(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
     let size = egui::vec2(40.0, 20.0);
     let (rect, mut response) = ui.allocate_exact_size(size, egui::Sense::click());
@@ -1082,8 +1081,27 @@ pub fn toggle(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
         let is_light = !ui.visuals().dark_mode;
         let (accent_color, on_ink) = accent_fill(ui.visuals());
         // With Windows' animation effects off the knob jumps, as Windows' own switches then do.
-        let travel = if crate::theme::animations_enabled() { 0.12 } else { 0.0 };
-        let t = ui.ctx().animate_bool_with_time(response.id, *on, travel);
+        // Otherwise it travels as theirs does: gathering speed, then settling, never at one pace.
+        let animate = crate::theme::animations_enabled();
+        let travel = if animate { 0.167 } else { 0.0 };
+        let t = ui.ctx().animate_bool_with_time_and_easing(
+            response.id,
+            *on,
+            travel,
+            egui::emath::easing::cubic_in_out,
+        );
+        // Under the pointer the knob grows a point; held down, it stretches towards where it is
+        // about to go — the two cues Windows' switch gives before it moves.
+        let grow = ui.ctx().animate_bool_with_time(
+            response.id.with("grow"),
+            response.hovered() || response.is_pointer_button_down_on(),
+            if animate { 0.083 } else { 0.0 },
+        );
+        let stretch = ui.ctx().animate_bool_with_time(
+            response.id.with("stretch"),
+            response.is_pointer_button_down_on(),
+            if animate { 0.083 } else { 0.0 },
+        );
 
         let off_fill = win_control_for(is_light);
         let fill = mix(off_fill, accent_color, t);
@@ -1102,13 +1120,20 @@ pub fn toggle(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
         // Off, the knob is the ink colour on the control surface; on, it is whatever reads against
         // the accent — which is how it stays visible on a pale accent as well as a dark one.
         let knob_x = egui::lerp((rect.left() + 10.0)..=(rect.right() - 10.0), t);
-        let knob_r = egui::lerp(5.0..=6.0, t);
+        let knob_r = egui::lerp(5.0..=6.0, t) + grow;
         let knob_color = if t > 0.5 {
             on_ink
         } else {
             secondary_text(is_light)
         };
-        painter.circle_filled(egui::pos2(knob_x, rect.center().y), knob_r, knob_color);
+        // The stretch reaches towards the far side: right while off, left while on.
+        let reach = 3.0 * stretch;
+        let (left, right) = if t > 0.5 { (reach, 0.0) } else { (0.0, reach) };
+        let knob = egui::Rect::from_min_max(
+            egui::pos2(knob_x - knob_r - left, rect.center().y - knob_r),
+            egui::pos2(knob_x + knob_r + right, rect.center().y + knob_r),
+        );
+        painter.rect_filled(knob, egui::CornerRadius::same(knob_r.round() as u8), knob_color);
     }
 
     response

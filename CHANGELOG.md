@@ -70,6 +70,9 @@ was published.
   choices, with **Other** for any prefix of your own: it opens a box beside them, ready to type
   in. At the bottom, Khipu's version and who made it, with espanso's version under them, smaller.
   The credit now reads simply «Created by Alex Palacios».
+- **The switch moves like Windows' own.** Its knob now gathers speed and settles instead of
+  sliding at one pace, grows a little under the pointer and stretches towards the other side
+  while it is held down.
 - **Every drop-down, like the folder menu.** The language in Settings, the folder of a new
   expansion and a form's longer lists now end in the same thin chevron as the folder picker, and
   their lists open exactly as wide as the box, with a check on the chosen line and the same
