@@ -408,6 +408,8 @@ pub struct Strings {
     pub tray_pause_10: &'static str,
     pub tray_quit: &'static str,
     pub tray_tooltip: &'static str,
+    /// The tooltip while «Novedades» waits after an update, with the dot on the icon.
+    pub tray_tooltip_news: &'static str,
 
     // --- startup dialogs -----------------------------------------------------------------
     pub already_running: &'static str,
@@ -627,6 +629,7 @@ pub static EN: Strings = Strings {
     tray_pause_10: "Pause for 10 minutes",
     tray_quit: "Quit",
     tray_tooltip: "Khipu — click to open, right-click to pause",
+    tray_tooltip_news: "Khipu — updated, with news: click to see what's new",
 
     already_running: "Khipu is already running. Look for it in the system tray, next to the clock (it may be hidden behind the arrow for hidden icons).",
     instance_guard_warning: "Windows would not grant the lock that stops two copies of Khipu running at once: {err}\n\nThe app has started anyway. The only consequence is that a second copy could now open alongside this one — if you see two icons in the system tray, close one of them.",
@@ -837,6 +840,7 @@ pub static ES: Strings = Strings {
     tray_pause_10: "Pausar 10 minutos",
     tray_quit: "Salir",
     tray_tooltip: "Khipu — clic para abrir, clic derecho para pausar",
+    tray_tooltip_news: "Khipu — se actualizó y trae novedades: clic para verlas",
 
     already_running: "Khipu ya se está ejecutando. Búscalo en la bandeja del sistema, junto al reloj (puede estar oculto en la flecha de íconos ocultos).",
     instance_guard_warning: "Windows no concedió el bloqueo que impide que se ejecuten dos copias de Khipu a la vez: {err}\n\nLa aplicación se abrió de todas formas. La única consecuencia es que ahora podría abrirse una segunda copia junto a esta: si ves dos íconos en la bandeja del sistema, cierra uno.",
@@ -1047,6 +1051,7 @@ pub static FIL: Strings = Strings {
     tray_pause_10: "I-pause nang 10 minuto",
     tray_quit: "Lumabas",
     tray_tooltip: "Khipu — i-click para buksan, i-right-click para i-pause",
+    tray_tooltip_news: "Khipu — na-update, may mga bago: i-click para makita",
 
     already_running: "Tumatakbo na ang Khipu. Hanapin ito sa system tray, katabi ng orasan (maaaring nakatago ito sa likod ng arrow para sa mga nakatagong icon).",
     instance_guard_warning: "Hindi ibinigay ng Windows ang lock na pumipigil na tumakbo nang sabay ang dalawang kopya ng Khipu: {err}\n\nNagbukas pa rin ang app. Ang tanging epekto ay maaari nang magbukas ang pangalawang kopya sa tabi nito — kung may nakita kang dalawang icon sa system tray, isara mo ang isa.",
@@ -1257,6 +1262,7 @@ pub static HI: Strings = Strings {
     tray_pause_10: "10 मिनट के लिए रोकें",
     tray_quit: "बाहर निकलें",
     tray_tooltip: "Khipu — खोलने के लिए क्लिक करें, रोकने के लिए दायाँ क्लिक करें",
+    tray_tooltip_news: "Khipu — अपडेट हुआ, कुछ नया है: देखने के लिए क्लिक करें",
 
     already_running: "Khipu पहले से चल रहा है। इसे सिस्टम ट्रे में, घड़ी के पास देखें (यह छिपे हुए आइकनों वाले तीर के पीछे हो सकता है)।",
     instance_guard_warning: "Windows ने वह लॉक नहीं दिया जो Khipu की दो प्रतियों को एक साथ चलने से रोकता है: {err}\n\nऐप फिर भी खुल गया। इसका एकमात्र असर यह है कि अब इसके साथ दूसरी प्रति भी खुल सकती है — अगर सिस्टम ट्रे में दो आइकन दिखें, तो एक बंद कर दें।",

@@ -14,7 +14,9 @@ was published.
 - **«What's new» after an update.** The first time Khipu opens after an update, a short card
   rises with the few new things worth trying and where to start each one. It stays until you
   close it with ✕ or «Great!», and does not come back on its own until the next update with news;
-  «What's new» in the ⋯ menu shows it again whenever you want.
+  «What's new» in the ⋯ menu shows it again whenever you want. When the update arrives with Khipu
+  starting with Windows, hidden in the tray, the icon wears a small dot in your accent color and
+  its tooltip says there is news; both go as soon as you open the window.
 - **A new expansion starts at its word.** Opening a new expansion, from + or from Tips, puts the
   cursor in the «word» box, so the first step is plain.
 - **The welcome screen helps when the trial does not work.** If what is in the trial box is

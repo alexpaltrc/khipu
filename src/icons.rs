@@ -40,6 +40,8 @@ impl Tones {
 pub struct Appearance {
     pub size: u32,
     pub tones: Tones,
+    /// The dot that says there is news: Windows' accent, in the shade that reads on this taskbar.
+    pub accent: [u8; 3],
 }
 
 impl Appearance {
@@ -54,21 +56,26 @@ impl Appearance {
                 .unwrap_or_else(|| GetDpiForSystem().max(96))
         };
         let size = unsafe { GetSystemMetricsForDpi(SM_CXSMICON, dpi) }.clamp(8, 128) as u32;
-        let tones = if let Some((face, mark)) = crate::theme::contrast_colors() {
+        let light = crate::theme::is_light_taskbar();
+        let (tones, accent) = if let Some((face, mark)) = crate::theme::contrast_colors() {
             // Only the system's colours in a contrast theme. Paused sits halfway to the
-            // background: still the system's two colours, still told apart.
+            // background: still the system's two colours, still told apart. The dot is the mark
+            // too, set apart from the bird by the gap around it.
             let half = |i: usize| ((mark[i] as u16 + face[i] as u16) / 2) as u8;
-            Tones { active: mark, paused: [half(0), half(1), half(2)] }
-        } else if crate::theme::is_light_taskbar() {
-            Tones::LIGHT
+            (Tones { active: mark, paused: [half(0), half(1), half(2)] }, mark)
         } else {
-            Tones::DARK
+            let (r, g, b) = crate::theme::system_accent(light);
+            (if light { Tones::LIGHT } else { Tones::DARK }, [r, g, b])
         };
-        Self { size, tones }
+        Self { size, tones, accent }
     }
 
-    pub fn tray_icon(self, paused: bool) -> Result<tray_icon::Icon, String> {
-        let data = symbol(self.size, if paused { self.tones.paused } else { self.tones.active });
+    /// `news` adds the dot in the corner that says «Novedades» is waiting.
+    pub fn tray_icon(self, paused: bool, news: bool) -> Result<tray_icon::Icon, String> {
+        let mut data = symbol(self.size, if paused { self.tones.paused } else { self.tones.active });
+        if news {
+            badge(&mut data, self.accent);
+        }
         tray_icon::Icon::from_rgba(data.rgba, data.width, data.height).map_err(|e| e.to_string())
     }
 }
@@ -101,6 +108,54 @@ pub fn apply_window(window: &winit::window::Window) -> u32 {
 /// The bird alone, in one colour, `px` pixels square: the tray's icon.
 pub fn symbol(px: u32, colour: [u8; 3]) -> IconData {
     draw(px, false, colour)
+}
+
+/// The news dot, on the 40-unit canvas: in the top right corner, which the bird leaves empty, with
+/// a clear ring around it so it reads as a mark on the icon and not as part of the drawing.
+const DOT_CENTRE: Point = [33.5, 6.5];
+const DOT_RADIUS: f32 = 6.0;
+const DOT_GAP: f32 = 2.5;
+
+/// Puts the news dot on an icon already drawn. Each pixel is sampled like the bird, so the dot is
+/// as round at 16 px as at 64.
+fn badge(icon: &mut IconData, accent: [u8; 3]) {
+    let px = icon.width;
+    let n = 8;
+    let step = 40.0 / (px * n) as f32;
+    let (dot, clear) = (DOT_RADIUS * DOT_RADIUS, (DOT_RADIUS + DOT_GAP).powi(2));
+    for py in 0..px {
+        for qx in 0..px {
+            let (mut on_dot, mut in_gap) = (0u32, 0u32);
+            for sy in 0..n {
+                let y = ((py * n + sy) as f32 + 0.5) * step;
+                for sx in 0..n {
+                    let x = ((qx * n + sx) as f32 + 0.5) * step;
+                    let d = (x - DOT_CENTRE[0]).powi(2) + (y - DOT_CENTRE[1]).powi(2);
+                    if d <= dot {
+                        on_dot += 1;
+                    } else if d <= clear {
+                        in_gap += 1;
+                    }
+                }
+            }
+            if on_dot + in_gap == 0 {
+                continue;
+            }
+            let samples = (n * n) as f32;
+            let (f_dot, f_bird) = (on_dot as f32 / samples, 1.0 - (on_dot + in_gap) as f32 / samples);
+            let pixel = &mut icon.rgba[((py * px + qx) * 4) as usize..][..4];
+            let bird = pixel[3] as f32 / 255.0 * f_bird;
+            let alpha = f_dot + bird;
+            for i in 0..3 {
+                pixel[i] = if alpha > 0.0 {
+                    ((accent[i] as f32 * f_dot + pixel[i] as f32 * bird) / alpha).round() as u8
+                } else {
+                    0
+                };
+            }
+            pixel[3] = (alpha * 255.0).round() as u8;
+        }
+    }
 }
 
 /// The application icon: the bird in ink on the violet square with rounded corners.
@@ -337,6 +392,29 @@ mod tests {
             let offset = u32::from_le_bytes(entry[12..16].try_into().unwrap()) as usize;
             let (mean, max) = difference(&app(size), &decode(&ico[offset..offset + length]));
             assert!(mean < LIMIT_MEAN && max <= LIMIT_MAX, "{size}: mean {mean:.3}, max {max}");
+        }
+    }
+
+    #[test]
+    fn the_news_dot_sits_in_the_empty_corner() {
+        for size in [16, 20, 24, 28, 32, 40, 48, 64] {
+            let plain = symbol(size, Tones::DARK.active);
+            let mut news = plain.clone();
+            badge(&mut news, [0x4C, 0xC2, 0xFF]);
+            // The dot's centre is the accent, solid.
+            let c = |p: Point| ((p[1] / 40.0 * size as f32) as u32 * size + (p[0] / 40.0 * size as f32) as u32) as usize * 4;
+            assert_eq!(&news.rgba[c(DOT_CENTRE)..][..4], &[0x4C, 0xC2, 0xFF, 0xFF], "{size}");
+            // Away from the corner nothing moved: the left half and the bottom half are the bird's.
+            for (i, (a, b)) in plain.rgba.chunks(4).zip(news.rgba.chunks(4)).enumerate() {
+                let (x, y) = (i as u32 % size, i as u32 / size);
+                if x < size / 2 || y > size / 2 {
+                    assert_eq!(a, b, "{size} at {x},{y}");
+                }
+            }
+            // And the bird lost almost nothing to the ring: the corner is empty space.
+            let ink: u32 = plain.rgba.chunks(4).map(|p| p[3] as u32).sum();
+            let lost: u32 = plain.rgba.chunks(4).zip(news.rgba.chunks(4)).map(|(a, b)| a[3].saturating_sub(b[3]) as u32).sum();
+            assert!(lost * 50 < ink, "{size}: lost {lost} of {ink}");
         }
     }
 

@@ -176,6 +176,8 @@ pub struct Tray {
     pause10_id: MenuId,
     quit_id: MenuId,
     pub state: PauseState,
+    /// «Novedades» is waiting for a window nobody has opened yet. See [`Tray::set_news`].
+    news: std::cell::Cell<bool>,
 }
 
 fn ctl_result_to_message(
@@ -200,8 +202,8 @@ impl Tray {
     /// Icons belong to the Manager, so replacing only the exe updates every portable layout.
     pub fn new(t: &'static Strings) -> Result<Self, String> {
         let appearance = crate::icons::Appearance::current();
-        let icon_active = appearance.tray_icon(false)?;
-        let icon_paused = appearance.tray_icon(true)?;
+        let icon_active = appearance.tray_icon(false, false)?;
+        let icon_paused = appearance.tray_icon(true, false)?;
 
         let toggle_item = MenuItem::new(t.tray_pause, true, None);
         let pause10_item = MenuItem::new(t.tray_pause_10, true, None);
@@ -241,6 +243,7 @@ impl Tray {
             pause10_id,
             quit_id,
             state: PauseState::Active,
+            news: std::cell::Cell::new(false),
         })
     }
 
@@ -249,7 +252,6 @@ impl Tray {
     pub fn relabel(&self, t: &'static Strings) {
         self.pause10_item.set_text(t.tray_pause_10);
         self.quit_item.set_text(t.tray_quit);
-        let _ = self.icon.set_tooltip(Some(if crate::EXPERIMENTAL { "Khipu · Studio" } else { t.tray_tooltip }));
         self.sync_visuals(t);
     }
 
@@ -258,10 +260,8 @@ impl Tray {
     pub fn refresh_appearance(&mut self, t: &'static Strings) -> Result<(), String> {
         let appearance = crate::icons::Appearance::current();
         if appearance == self.appearance { return Ok(()); }
-        let active = appearance.tray_icon(false)?;
-        let paused = appearance.tray_icon(true)?;
-        let current = if self.state == PauseState::Active { &active } else { &paused };
-        self.icon.set_icon(Some(current.clone())).map_err(|e| e.to_string())?;
+        let active = appearance.tray_icon(false, false)?;
+        let paused = appearance.tray_icon(true, false)?;
         self.icon_active = active;
         self.icon_paused = paused;
         self.appearance = appearance;
@@ -270,14 +270,30 @@ impl Tray {
     }
 
     fn sync_visuals(&self, t: &'static Strings) {
-        let (label, icon) = match self.state {
-            PauseState::Active => (t.tray_pause, &self.icon_active),
-            PauseState::PausedIndefinite | PauseState::PausedTimed(_) => {
-                (t.tray_resume, &self.icon_paused)
-            }
-        };
+        let paused = self.state != PauseState::Active;
+        let (label, icon) = if paused { (t.tray_resume, &self.icon_paused) } else { (t.tray_pause, &self.icon_active) };
         self.toggle_item.set_text(label);
-        let _ = self.icon.set_icon(Some(icon.clone()));
+        // The dot is drawn only while there is news, once per update and for as long as the window
+        // stays closed; the two plain icons are the ones worth keeping.
+        let news = self.news.get();
+        let shown = if news { self.appearance.tray_icon(paused, true).ok() } else { None };
+        let _ = self.icon.set_icon(Some(shown.unwrap_or_else(|| icon.clone())));
+        let tooltip = if crate::EXPERIMENTAL {
+            "Khipu · Studio"
+        } else if news {
+            t.tray_tooltip_news
+        } else {
+            t.tray_tooltip
+        };
+        let _ = self.icon.set_tooltip(Some(tooltip));
+    }
+
+    /// The dot on the icon and the tooltip that say «Novedades» is waiting. Only for a start in the
+    /// tray: a window that opens shows the card itself, and the dot goes the moment it does.
+    pub fn set_news(&self, news: bool, t: &'static Strings) {
+        if self.news.replace(news) != news {
+            self.sync_visuals(t);
+        }
     }
 
     /// Whether espanso is paused, for the one screen that shows it.

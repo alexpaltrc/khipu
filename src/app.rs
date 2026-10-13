@@ -2782,6 +2782,12 @@ impl KhipuApp {
             state.set_error_banner(state.t().hindi_font_missing);
         }
 
+        // Started in the tray after an update, the card waits behind a closed window: the dot on
+        // the icon says so, until the window opens. Nothing jumps to the front by itself.
+        if ctx.start_hidden && state.whats_new_open {
+            ctx.tray.set_news(true, state.t());
+        }
+
         Self {
             state,
             tray: ctx.tray,
@@ -2839,6 +2845,7 @@ impl KhipuApp {
         };
         // Only ever set by a start hidden in the tray; clearing both is harmless every other time.
         set_cloaked(window, false);
+        self.tray.set_news(false, self.state.t());
         {
             use winit::platform::windows::WindowExtWindows as _;
             window.set_skip_taskbar(false);
