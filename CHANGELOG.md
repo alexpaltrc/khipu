@@ -68,26 +68,27 @@ was published.
   choices, with **Other** for any prefix of your own: it opens a box beside them, ready to type
   in. The version and the credits are at the bottom.
 - **A new expansion, in three questions.** The edit screen, now titled simply **New expansion**
-  (or **Edit expansion**), asks, in order, **What will you
-  type?**, **What should appear?** and **Anything else?**. Each step stays faint until the one
-  before it is filled in, or until you click or Tab into it: it lights up as soon as you start there. A sentence at the top says, as you type,
-  what the expansion will do. The date and the fields to fill in are under **+ Add**, beside the
-  text. The name, the folder and the favorite switch are folded under **Anything else?**, and
-  open by themselves when you edit an expansion that has any of them. Enter in the word box moves
-  on to the text.
+  (or **Edit expansion**), asks, in order, **What will you type?**, **What should appear?** and
+  **Anything else?**. Each step stays faint until the one before it is filled in, or until you
+  click or Tab into it: it lights up as soon as you start there. A sentence at the top says, as
+  you type, what the expansion will do. The date and the fields to fill in are under **+ Add**,
+  beside the text. The name, the folder and the favorite switch are folded under **Anything
+  else?**, and open by themselves when you edit an expansion that has any of them. Enter in the
+  word box moves on to the text.
 - **New installs start with Windows.** An expander that is not running does nothing, so the first
   run turns on **Start Khipu with Windows** by itself. The last step of the welcome screen no
   longer asks: it explains that closing Khipu leaves it in the system tray, among the hidden
   icons, shows how to drag it onto the taskbar, and says how to quit for good: right-click the
-  icon and choose **Quit**. Its tip says where to turn starting with Windows off. **Nothing changes for anyone who already uses Khipu**: your choice stays as it is.
-
+  icon and choose **Quit**. Its tip says where to turn starting with Windows off. **Nothing
+  changes for anyone who already uses Khipu**: your choice stays as it is.
 - **New installs use `;` as the prefix, not `:`.** Outlook, Teams, WhatsApp, Discord and Slack
   read a colon followed by a word as the start of an emoji, and open their emoji picker over
   `:hi` before it can expand. A semicolon followed by a letter means nothing to any of them. The
   three starter expansions are now `;hi`, `;date` and `;today`. **Nothing changes for anyone
   who already uses Khipu**: your expansions and your prefix stay as they are. To move all of them
   to `;`, pick it in Settings under **Prefix for new expansions**, then press **Apply…** beside
-  **Use it on the ones you have**.
+  **Use it on the ones you have**. «What's new» tells anyone who updates why, that their
+  expansions were left alone, and where in Settings to change the prefix.
 - **Tips names the two halves of an expansion.** The example at the top of Tips now labels
   what you type (the trigger) and what appears (the text), says that together they make an
   expansion, and uses your own prefix. It is outside the sections, so nobody has to open

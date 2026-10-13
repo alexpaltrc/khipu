@@ -19,7 +19,7 @@
 
 //! «Novedades»: the card that rises once after an update, with the few things worth trying.
 //!
-//! Not the changelog. Three things at most, each one line on where to start, so that reading it
+//! Not the changelog. A handful of things at most, each a line on where to start, so that reading it
 //! takes less time than closing it unread. Whatever did not make someone want to try it stays in
 //! the changelog.
 //!
@@ -49,7 +49,7 @@ const FALL: f64 = 0.24;
 /// One new thing: its icon, what it is called, where to start, and — when the place is a few
 /// clicks deep — the way there, drawn with the very icons the person will be looking for.
 struct Item {
-    glyph: Glyph,
+    icon: Icon,
     title: String,
     line: String,
     path: Vec<Step>,
@@ -59,6 +59,13 @@ struct Item {
 struct Step {
     glyph: Option<Glyph>,
     label: Option<String>,
+}
+
+/// What stands beside a new thing's title: a Fluent icon, or — for a change that is itself a
+/// key — that key, drawn as one.
+enum Icon {
+    Glyph(Glyph),
+    Key(&'static str),
 }
 
 fn icon(glyph: Glyph) -> Step {
@@ -76,7 +83,7 @@ fn items(state: &AppState) -> Vec<Item> {
     let s = |es, en, fil, hi| in_lang(lang, es, en, fil, hi).to_string();
     vec![
         Item {
-            glyph: Glyph::ViewGrid,
+            icon: Icon::Glyph(Glyph::ViewGrid),
             title: s("Vista en cuadrícula", "Grid view", "Grid na view", "ग्रिड दृश्य"),
             line: s(
                 "Tus expansiones como tarjetas, más fáciles de leer y ordenar. Ya la tienes puesta; las otras vistas siguen aquí:",
@@ -87,7 +94,7 @@ fn items(state: &AppState) -> Vec<Item> {
             path: vec![icon(Glyph::More), named(Some(Glyph::View), t.view_label)],
         },
         Item {
-            glyph: Glyph::Rename,
+            icon: Icon::Glyph(Glyph::Rename),
             title: s("Formularios", "Forms", "Mga form", "फ़ॉर्म"),
             line: s(
                 "Una expansión que te pregunta los datos antes de escribir. Para crear una:",
@@ -105,7 +112,7 @@ fn items(state: &AppState) -> Vec<Item> {
             ],
         },
         Item {
-            glyph: Glyph::StarFilled,
+            icon: Icon::Glyph(Glyph::StarFilled),
             title: s("Favoritos", "Favorites", "Mga paborito", "पसंदीदा"),
             line: crate::i18n::fill(
                 in_lang(
@@ -119,6 +126,17 @@ fn items(state: &AppState) -> Vec<Item> {
             ),
             path: vec![],
         },
+        Item {
+            icon: Icon::Key(";"),
+            title: s("Nuevo prefijo «;»", "A new prefix: “;”", "Bagong prefix: “;”", "नया उपसर्ग: “;”"),
+            line: s(
+                "Outlook, Teams y otras apps convierten «:palabra» en emoji antes de que salga la expansión; por eso Khipu, recién instalado, empieza con «;». Tus expansiones siguen tal cual. Si quieres el nuevo prefijo:",
+                "Outlook, Teams and other apps turn “:word” into an emoji before the expansion can appear, so a fresh Khipu now starts with “;”. Your expansions are just as they were. If you want the new prefix:",
+                "Ginagawang emoji ng Outlook, Teams at iba pang app ang “:salita” bago lumabas ang expansion, kaya “;” na ang simula ng bagong install ng Khipu. Walang binago sa mga expansion mo. Kung gusto mo ang bagong prefix:",
+                "Outlook, Teams और दूसरे ऐप “:शब्द” को विस्तार आने से पहले इमोजी बना देते हैं, इसलिए नया इंस्टॉल किया Khipu अब “;” से शुरू होता है। आपके विस्तार जैसे थे वैसे ही हैं। अगर आप नया उपसर्ग चाहते हैं:",
+            ),
+            path: vec![named(Some(Glyph::Settings), t.settings_title), named(None, t.prefix_section)],
+        },
     ]
 }
 
@@ -129,7 +147,8 @@ fn path(ui: &mut egui::Ui, steps: &[Step], is_light: bool) {
     let ink = ui.visuals().text_color();
     let quiet = crate::app::text_tertiary(is_light);
     controls::tag_frame(is_light).show(ui, |ui| {
-        ui.horizontal(|ui| {
+        // On a narrow window the way breaks between its stops rather than running past the card.
+        ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT + 2.0;
             for (i, step) in steps.iter().enumerate() {
                 if i > 0 {
@@ -144,6 +163,14 @@ fn path(ui: &mut egui::Ui, steps: &[Step], is_light: bool) {
             }
         });
     });
+}
+
+/// A key drawn as a key: its legend in the code face inside a rounded outline, in the accent, the
+/// size the Fluent icons beside it are drawn at.
+fn keycap(ui: &egui::Ui, slot: egui::Rect, legend: &str, ink: egui::Color32) {
+    let cap = egui::Rect::from_center_size(slot.center(), egui::Vec2::splat(24.0));
+    ui.painter().rect_stroke(cap, 5.0, egui::Stroke::new(1.5, ink), egui::StrokeKind::Inside);
+    ui.painter().text(cap.center(), egui::Align2::CENTER_CENTER, legend, egui::FontId::monospace(15.0), ink);
 }
 
 fn opened_id() -> egui::Id {
@@ -212,23 +239,66 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
             });
             ui.add_space(controls::GAP_STACK);
 
-            for item in items(state) {
-                ui.horizontal_top(|ui| {
-                    ui.spacing_mut().item_spacing.x = controls::GAP_WIDE;
-                    let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(controls::FIELD_HEIGHT), egui::Sense::hover());
-                    glyphs::paint(ui, rect, item.glyph, 22.0, ink);
-                    ui.vertical(|ui| {
-                        ui.label(controls::h3(item.title));
-                        ui.add_space(controls::GAP_TIGHT);
-                        ui.add(egui::Label::new(controls::muted(item.line, is_light)).wrap());
-                        if !item.path.is_empty() {
-                            ui.add_space(controls::GAP);
-                            path(ui, &item.path, is_light);
+            // The header and «¡Genial!» always show; on a window too short for every item, the
+            // items scroll between them rather than the card running past the window's edges.
+            let footer = controls::GAP + controls::FIELD_HEIGHT + ui.spacing().item_spacing.y * 2.0;
+            let room = ctx.content_rect().height()
+                - 2.0 * (controls::DIALOG_CLEARANCE + f32::from(controls::PAGE_MARGIN))
+                - ui.min_rect().height()
+                - footer;
+            // A bar of its own, beside the words rather than over their last letters.
+            ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
+            let scrolled = egui::ScrollArea::vertical().max_height(room.max(controls::FIELD_HEIGHT * 3.0)).show(ui, |ui| {
+                let items = items(state);
+                let last = items.len().saturating_sub(1);
+                for (i, item) in items.into_iter().enumerate() {
+                    ui.horizontal_top(|ui| {
+                        ui.spacing_mut().item_spacing.x = controls::GAP_WIDE;
+                        let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(controls::FIELD_HEIGHT), egui::Sense::hover());
+                        match item.icon {
+                            Icon::Glyph(glyph) => glyphs::paint(ui, rect, glyph, 22.0, ink),
+                            Icon::Key(key) => keycap(ui, rect, key, ink),
                         }
+                        ui.vertical(|ui| {
+                            ui.label(controls::h3(item.title));
+                            ui.add_space(controls::GAP_TIGHT);
+                            ui.add(egui::Label::new(controls::muted(item.line, is_light)).wrap());
+                            if !item.path.is_empty() {
+                                ui.add_space(controls::GAP);
+                                path(ui, &item.path, is_light);
+                            }
+                        });
                     });
-                });
-                ui.add_space(controls::GAP_SECTION);
+                    if i < last {
+                        ui.add_space(controls::GAP_SECTION);
+                    }
+                }
+            });
+            // Where the items run on past an edge, they fade into the card there instead of
+            // being sliced through a line of text.
+            let view = scrolled.inner_rect;
+            let top = scrolled.state.offset.y;
+            let hidden_below = scrolled.content_size.y - top - view.height();
+            let card = crate::app::win_card_for(is_light);
+            let reach = controls::FIELD_HEIGHT * 1.5;
+            for (edge, hidden) in [(view.top(), top), (view.bottom(), hidden_below)] {
+                let strength = (hidden / reach).clamp(0.0, 1.0);
+                if strength <= 0.0 {
+                    continue;
+                }
+                let inner = if edge == view.top() { edge + reach } else { edge - reach };
+                let solid = card.gamma_multiply(strength);
+                let clear = egui::Color32::TRANSPARENT;
+                let mut mesh = egui::Mesh::default();
+                mesh.colored_vertex(egui::pos2(view.left(), edge), solid);
+                mesh.colored_vertex(egui::pos2(view.right(), edge), solid);
+                mesh.colored_vertex(egui::pos2(view.right(), inner), clear);
+                mesh.colored_vertex(egui::pos2(view.left(), inner), clear);
+                mesh.add_triangle(0, 1, 2);
+                mesh.add_triangle(0, 2, 3);
+                ui.painter().add(mesh);
             }
+            ui.add_space(controls::GAP_SECTION);
 
             ui.add_space(controls::GAP);
             controls::dialog_buttons(ui, |ui| {
