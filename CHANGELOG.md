@@ -66,7 +66,7 @@ was published.
   **Search** (the shortcut, favorites first) and **Your expansions** (export and import). Each
   line says in a few words what it is for. The language is a drop-down. The prefix is one row of
   choices, with **Other** for any prefix of your own: it opens a box beside them, ready to type
-  in. The version and the credits are at the bottom.
+  in. At the bottom, Khipu's version and who made it, with espanso's version under them, smaller.
 - **A new expansion, in three questions.** The edit screen, now titled simply **New expansion**
   (or **Edit expansion**), asks, in order, **What will you type?**, **What should appear?** and
   **Anything else?**. Each step stays faint until the one before it is filled in, or until you
@@ -86,7 +86,7 @@ was published.
   `:hi` before it can expand. A semicolon followed by a letter means nothing to any of them. The
   three starter expansions are now `;hi`, `;date` and `;today`. **Nothing changes for anyone
   who already uses Khipu**: your expansions and your prefix stay as they are. To move all of them
-  to `;`, pick it in Settings under **Prefix for new expansions**, then press **Apply…** beside
+  to `;`, pick it in Settings under **Prefix for new expansions**, then press **Apply** beside
   **Use it on the ones you have**. «What's new» tells anyone who updates why, that their
   expansions were left alone, and where in Settings to change the prefix.
 - **Tips names the two halves of an expansion.** The example at the top of Tips now labels

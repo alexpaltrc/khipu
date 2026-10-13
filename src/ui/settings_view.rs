@@ -393,7 +393,7 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
         stacked_row(ui, t.prefix_section, about, |ui| prefix_row(ui, state));
         divider(ui);
 
-        let go = studio::text(state, "Aplicar…", "Apply…", "Ilapat…", "लागू करें…");
+        let go = studio::text(state, "Aplicar", "Apply", "Ilapat", "लागू करें");
         let width = button_width(ui, go);
         let apply = row(
             ui,
@@ -499,13 +499,16 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     // Espanso's version, stated and left alone. No comparison against what this build was tested
     // with, and no nudge to update: in an office the right thing is usually to stay on a version
     // that works, and a badge implying otherwise would manufacture a worry nobody needs.
-    let versions = match &state.espanso_version {
-        Some(espanso) => format!("v{} · Espanso {espanso}", env!("CARGO_PKG_VERSION")),
-        None => format!("v{}", env!("CARGO_PKG_VERSION")),
-    };
-    let footer = format!("{versions} · {}", t.made_by);
+    // Three steps down in weight: Khipu and its version, who made it, and — set a little apart,
+    // smallest and quietest — the engine under it.
     ui.vertical_centered(|ui| {
-        ui.add(egui::Label::new(egui::RichText::new(footer).small().color(quiet)).wrap());
+        let khipu = format!("Khipu {}", env!("CARGO_PKG_VERSION"));
+        ui.add(egui::Label::new(controls::muted(khipu, is_light)).wrap());
+        ui.add(egui::Label::new(controls::small_muted(t.made_by, is_light)).wrap());
+        if let Some(espanso) = &state.espanso_version {
+            ui.add_space(controls::GAP);
+            ui.add(egui::Label::new(egui::RichText::new(format!("Espanso {espanso}")).small().color(quiet)).wrap());
+        }
     });
 }
 
