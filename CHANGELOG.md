@@ -76,6 +76,8 @@ was published.
 - **Rows find their new place.** Starring or unstarring an expansion moves it to its band of the
   list, and now it glides there, with the rows it passes making room, instead of every row jumping
   at once.
+- **A deleted expansion leaves gently.** Its card shrinks a little and fades where it stood, while
+  the ones after it slide up to close the gap.
 - **The switch moves like Windows' own.** Its knob now gathers speed and settles instead of
   sliding at one pace, grows a little under the pointer and stretches towards the other side
   while it is held down.

@@ -1585,8 +1585,12 @@ fn list_fade(ctx: &egui::Context) -> f32 {
 
 // --- A row finding its new place ---------------------------------------------------------------
 
-/// How long a row takes to travel to where a new star, or a lost one, puts it.
+/// How long a row takes to travel to where a new star, or a lost one, puts it — or to close the
+/// gap a deleted one leaves.
 const TRAVEL: f64 = 0.3;
+/// How long a deleted row takes to shrink away, and how much smaller it is when it is gone.
+const VANISH: f64 = 0.2;
+const VANISH_SHRINK: f32 = 0.08;
 
 /// Where each row drawn last frame sat, measured from the top of the list's content so that
 /// scrolling is not mistaken for moving.
@@ -1598,25 +1602,45 @@ fn travel_key() -> egui::Id {
     egui::Id::new("library-travel")
 }
 
-/// A reordering under way: where every row set off from, and the one that asked for it, which
-/// is drawn above the others while it passes over them.
+/// What the rows a deletion is asking about looked like last frame, kept only while it asks.
+fn travel_doomed_key() -> egui::Id {
+    egui::Id::new("library-travel-doomed")
+}
+
+/// A reordering under way: where every row set off from; the one that asked for it, which is
+/// drawn above the others while it passes over them; and what deleted rows looked like, which
+/// shrinks and fades where they were while the rest close up.
 #[derive(Clone)]
 struct Travel {
     since: f64,
     from: egui::IdMap<egui::Vec2>,
-    lifted: egui::Id,
+    lifted: Option<egui::Id>,
+    /// Painted shapes of the deleted rows, measured from the top of the list's content.
+    ghosts: Vec<egui::epaint::ClippedShape>,
+}
+
+fn begin_travel(ctx: &egui::Context, lifted: Option<egui::Id>, ghosts: Vec<egui::epaint::ClippedShape>) {
+    let from = ctx.data(|d| d.get_temp::<egui::IdMap<egui::Vec2>>(travel_seen_key())).unwrap_or_default();
+    let since = ctx.input(|i| i.time);
+    ctx.data_mut(|d| d.insert_temp(travel_key(), Travel { since, from, lifted, ghosts }));
 }
 
 /// Starring or unstarring moves a row to the other band of the list; this lets every row that
 /// shifts glide there instead of jumping. Called before the change, while last frame's places are
 /// still the old order's.
 pub(super) fn start_travel(ctx: &egui::Context, trigger: &str) {
-    if !crate::theme::animations_enabled() {
-        return;
+    if crate::theme::animations_enabled() {
+        begin_travel(ctx, Some(row_id(trigger)), Vec::new());
     }
-    let from = ctx.data(|d| d.get_temp::<egui::IdMap<egui::Vec2>>(travel_seen_key())).unwrap_or_default();
-    let since = ctx.input(|i| i.time);
-    ctx.data_mut(|d| d.insert_temp(travel_key(), Travel { since, from, lifted: row_id(trigger) }));
+}
+
+/// A confirmed deletion: the rows it takes shrink and fade where they stood, and the ones after
+/// them slide up into the room they leave. Called before the rows are removed.
+fn start_vanish(ctx: &egui::Context) {
+    let ghosts = ctx.data_mut(|d| d.remove_temp::<Vec<egui::epaint::ClippedShape>>(travel_doomed_key()));
+    if crate::theme::animations_enabled() {
+        begin_travel(ctx, None, ghosts.unwrap_or_default());
+    }
 }
 
 /// One frame of the list's rows: records where each is drawn, and moves the drawn shapes of any
@@ -1631,25 +1655,46 @@ struct Travels {
     travel: Option<Travel>,
     /// How much of the way is still left to go: 1 at the start, 0 at the end.
     left: f32,
+    /// How far the deleted rows have gone: 0 at the start, 1 once they are gone.
+    vanished: f32,
     lifted: Vec<egui::epaint::ClippedShape>,
+    /// The rows a delete confirmation is open for, and what they painted this frame.
+    doomed: std::collections::HashSet<egui::Id>,
+    doomed_shapes: Vec<egui::epaint::ClippedShape>,
 }
 
 impl Travels {
-    fn begin(ui: &egui::Ui) -> Self {
+    fn begin(ui: &egui::Ui, state: &AppState) -> Self {
         let ctx = ui.ctx();
         let mut travel = ctx.data(|d| d.get_temp::<Travel>(travel_key()));
-        let mut left = 0.0;
+        let (mut left, mut vanished) = (0.0, 1.0);
         if let Some(t) = &travel {
-            let p = ((ctx.input(|i| i.time) - t.since) / TRAVEL) as f32;
+            let elapsed = ctx.input(|i| i.time) - t.since;
+            let p = (elapsed / TRAVEL) as f32;
             if p >= 1.0 {
                 ctx.data_mut(|d| d.remove::<Travel>(travel_key()));
                 travel = None;
             } else {
                 left = 1.0 - egui::emath::easing::cubic_in_out(p.max(0.0));
+                vanished = egui::emath::easing::cubic_out(((elapsed / VANISH) as f32).clamp(0.0, 1.0));
                 ctx.request_repaint();
             }
         }
-        Self { origin: ui.max_rect().min, seen: egui::IdMap::default(), travel, left, lifted: Vec::new() }
+        let doomed = state
+            .pending_confirm
+            .as_ref()
+            .map(|p| p.items.iter().map(|(trigger, _)| row_id(trigger)).collect())
+            .unwrap_or_default();
+        Self {
+            origin: ui.max_rect().min,
+            seen: egui::IdMap::default(),
+            travel,
+            left,
+            vanished,
+            lifted: Vec::new(),
+            doomed,
+            doomed_shapes: Vec::new(),
+        }
     }
 
     /// Draws one row with `add`, at the place the layout gives it, and then shifts what it painted.
@@ -1663,13 +1708,26 @@ impl Travels {
             return r; // A gap standing in for a row far off screen.
         }
         self.seen.insert(id, at);
+        if self.doomed.contains(&id) {
+            let back = -self.origin.to_vec2();
+            ui.ctx().graphics_mut(|g| {
+                let list = g.entry(layer);
+                for i in start.0..end.0 {
+                    list.mutate_shape(egui::layers::ShapeIdx(i), |clipped| {
+                        let mut shape = clipped.shape.clone();
+                        shape.translate(back);
+                        self.doomed_shapes.push(egui::epaint::ClippedShape { clip_rect: clipped.clip_rect, shape });
+                    });
+                }
+            });
+        }
         let Some(travel) = &self.travel else { return r };
         let Some(&from) = travel.from.get(&id) else { return r };
+        let lift = travel.lifted == Some(id);
         let shift = ((from - at) * self.left).round();
-        if shift == egui::Vec2::ZERO && travel.lifted != id {
+        if shift == egui::Vec2::ZERO && !lift {
             return r;
         }
-        let lift = travel.lifted == id;
         ui.ctx().graphics_mut(|g| {
             let list = g.entry(layer);
             for i in start.0..end.0 {
@@ -1695,7 +1753,32 @@ impl Travels {
                 }
             });
         }
-        ui.ctx().data_mut(|d| d.insert_temp(travel_seen_key(), self.seen));
+        if let Some(travel) = self.travel.as_ref().filter(|t| !t.ghosts.is_empty() && self.vanished < 1.0) {
+            // Shrunk about the middle of what the deleted rows covered, and faded as it goes.
+            let at = travel
+                .ghosts
+                .iter()
+                .fold(egui::Rect::NOTHING, |r, c| r.union(c.shape.visual_bounding_rect()))
+                .translate(self.origin.to_vec2());
+            let scale = 1.0 - VANISH_SHRINK * self.vanished;
+            let shrink = egui::emath::TSTransform::new(at.center().to_vec2() * (1.0 - scale), scale);
+            let mut painter = ui.painter().with_clip_rect(ui.clip_rect());
+            painter.multiply_opacity(1.0 - self.vanished);
+            for clipped in &travel.ghosts {
+                let mut shape = clipped.shape.clone();
+                shape.translate(self.origin.to_vec2());
+                shape.transform(shrink);
+                painter.add(shape);
+            }
+        }
+        ui.ctx().data_mut(|d| {
+            d.insert_temp(travel_seen_key(), self.seen);
+            if self.doomed.is_empty() {
+                d.remove_temp::<Vec<egui::epaint::ClippedShape>>(travel_doomed_key());
+            } else {
+                d.insert_temp(travel_doomed_key(), self.doomed_shapes);
+            }
+        });
     }
 }
 
@@ -1801,7 +1884,7 @@ fn show_list(
 
             ui.set_width(ui.available_width());
             ui.spacing_mut().item_spacing.y = 0.0;
-            let mut travels = Travels::begin(ui);
+            let mut travels = Travels::begin(ui, state);
             if pass.grid {
                 show_grid(ui, state, list, visible, pass, open.as_deref(), tab_stop.as_deref(), &mut travels);
                 travels.end(ui);
@@ -3609,6 +3692,7 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
         }
     }
     if confirm {
+        start_vanish(ctx);
         state.confirm_pending_delete();
     } else if cancel {
         state.cancel_pending_confirm();
