@@ -1864,34 +1864,43 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
         let mut confirm = false;
         let mut cancel = false;
         let name = edit.new_folder_input.trim().to_string();
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
+        {
             let one = controls::FIELD_HEIGHT;
             let two = 2.0 * one + controls::GAP_TIGHT;
-            let (slot, _) =
-                ui.allocate_exact_size(egui::vec2(egui::lerp(one..=two, eased), one), egui::Sense::hover());
+            // The row is one field tall whatever is in it, and everything in it is placed rather than
+            // laid out: the list and the name box differ by a fraction of a point, and a row that
+            // took the taller of the two nudged «Favorita» below it on every change.
+            let (row, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), one), egui::Sense::hover());
+            let lead = egui::lerp(one..=two, eased);
+            let place = |ui: &mut egui::Ui, rect: egui::Rect| {
+                ui.new_child(
+                    egui::UiBuilder::new()
+                        .max_rect(rect)
+                        .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                )
+            };
             // «+» leaves in the first half of the move and ✓ ✗ arrive in the second, so the two never
-            // share a frame.
+            // share a frame. Neither claims room of its own: the slot's width alone moves the box,
+            // so it glides the whole way instead of jumping when ✓ ✗ arrive.
             if eased < 0.5 {
-                let fade = 1.0 - eased * 2.0;
-                let at = egui::Rect::from_min_size(slot.min, egui::Vec2::splat(one));
-                ui.scope_builder(egui::UiBuilder::new().max_rect(at), |ui| {
-                    ui.set_opacity(fade);
-                    add = controls::icon_button(ui, Glyph::Add, new_tip, !creating).clicked();
-                });
+                let mut lead_ui = place(ui, egui::Rect::from_min_size(row.min, egui::Vec2::splat(one)));
+                lead_ui.set_opacity(1.0 - eased * 2.0);
+                add = controls::icon_button(&mut lead_ui, Glyph::Add, new_tip, !creating).clicked();
             } else {
                 let fade = eased * 2.0 - 1.0;
-                let from = slot.min + egui::vec2(-6.0 * (1.0 - fade), 0.0);
-                let at = egui::Rect::from_min_size(from, egui::vec2(two, one));
-                ui.scope_builder(egui::UiBuilder::new().max_rect(at).layout(egui::Layout::left_to_right(egui::Align::Center)), |ui| {
-                    ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
-                    ui.set_opacity(fade);
-                    let ok = !name.is_empty() && creating;
-                    confirm = controls::icon_button(ui, Glyph::Check, create_tip, ok).clicked();
-                    cancel = controls::icon_button(ui, Glyph::Close, t.cancel, creating).clicked();
-                });
+                let from = row.min + egui::vec2(-6.0 * (1.0 - fade), 0.0);
+                let mut lead_ui = place(ui, egui::Rect::from_min_size(from, egui::vec2(two, one)));
+                lead_ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
+                lead_ui.set_opacity(fade);
+                let ok = !name.is_empty() && creating;
+                confirm = controls::icon_button(&mut lead_ui, Glyph::Check, create_tip, ok).clicked();
+                cancel = controls::icon_button(&mut lead_ui, Glyph::Close, t.cancel, creating).clicked();
             }
-            let rest = ui.available_width();
+            let body = egui::Rect::from_min_max(egui::pos2(row.min.x + lead + controls::GAP_TIGHT, row.min.y), row.max);
+            let rest = body.width();
+            let ui = &mut place(ui, body);
+            // The box arriving comes up out of the list it replaces rather than being swapped in.
+            ui.set_opacity(if creating { 0.7 + 0.3 * eased } else { 1.0 - 0.3 * eased });
             if creating {
                 // The box takes the list's place at the list's height, so the row does not jump: a
                 // field's own padding would make it four points taller than the list it replaces.
@@ -1924,7 +1933,7 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
                         }
                     });
             }
-        });
+        }
         // Esc while naming a folder backs out of the naming, not out of the whole form.
         if creating && !confirm && keys::pressed(ui.ctx(), keys::BACK) {
             cancel = true;
