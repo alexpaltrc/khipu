@@ -969,10 +969,15 @@ impl AppState {
             return;
         }
 
+        // Exactly the renames the question listed: worked out again here, `:--` lost its symbols
+        // to the prefix alone, a change nobody was shown and the collision check never saw.
+        let by_old: std::collections::HashMap<&str, &str> =
+            renamed.iter().map(|(old, new)| (old.as_str(), new.as_str())).collect();
         for entry in &mut self.match_file.entries {
             if let MatchEntry::Simple(m) = entry {
-                let rest = Self::strip_leading_prefix(&m.trigger).to_string();
-                m.trigger = format!("{new_prefix}{rest}");
+                if let Some(new) = by_old.get(m.trigger.as_str()) {
+                    m.trigger = (*new).to_owned();
+                }
             }
         }
         self.match_file

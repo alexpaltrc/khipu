@@ -158,6 +158,9 @@ was published.
   saved the form underneath and left the question asking about a trigger that, if you had just
   renamed it, no longer existed. It now does nothing until the question is answered, as Esc
   already did.
+- **Applying a new prefix leaves symbol-only triggers alone.** The question before «Apply» rightly
+  left out a trigger with no word in it, like `:--`, but the change itself still rewrote it, to
+  the bare new prefix. It now changes exactly the triggers the question listed.
 
 ## 0.0.6 — 2026-10-06
 
