@@ -209,6 +209,11 @@ was published.
   Devanagari letters only for a Hindi interface, so a form in Hindi, or an answer typed in it,
   showed boxes. It now loads them whenever the form or an answer needs them. The same went for a
   Hindi form's card in the list, and for Hindi choices in the form editor.
+- **A trigger cut short in the list shows whole on hover.** In the compact list and in the grid,
+  a trigger too long for its room ends in «…», and resting the pointer on it was meant to show
+  it whole, but nothing appeared. It now does, after the usual short pause.
+- **The list search ignores a stray space.** `firma ` with a space at the end found nothing; the
+  list now searches as the launcher does, without the spaces at either end.
 
 ## 0.0.6 — 2026-10-06
 

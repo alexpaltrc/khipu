@@ -774,7 +774,7 @@ impl AppState {
 
     fn build_list(&self) -> ListCache {
         let t = self.t();
-        let query = self.search.to_lowercase();
+        let query = self.search.trim().to_lowercase();
 
         // Only text, date and form expansions are ever surfaced — anything else (shell commands, regex
         // matches, per-app conditionals, ...) stays untouched in the YAML file but out of this

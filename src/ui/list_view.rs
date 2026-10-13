@@ -1868,7 +1868,7 @@ fn show_list(
     let trigger_w = trigger_column(ui.available_width());
     let baseline_drop = std::cell::Cell::new(None);
     // Lowercased the way the list was filtered, in [`AppState::build_list`].
-    let needle = state.search.to_lowercase();
+    let needle = state.search.trim().to_lowercase();
     let pass = row_pass(
         ui,
         state.settings.compact_view,
@@ -2718,8 +2718,8 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                     trigger,
                     egui::Color32::PLACEHOLDER,
                 );
-                if elided {
-                    hover.on_hover_text(trigger_text());
+                if elided && pass.dragged_id.is_none() && ui.rect_contains_pointer(slot) {
+                    pointer_tip(ui, hover.id, slot, trigger_text());
                 }
                 let padding = pass.trigger_w - slot.width() - spacing;
                 if padding > 0.0 {
@@ -2975,21 +2975,27 @@ fn comfortable_first_line(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, i
         glyphs::paint(ui, mark, Glyph::Rename, ROW_STAR, ink);
         form_mark = mark;
     }
-    let pointer = hover.hover_pos();
-    if cut_trigger && pointer.is_some_and(|p| trigger_rect.contains(p)) {
-        hover.on_hover_text(trigger_text());
-    } else if ui.rect_contains_pointer(form_mark) && pass.dragged_id.is_none() {
-        // Asked of the pointer, not of `hover`: the row's own click area is laid over this line
-        // after it is drawn, so `hover` never hears the pointer while it is on a card. Under the
-        // mark, and after the pause every other tooltip waits for.
-        let delay = ui.style().interaction.tooltip_delay;
-        let still = ui.input(|i| i.pointer.time_since_last_movement());
-        if still >= delay {
-            egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), hover.id.with("form"), form_mark)
-                .show(|ui| ui.label(pass.form_tip));
-        } else {
-            ui.ctx().request_repaint_after_secs(delay - still);
-        }
+    // Asked of the pointer, not of `hover`: the row's own click area is laid over this line after
+    // it is drawn, so `hover` never hears the pointer while it is on a card.
+    if pass.dragged_id.is_some() {
+        return;
+    }
+    if cut_trigger && ui.rect_contains_pointer(trigger_rect) {
+        pointer_tip(ui, hover.id.with("trigger"), trigger_rect, trigger_text());
+    } else if ui.rect_contains_pointer(form_mark) {
+        pointer_tip(ui, hover.id.with("form"), form_mark, pass.form_tip);
+    }
+}
+
+/// A tooltip over `rect` for a row line that a later click area covers, so its own response never
+/// hears the pointer: asked of the pointer instead, after the pause every other tooltip waits for.
+fn pointer_tip(ui: &egui::Ui, id: egui::Id, rect: egui::Rect, text: impl Into<egui::WidgetText>) {
+    let delay = ui.style().interaction.tooltip_delay;
+    let still = ui.input(|i| i.pointer.time_since_last_movement());
+    if still >= delay {
+        egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), id, rect).show(|ui| ui.label(text));
+    } else {
+        ui.ctx().request_repaint_after_secs(delay - still);
     }
 }
 
