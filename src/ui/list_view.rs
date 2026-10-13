@@ -1735,6 +1735,8 @@ impl Travels {
         let doomed = state
             .pending_confirm
             .as_ref()
+            // A rename is not a deletion: its rows stay where they are.
+            .filter(|p| !matches!(p.kind, PendingConfirmKind::RenamePrefix))
             .map(|p| p.items.iter().map(|(trigger, _)| row_id(trigger)).collect())
             .unwrap_or_default();
         Self {
@@ -3689,6 +3691,26 @@ fn item_line(
     });
 }
 
+/// One rename in the prefix question: the trigger as it is now, quiet, and the one it becomes in
+/// the accent, because that is the one the user will be typing from now on.
+fn rename_line(
+    ui: &mut egui::Ui,
+    old: &str,
+    new: &str,
+    old_width: f32,
+    accent: egui::Color32,
+    quiet: egui::Color32,
+) {
+    ui.horizontal(|ui| {
+        ui.scope(|ui| {
+            ui.set_min_width(old_width);
+            ui.label(egui::RichText::new(old).monospace().color(quiet));
+        });
+        ui.label(egui::RichText::new("→").color(quiet));
+        ui.add(egui::Label::new(egui::RichText::new(new).monospace().color(accent)).truncate());
+    });
+}
+
 /// Width of that column: the widest trigger in the set, capped so that one absurdly long trigger
 /// cannot push every preview past the right edge of the modal.
 fn trigger_column_width(ui: &egui::Ui, items: &[(String, String)]) -> f32 {
@@ -3707,9 +3729,10 @@ fn trigger_column_width(ui: &egui::Ui, items: &[(String, String)]) -> f32 {
 }
 
 /// In-app modal confirming a destructive action: one expansion, a whole folder, or a
-/// multi-selection.
+/// multi-selection. Also the question «Aplicar» asks in Ajustes before renaming every trigger to
+/// the new prefix, which was a native message box until 0.0.7.
 ///
-/// All three come through here — see [`crate::app::PendingConfirm`] for why the single one stopped
+/// All of them come through here — see [`crate::app::PendingConfirm`] for why the single one stopped
 /// raising a native dialog. The shape has to survive a list of any length without ever growing
 /// into a giant window, so the width is fixed, the list shows five with a "ver más" toggle for
 /// the rest, and past a certain height it scrolls in place.
@@ -3732,7 +3755,9 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
         PendingConfirmKind::DeleteSelection => {
             fill(t.confirm_delete_selection_title, &[("n", &n)])
         }
+        PendingConfirmKind::RenamePrefix => t.prefix_confirm_title.to_string(),
     };
+    let rename = matches!(pending.kind, PendingConfirmKind::RenamePrefix);
     // Only the folder needs a sentence, because it is the one case where what disappears is more
     // than what is listed below: the folder itself goes too. For the other two the title and the
     // list already say everything, and a sentence repeating a count the title carries was this
@@ -3740,6 +3765,10 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
     let intro = match &pending.kind {
         PendingConfirmKind::DeleteFolder { folder } => {
             Some(fill(t.confirm_delete_folder_body, &[("name", folder)]))
+        }
+        // The title names the action but not its size; the list below may be folded at five.
+        PendingConfirmKind::RenamePrefix => {
+            Some(crate::i18n::fill_count(t.prefix_confirm_body, count, &[]))
         }
         _ => None,
     };
@@ -3802,8 +3831,12 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
                     // at the edge of the block, and reads as if it were slicing the text.
                     .auto_shrink([false, true])
                     .show(ui, |ui| {
-                        for (trigger, preview) in pending.items.iter().take(shown) {
-                            item_line(ui, trigger, preview, trigger_width, accent_color, quiet);
+                        for (trigger, other) in pending.items.iter().take(shown) {
+                            if rename {
+                                rename_line(ui, trigger, other, trigger_width, accent_color, quiet);
+                            } else {
+                                item_line(ui, trigger, other, trigger_width, accent_color, quiet);
+                            }
                         }
                     });
                 if count > shown {
@@ -3821,9 +3854,12 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
 
         ui.add_space(controls::GAP_WIDE);
         // The one sentence that matters, in the same red as the button that carries the action, so
-        // the modal never spends a second colour saying the same thing twice.
-        ui.add(egui::Label::new(egui::RichText::new(t.confirm_delete_undo).color(danger)).wrap());
-        ui.add_space(controls::GAP_STACK);
+        // the modal never spends a second colour saying the same thing twice. A rename has no such
+        // sentence: nothing is lost, and changing the prefix back renames them back.
+        if !rename {
+            ui.add(egui::Label::new(egui::RichText::new(t.confirm_delete_undo).color(danger)).wrap());
+            ui.add_space(controls::GAP_STACK);
+        }
         controls::dialog_buttons(ui, |ui| {
             if controls::button(ui, t.cancel, Tone::Normal, true).clicked() {
                 cancel = true;
@@ -3831,7 +3867,13 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
             // Red text on an ordinary button, which is how this app has always marked a
             // destructive action. It used to be white text here, and on the light theme the light
             // button swallowed it whole: what the user saw was a blank button next to "Cancelar".
-            if controls::button(ui, t.delete, Tone::Danger, true).clicked() {
+            // The rename says yes with the same word as the button that asked it, in Ajustes.
+            let (label, tone) = if rename {
+                (studio::text(state, "Aplicar", "Apply", "Ilapat", "लागू करें"), Tone::Primary)
+            } else {
+                (t.delete, Tone::Danger)
+            };
+            if controls::button(ui, label, tone, true).clicked() {
                 confirm = true;
             }
         });
@@ -3846,7 +3888,9 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
         }
     }
     if confirm {
-        start_vanish(ctx);
+        if !rename {
+            start_vanish(ctx);
+        }
         state.confirm_pending_delete();
     } else if cancel {
         state.cancel_pending_confirm();

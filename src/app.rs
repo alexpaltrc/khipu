@@ -131,9 +131,13 @@ pub enum PendingConfirmKind {
     DeleteOne { index: usize },
     DeleteFolder { folder: String },
     DeleteSelection,
+    /// Not a deletion, but the same kind of question: «Aplicar» in Ajustes renaming every listed
+    /// trigger to the new prefix. The items are (old, new) pairs rather than (trigger, preview).
+    RenamePrefix,
 }
 
-/// A destructive action awaiting confirmation in an in-app modal.
+/// A destructive action, or a rename of many triggers at once, awaiting confirmation in an in-app
+/// modal.
 ///
 /// All three kinds go through the same modal, including the single one. It used to raise a native
 /// task dialog instead, which is grey, always light whatever the theme, and looks nothing like the
@@ -967,31 +971,18 @@ impl AppState {
             return;
         }
 
-        let summary: String = renamed
-            .iter()
-            .take(8)
-            .map(|(old, new)| format!("  {old}  →  {new}"))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let more = if renamed.len() > 8 {
-            fill(t.prefix_confirm_more, &[("n", &(renamed.len() - 8).to_string())])
-        } else {
-            String::new()
-        };
+        // Asked in the app's own modal, over Ajustes, like every other question this app asks. It
+        // used to be a native message box: grey, always light, and its list cut off at eight.
+        self.pending_confirm = Some(PendingConfirm {
+            kind: PendingConfirmKind::RenamePrefix,
+            items: renamed,
+            expanded: false,
+        });
+    }
 
-        let confirmed = rfd::MessageDialog::new()
-            .set_parent(&self.dialog_owner)
-            .set_title(t.prefix_confirm_title)
-            .set_description(crate::i18n::fill_count(
-                t.prefix_confirm_body,
-                renamed.len(),
-                &[("list", &summary), ("more", &more)],
-            ))
-            .set_buttons(rfd::MessageButtons::YesNo)
-            .show();
-        if confirmed != rfd::MessageDialogResult::Yes {
-            return;
-        }
+    /// The renames the prefix question listed, once it has been answered yes.
+    fn rename_to_prefix(&mut self, renamed: Vec<(String, String)>) {
+        let t = self.t();
 
         // Exactly the renames the question listed: worked out again here, `:--` lost its symbols
         // to the prefix alone, a change nobody was shown and the collision check never saw.
@@ -1267,6 +1258,7 @@ impl AppState {
                 self.clear_selection();
                 self.save_and_reload(message);
             }
+            PendingConfirmKind::RenamePrefix => self.rename_to_prefix(pending.items),
         }
     }
 
@@ -3681,10 +3673,11 @@ impl eframe::App for KhipuApp {
 
         ui::list_view::show_move_modal(ui.ctx(), &mut self.state);
         ui::list_view::show_create_folder_modal(ui.ctx(), &mut self.state);
-        ui::list_view::show_pending_confirm(ui.ctx(), &mut self.state);
         // Before the folder picker, which opens from it and has to be the one on top.
         ui::whats_new_view::show(ui.ctx(), &mut self.state);
         ui::settings_view::show(ui.ctx(), &mut self.state);
+        // After Ajustes: the prefix question opens from it, and has to be the one on top.
+        ui::list_view::show_pending_confirm(ui.ctx(), &mut self.state);
         ui::settings_view::show_folder_picker(ui.ctx(), &mut self.state);
         ui::glide::end_frame(ui.ctx());
         if std::mem::take(&mut self.rewind_new_button) {

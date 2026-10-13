@@ -92,6 +92,9 @@ was published.
   says «Form».
 - **The list arrives.** The first time it is shown after Khipu opens, its cards and rows come in
   one after another, each fading in as it rises into place; never again until the next start.
+- **Changing the prefix asks in Khipu's own style.** «Apply» in Settings now asks over Settings
+  in a Khipu dialog, in the app's theme, with every rename listed as old → new instead of a grey
+  Windows box that cut the list off at eight.
 - **The switch moves like Windows' own.** Its knob now gathers speed and settles instead of
   sliding at one pace, grows a little under the pointer and stretches towards the other side
   while it is held down.
