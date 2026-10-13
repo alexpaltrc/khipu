@@ -67,6 +67,7 @@ was published.
   line says in a few words what it is for. The language is a drop-down. The prefix is one row of
   choices, with **Other** for any prefix of your own: it opens a box beside them, ready to type
   in. At the bottom, Khipu's version and who made it, with espanso's version under them, smaller.
+  The credit now reads simply «Created by Alex Palacios».
 - **A new expansion, in three questions.** The edit screen, now titled simply **New expansion**
   (or **Edit expansion**), asks, in order, **What will you type?**, **What should appear?** and
   **Anything else?**. Each step stays faint until the one before it is filled in, or until you
