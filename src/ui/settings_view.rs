@@ -94,8 +94,9 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
         ui.add_space(controls::GAP_WIDE);
 
         // A bar that takes its own column, and only when the window is too short to need none:
-        // floating over the contents, it sat on top of the start-up switch at the right edge.
-        ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
+        // floating over the contents, it sat on top of the start-up switch at the right edge. In
+        // that column it shows only while the pointer is over the page.
+        ui.spacing_mut().scroll = controls::quiet_scroll();
         let mut scroll = egui::ScrollArea::vertical()
             .id_salt("settings")
             .max_height(room - TITLE_ROW)

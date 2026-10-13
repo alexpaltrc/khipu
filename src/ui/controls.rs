@@ -113,6 +113,26 @@ pub fn page_margin(width: f32) -> i8 {
 const PAGE_OUTLINE_ROOM: i8 = 17;
 const PAGE_BAR_ROOM: i8 = 14;
 
+/// The scroll bar of a dialog, the way Windows 11 draws its own: nothing until the pointer comes
+/// into the area, then a thin line that widens when the pointer reaches it. It keeps the column a
+/// solid bar takes, so it never lies over the contents and nothing moves when it appears.
+pub fn quiet_scroll() -> egui::style::ScrollStyle {
+    let solid = egui::style::ScrollStyle::solid();
+    egui::style::ScrollStyle {
+        floating: true,
+        floating_width: 2.0,
+        floating_allocated_width: solid.allocated_width(),
+        foreground_color: true,
+        dormant_background_opacity: 0.0,
+        active_background_opacity: 0.0,
+        interact_background_opacity: 0.0,
+        dormant_handle_opacity: 0.0,
+        active_handle_opacity: 0.45,
+        interact_handle_opacity: 0.7,
+        ..solid
+    }
+}
+
 /// The vertical scroll area a whole screen scrolls in.
 ///
 /// A scroll area clips to exactly its own rect, and a card that fills the width has its outer

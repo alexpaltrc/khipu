@@ -320,8 +320,9 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
                 - 2.0 * (controls::DIALOG_CLEARANCE + f32::from(controls::PAGE_MARGIN))
                 - ui.min_rect().height()
                 - footer;
-            // A bar of its own, beside the words rather than over their last letters.
-            ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
+            // A bar of its own, beside the words rather than over their last letters, seen only
+            // while the pointer is over them.
+            ui.spacing_mut().scroll = controls::quiet_scroll();
             let scrolled = egui::ScrollArea::vertical().max_height(room.max(controls::FIELD_HEIGHT * 3.0)).show(ui, |ui| {
                 let items = items(state);
                 let last = items.len().saturating_sub(1);

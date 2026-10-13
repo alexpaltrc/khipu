@@ -78,6 +78,9 @@ was published.
   at once.
 - **A deleted expansion leaves gently.** Its card shrinks a little and fades where it stood, while
   the ones after it slide up to close the gap.
+- **A scroll bar that keeps out of the way.** In Settings and in What's new, the bar shows only
+  while the pointer is over the page, as a thin line that widens when you reach for it, in the same
+  place as before, so nothing moves.
 - **The switch moves like Windows' own.** Its knob now gathers speed and settles instead of
   sliding at one pace, grows a little under the pointer and stretches towards the other side
   while it is held down.
