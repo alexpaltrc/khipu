@@ -236,6 +236,9 @@ struct FormApp {
     /// What arrived behind a Tab or an Enter, kept for the frame after: see
     /// [`crate::ui::keys::hold_after_focus_move`].
     held: Vec<egui::Event>,
+    /// Whether the Devanagari face is loaded: for a Hindi interface, a form written in it, or an
+    /// answer typed in it.
+    devanagari_on: bool,
 }
 
 /// How long after opening the window takes the foreground back from the window it was opened
@@ -294,6 +297,11 @@ impl eframe::App for FormApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.frames += 1;
+        if !self.devanagari_on && self.answers.iter().any(|a| crate::yaml::model::has_devanagari(a)) {
+            self.devanagari_on = true;
+            crate::fonts::install(ui.ctx(), true);
+            ui.ctx().request_repaint();
+        }
         // eframe shows the window after its first frame is painted, so the window can only be
         // brought forward from the second. It was opened by espanso, a process in the background,
         // which Windows does not let take the foreground on a plain request.
@@ -412,6 +420,9 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
     let outcome = Arc::new(Mutex::new(None));
     let title = name.filter(|n| !n.trim().is_empty()).unwrap_or_else(|| trigger.clone());
     let answers = initial_answers(&spec);
+    // Not only for a Hindi interface: a form written in Hindi, opened with Khipu in Spanish, drew
+    // its words as boxes.
+    let devanagari = lang == Lang::Hi || needs_devanagari(&title, &spec);
 
     let scale = crate::display::system_scale();
     let tallest = crate::display::work_area(scale).map_or(720.0, |a| a.height * 0.85);
@@ -445,7 +456,7 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
         options,
         Box::new(move |cc| {
             let window = cc.winit_window().cloned();
-            let is_light = dress(cc, window.as_deref(), lang, theme_mode);
+            let is_light = dress(cc, window.as_deref(), theme_mode, devanagari);
             Ok(Box::new(FormApp {
                 title,
                 spec,
@@ -461,6 +472,7 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
                 previous,
                 opened: std::time::Instant::now(),
                 held: Vec::new(),
+                devanagari_on: devanagari,
             }))
         }),
     );
@@ -482,8 +494,8 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
 fn dress(
     cc: &eframe::CreationContext<'_>,
     window: Option<&winit::window::Window>,
-    lang: Lang,
     theme_mode: crate::theme::ThemeMode,
+    devanagari: bool,
 ) -> bool {
     use crate::app::{apply_layout_style, apply_motion, apply_theme, contrast_is_light, refresh_contrast, set_palette_for};
     refresh_contrast();
@@ -508,8 +520,16 @@ fn dress(
         use winit::platform::windows::{BackdropType, WindowExtWindows as _};
         window.set_system_backdrop(BackdropType::MainWindow);
     }
-    crate::fonts::install(&cc.egui_ctx, lang == Lang::Hi);
+    crate::fonts::install(&cc.egui_ctx, devanagari);
     is_light
+}
+
+/// Whether the form shows words in Devanagari: its name, its text, or what its blanks offer.
+fn needs_devanagari(title: &str, spec: &FormSpec) -> bool {
+    use crate::yaml::model::has_devanagari;
+    has_devanagari(title)
+        || has_devanagari(&spec.template)
+        || spec.fields.iter().any(|f| has_devanagari(&f.default) || f.options.iter().any(|o| has_devanagari(o)))
 }
 
 /// The result, to standard output, where espanso reads it. The preview build also leaves it beside

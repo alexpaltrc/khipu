@@ -161,6 +161,9 @@ was published.
 - **Applying a new prefix leaves symbol-only triggers alone.** The question before «Apply» rightly
   left out a trigger with no word in it, like `:--`, but the change itself still rewrote it, to
   the bare new prefix. It now changes exactly the triggers the question listed.
+- **A form written in Hindi reads in Hindi.** The window that asks for a form's blanks loaded the
+  Devanagari letters only for a Hindi interface, so a form in Hindi, or an answer typed in it,
+  showed boxes. It now loads them whenever the form or an answer needs them.
 
 ## 0.0.6 — 2026-10-06
 
