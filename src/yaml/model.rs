@@ -310,6 +310,8 @@ impl MatchFile {
                 has_devanagari(&m.trigger)
                     || has_devanagari(&m.replace)
                     || m.label.as_deref().is_some_and(has_devanagari)
+                    // A form keeps its text in its variable, not in `replace`.
+                    || m.as_form().is_some_and(|form| form.has_devanagari())
                     || m.vars.iter().any(|var| {
                         crate::datefmt::lang_from_locale_tag(var.param_str("locale"))
                             == crate::i18n::Lang::Hi

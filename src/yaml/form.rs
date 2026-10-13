@@ -289,7 +289,20 @@ impl FormSpec {
     }
 }
 
+impl FormSpec {
+    /// Whether the form writes anything in Devanagari: its text, or what its blanks offer.
+    pub fn has_devanagari(&self) -> bool {
+        use super::model::has_devanagari;
+        has_devanagari(&self.template) || self.fields.iter().any(FormField::has_devanagari)
+    }
+}
+
 impl FormField {
+    pub fn has_devanagari(&self) -> bool {
+        use super::model::has_devanagari;
+        has_devanagari(&self.default) || self.options.iter().any(|o| has_devanagari(o))
+    }
+
     /// What the field holds when the window opens: its starting value, or a list's first option.
     pub fn initial(&self) -> String {
         match self.kind {

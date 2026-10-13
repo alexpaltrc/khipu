@@ -705,6 +705,7 @@ impl AppState {
             if editing
                 || crate::yaml::model::has_devanagari(&edit.word)
                 || crate::yaml::model::has_devanagari(&edit.name)
+                || edit.fields.iter().any(crate::yaml::form::FormField::has_devanagari)
             {
                 return true;
             }

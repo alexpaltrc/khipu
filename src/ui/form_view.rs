@@ -527,9 +527,7 @@ fn dress(
 /// Whether the form shows words in Devanagari: its name, its text, or what its blanks offer.
 fn needs_devanagari(title: &str, spec: &FormSpec) -> bool {
     use crate::yaml::model::has_devanagari;
-    has_devanagari(title)
-        || has_devanagari(&spec.template)
-        || spec.fields.iter().any(|f| has_devanagari(&f.default) || f.options.iter().any(|o| has_devanagari(o)))
+    has_devanagari(title) || spec.has_devanagari()
 }
 
 /// The result, to standard output, where espanso reads it. The preview build also leaves it beside
