@@ -1893,6 +1893,9 @@ fn show_list(
         .auto_shrink([false, false])
         .show(ui, |ui| {
             drag_autoscroll(ui);
+            // How far a dragged row may go sideways: the rows' own span, not the clip, which reaches
+            // the window's edges to leave the cards room for their shadows.
+            ui.ctx().data_mut(|d| d.insert_temp(list_span_key(), ui.max_rect().x_range()));
 
             if list.total_entries == 0 {
                 empty_state(ui, t.empty_title, t.empty_hint, is_light);
@@ -3343,6 +3346,10 @@ const DRAG_START_DISTANCE: f32 = 18.0;
 ///
 /// A consequence worth having on its own: wandering back towards the starting point part-way
 /// through no longer cancels a drag that was already under way.
+fn list_span_key() -> egui::Id {
+    egui::Id::new("list_span")
+}
+
 fn drag_is_deliberate(ui: &egui::Ui) -> bool {
     let (pressed, distance) = ui.input(|i| {
         (
@@ -3394,12 +3401,30 @@ fn drag_source(
                         ui.label(fill(t.moving_n, &[("n", &count.to_string())]));
                     });
                 } else {
-                    add_contents(ui);
+                    // On a surface of its own, as the badge above: bare, its text ran into the
+                    // rows it passed over.
+                    egui::Frame::popup(ui.style()).inner_margin(0).show(ui, |ui| {
+                        add_contents(ui);
+                    });
                 }
             })
             .response;
-        if let Some(pointer_pos) = ui.ctx().pointer_interact_pos() {
-            let delta = pointer_pos - response.rect.center();
+        // A single row moves from where it was taken, so it stays under the hand that holds it;
+        // centred on the pointer, a wide row took hold by its trigger left that end off the window.
+        let anchor = if count > 1 {
+            Some(response.rect.center())
+        } else {
+            ui.input(|i| i.pointer.press_origin())
+        };
+        if let (Some(pointer_pos), Some(anchor)) = (ui.ctx().pointer_interact_pos(), anchor) {
+            let mut delta = pointer_pos - anchor;
+            // Never past the list's sides: a row is as wide as the list, so any sideways movement
+            // would push its far end against the window's edge, or off it.
+            let list = ui.ctx().data(|d| d.get_temp::<egui::Rangef>(list_span_key()));
+            let list = list.unwrap_or(ui.clip_rect().x_range());
+            let rect = response.rect;
+            let (min, max) = (list.min - rect.left(), list.max - rect.right());
+            delta.x = if min <= max { delta.x.clamp(min, max) } else { min };
             ui.ctx()
                 .transform_layer_shapes(layer_id, egui::emath::TSTransform::from_translation(delta));
         }

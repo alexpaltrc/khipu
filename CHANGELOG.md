@@ -212,6 +212,10 @@ was published.
 - **A trigger cut short in the list shows whole on hover.** In the compact list and in the grid,
   a trigger too long for its room ends in «…», and resting the pointer on it was meant to show
   it whole, but nothing appeared. It now does, after the usual short pause.
+- **A dragged expansion travels on a card of its own.** Dragging one expansion to a folder carried
+  only its words, with nothing behind them, so they ran into the rows and cards they passed over,
+  and a list row was held by its middle, leaving its start off the window's left edge. It now
+  floats on a raised card, stays where you took hold of it, and keeps within the list's sides.
 - **The list search ignores a stray space.** `firma ` with a space at the end found nothing; the
   list now searches as the launcher does, without the spaces at either end.
 
