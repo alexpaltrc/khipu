@@ -186,6 +186,12 @@ impl SearchWindow {
         self.lock().open
     }
 
+    /// Whether what is typed in the box is Hindi, so its letters show although no expansion is.
+    pub fn query_has_devanagari(&self) -> bool {
+        let launcher = self.lock();
+        launcher.open && crate::yaml::model::has_devanagari(&launcher.query)
+    }
+
     /// Puts the window up over `over`, the window that had the keyboard, with `entries` to search.
     pub fn open(
         &self,

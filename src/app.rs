@@ -698,9 +698,13 @@ impl AppState {
     }
 
     /// Whether something on screen needs the Devanagari face although the interface is not in
-    /// Hindi: an expansion written in it, a date spelled in it, or the one being edited.
+    /// Hindi: an expansion written in it, a date spelled in it, the one being edited, or a search
+    /// typed in it.
     pub fn needs_devanagari(&self) -> bool {
-        if self.settings.lang == Lang::Hi {
+        if self.settings.lang == Lang::Hi
+            || crate::yaml::model::has_devanagari(&self.search)
+            || self.settings.folders.iter().any(|f| crate::yaml::model::has_devanagari(f))
+        {
             return true;
         }
         if let View::Edit(edit) = &self.view {
@@ -2375,6 +2379,17 @@ pub(crate) fn hwnd_of(window: &winit::window::Window) -> Option<windows::Win32::
     }
 }
 
+/// Whether an input event brings Devanagari into a text box: typed, through an input method, or
+/// dropped in from elsewhere with Ctrl+V.
+fn typed_devanagari(event: &egui::Event) -> bool {
+    use crate::yaml::model::has_devanagari;
+    match event {
+        egui::Event::Text(text) | egui::Event::Paste(text) => has_devanagari(text),
+        egui::Event::Ime(egui::ImeEvent::Commit(text)) => has_devanagari(text),
+        _ => false,
+    }
+}
+
 /// Whether the compositor draws the window at all, independently of whether Windows counts it as
 /// shown. A cloaked window that is shown puts nothing on screen, which is the one way to let
 /// eframe show a window that has to stay hidden.
@@ -2880,7 +2895,7 @@ impl KhipuApp {
     /// rebuilt then anyway, and rebuilding it back and forth on leaving the editor would only clear
     /// the glyph atlas for nothing.
     fn sync_devanagari(&mut self, ctx: &egui::Context) {
-        if !self.devanagari_on && self.state.needs_devanagari() {
+        if !self.devanagari_on && (self.state.needs_devanagari() || self.search.query_has_devanagari()) {
             self.devanagari_on = true;
             fonts::install(ctx, true);
             ctx.request_repaint();
@@ -3530,6 +3545,13 @@ impl eframe::App for KhipuApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // Whatever box it is typed into — a folder's name, a form's blank, the prefix — Hindi
+        // arriving from the keyboard brings its letters with it, without each box having to ask.
+        if !self.devanagari_on && ui.input(|i| i.events.iter().any(typed_devanagari)) {
+            self.devanagari_on = true;
+            fonts::install(ui.ctx(), true);
+            ui.ctx().request_repaint();
+        }
         // `show_collapsible` slides the panel in/out and correctly shrinks the space given to
         // everything below it as it animates, so the banner appearing or disappearing never
         // overlaps the rest of the interface — it always pushes it, never covers it.
