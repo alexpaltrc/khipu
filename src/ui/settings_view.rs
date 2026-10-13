@@ -256,7 +256,7 @@ pub const SPOTLIGHT: std::time::Duration = std::time::Duration::from_secs(4);
 const SPOTLIGHT_BEAT: f32 = 1.2;
 
 /// A theme's name in the row: in full, or without the word «theme» where the full names do not fit.
-fn theme_name(t: &crate::i18n::Strings, mode: ThemeMode, short: bool) -> &'static str {
+pub fn theme_name(t: &crate::i18n::Strings, mode: ThemeMode, short: bool) -> &'static str {
     match (mode, short) {
         (ThemeMode::System, _) => t.theme_system,
         (ThemeMode::Light, false) => t.theme_light,

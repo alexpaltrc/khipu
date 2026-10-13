@@ -32,6 +32,7 @@
 //! [`AppState::finish_onboarding`] marks these as seen), and anything about the list behind it.
 
 use crate::app::{accent, AppState};
+use crate::theme::ThemeMode;
 use crate::ui::controls::{self, Tone};
 use crate::ui::glyphs::{self, Glyph};
 use crate::ui::studio::in_lang;
@@ -53,6 +54,15 @@ struct Item {
     title: String,
     line: String,
     path: Vec<Step>,
+    /// A thing that can be tried right here, without going anywhere.
+    action: Option<Action>,
+}
+
+/// What an item's own button does.
+#[derive(Clone, Copy)]
+enum Action {
+    /// Put «Ultra oscuro» on; once on, the same button takes back the theme worn before.
+    UltraDark,
 }
 
 /// One stop on the way to a new thing: the control's icon, its name, or both, as it looks on screen.
@@ -92,7 +102,9 @@ fn items(state: &AppState) -> Vec<Item> {
                 "आपके विस्तार कार्ड के रूप में, पढ़ने और व्यवस्थित करने में आसान। यह पहले से चालू है; बाकी दृश्य यहाँ हैं:",
             ),
             path: vec![icon(Glyph::More), named(Some(Glyph::View), t.view_label)],
+            action: None,
         },
+        ultra_dark(state),
         Item {
             icon: Icon::Glyph(Glyph::Rename),
             title: s("Formularios", "Forms", "Mga form", "फ़ॉर्म"),
@@ -110,6 +122,7 @@ fn items(state: &AppState) -> Vec<Item> {
                     in_lang(lang, "Un campo para rellenar", "A field to fill in", "Isang field na pupunan", "भरने के लिए एक फ़ील्ड"),
                 ),
             ],
+            action: None,
         },
         Item {
             icon: Icon::Glyph(Glyph::StarFilled),
@@ -125,6 +138,7 @@ fn items(state: &AppState) -> Vec<Item> {
                 &[("keys", &shortcut)],
             ),
             path: vec![],
+            action: None,
         },
         Item {
             icon: Icon::Key(";"),
@@ -136,8 +150,67 @@ fn items(state: &AppState) -> Vec<Item> {
                 "Outlook, Teams और दूसरे ऐप “:शब्द” को विस्तार आने से पहले इमोजी बना देते हैं, इसलिए नया इंस्टॉल किया Khipu अब “;” से शुरू होता है। आपके विस्तार जैसे थे वैसे ही हैं। अगर आप नया उपसर्ग चाहते हैं:",
             ),
             path: vec![named(Some(Glyph::Settings), t.settings_title), named(None, t.prefix_section)],
+            action: None,
         },
     ]
+}
+
+/// «Ultra oscuro», tried from right here. Someone already wearing it, not through this button, gets
+/// the way to Ajustes instead: there is nothing to try, and no theme of theirs to go back to.
+fn ultra_dark(state: &AppState) -> Item {
+    let lang = state.settings.lang;
+    let t = state.t();
+    let s = |es, en, fil, hi| in_lang(lang, es, en, fil, hi).to_string();
+    let found_there = state.settings.theme_mode == ThemeMode::UltraDark && state.whats_new_theme_before.is_none();
+    Item {
+        icon: Icon::Glyph(Glyph::Moon),
+        title: s("Tema Ultra oscuro", "Ultra dark theme", "Itim na tema", "अति गहरी थीम"),
+        line: s(
+            "El tema oscuro sobre negro puro, ideal para pantallas OLED. Tarjetas y botones conservan su gris, para que nada se pierda.",
+            "The dark theme on pure black, made for OLED screens. Cards and buttons keep their gray, so nothing gets lost.",
+            "Ang madilim na tema sa purong itim, para sa mga OLED screen. Nananatiling abo ang mga card at button, kaya walang nawawala.",
+            "शुद्ध काले पर गहरी थीम, OLED स्क्रीन के लिए। कार्ड और बटन अपना धूसर रंग रखते हैं, ताकि कुछ भी खो न जाए।",
+        ),
+        path: if found_there {
+            vec![named(Some(Glyph::Settings), t.settings_title), named(None, t.appearance_section)]
+        } else {
+            vec![]
+        },
+        action: (!found_there).then_some(Action::UltraDark),
+    }
+}
+
+/// The words on an [`Action`]'s button, as things stand now.
+fn action_label(state: &AppState, action: Action) -> String {
+    let lang = state.settings.lang;
+    match action {
+        Action::UltraDark => match state.whats_new_theme_before {
+            Some(before) if state.settings.theme_mode == ThemeMode::UltraDark => {
+                let name = crate::ui::settings_view::theme_name(state.t(), before, true);
+                crate::i18n::fill(
+                    in_lang(lang, "Volver a «{theme}»", "Back to “{theme}”", "Bumalik sa “{theme}”", "“{theme}” पर लौटें"),
+                    &[("theme", name)],
+                )
+            }
+            _ => in_lang(lang, "Probarlo", "Try it", "Subukan", "आज़माएँ").to_string(),
+        },
+    }
+}
+
+/// What an [`Action`]'s button does when pressed.
+fn run(state: &mut AppState, action: Action) {
+    match action {
+        Action::UltraDark => match state.whats_new_theme_before {
+            Some(before) if state.settings.theme_mode == ThemeMode::UltraDark => {
+                state.whats_new_theme_before = None;
+                state.set_theme_mode(before);
+            }
+            _ => {
+                state.whats_new_theme_before = Some(state.settings.theme_mode);
+                state.set_theme_mode(ThemeMode::UltraDark);
+            }
+        },
+    }
 }
 
 /// The way to a new thing, as one stamped tag: each control's own Fluent icon and name, joined by
@@ -218,6 +291,7 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, (1.0 - eased) * below))
         .fade_in(false);
     let mut close = false;
+    let mut pressed = None;
     controls::dialog(ctx, "whats-new")
         .area(area)
         .backdrop_color(egui::Color32::from_black_alpha((100.0 * eased) as u8))
@@ -267,6 +341,12 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
                                 ui.add_space(controls::GAP);
                                 path(ui, &item.path, is_light);
                             }
+                            if let Some(action) = item.action {
+                                ui.add_space(controls::GAP);
+                                if controls::button(ui, &action_label(state, action), Tone::Normal, true).clicked() {
+                                    pressed = Some(action);
+                                }
+                            }
                         });
                     });
                     if i < last {
@@ -306,6 +386,9 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
                 close |= controls::button(ui, great, Tone::Primary, true).clicked();
             });
         });
+    if let Some(action) = pressed {
+        run(state, action);
+    }
     // Enter is «¡Genial!»; Esc and a click outside are left alone on purpose. See the module doc.
     close |= ctx.input(|i| i.key_pressed(egui::Key::Enter));
     if close && closing.is_none() {

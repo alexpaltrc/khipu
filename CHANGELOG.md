@@ -16,7 +16,9 @@ was published.
   close it with ✕ or «Great!», and does not come back on its own until the next update with news;
   «What's new» in the ⋯ menu shows it again whenever you want. When the update arrives with Khipu
   starting with Windows, hidden in the tray, the icon wears a small dot in your accent color and
-  its tooltip says there is news; both go as soon as you open the window.
+  its tooltip says there is news; both go as soon as you open the window. The Ultra dark theme
+  has its own **Try it** button there: it puts the theme on at once, behind the card, and then
+  offers **Back to** the theme you had, in case it is not for you.
 - **A new expansion starts at its word.** Opening a new expansion, from + or from Tips, puts the
   cursor in the «word» box, so the first step is plain.
 - **The welcome screen helps when the trial does not work.** If what is in the trial box is

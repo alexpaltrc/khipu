@@ -355,6 +355,9 @@ pub struct AppState {
     pub settings_note: Option<Banner>,
     /// «Novedades», over the list after an update. See [crate::ui::whats_new_view].
     pub whats_new_open: bool,
+    /// The theme worn before «Probarlo» in Novedades put on «Ultra oscuro», so that the same button
+    /// can offer the way back. Only for this run: after a restart there is nothing to go back from.
+    pub whats_new_theme_before: Option<ThemeMode>,
     pub search: String,
     pub banner: Option<Banner>,
     /// Why the expansions file could not be read, if it could not. Saving is refused while this
@@ -2743,6 +2746,7 @@ impl KhipuApp {
             view: View::List,
             settings_open: false,
             whats_new_open: false,
+            whats_new_theme_before: None,
             settings_note: None,
             search: String::new(),
             banner: None,
