@@ -2397,9 +2397,21 @@ fn show_row_inner(
         } else {
             card
         };
+        // Under the pointer a card also rises a little off the page: the one shadow on something
+        // that does not float, faint and short, and it comes and goes over a tenth of a second. A
+        // contrast theme gets none, as it gets no other shadow.
+        let rising = hovered_row && pass.dragged_id.is_none() && crate::app::contrast().is_none();
+        let pace = if crate::theme::animations_enabled() { CARD_RISE } else { 0.0 };
+        let rise = ui.ctx().animate_bool_with_time(drag_id.with("rise"), rising, pace);
+        let shadow = egui::Shadow {
+            offset: [0, 2],
+            blur: 8,
+            spread: 0,
+            color: egui::Color32::from_black_alpha(((if is_light { 22.0 } else { 70.0 }) * rise) as u8),
+        };
         // Always one point: the frame counts its stroke into its size, so the chosen card's ring is
         // painted over it afterwards rather than widening it.
-        egui::Frame::default().fill(fill).stroke(egui::Stroke::new(1.0, hairline(is_light)))
+        egui::Frame::default().fill(fill).stroke(egui::Stroke::new(1.0, hairline(is_light))).shadow(shadow)
     } else {
         egui::Frame::default().fill(bg)
     };
@@ -2683,6 +2695,9 @@ fn comfortable_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selec
             });
         });
 }
+
+/// How long a card takes to rise under the pointer, and to settle back.
+const CARD_RISE: f32 = 0.1;
 
 /// How narrow a card in the grid may get before a line holds one card fewer.
 const GRID_CARD_MIN: f32 = 220.0;

@@ -81,6 +81,8 @@ was published.
 - **A scroll bar that keeps out of the way.** In Settings and in What's new, the bar shows only
   while the pointer is over the page, as a thin line that widens when you reach for it, in the same
   place as before, so nothing moves.
+- **Cards rise under the pointer.** In the grid, the card the pointer is on lifts a little off the
+  page with a faint shadow. High contrast themes keep their cards flat.
 - **The switch moves like Windows' own.** Its knob now gathers speed and settles instead of
   sliding at one pace, grows a little under the pointer and stretches towards the other side
   while it is held down.
