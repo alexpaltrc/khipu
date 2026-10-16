@@ -155,6 +155,34 @@ unsafe fn paste_with(window: HWND, text: &str, target_pid: u32) -> bool {
     true
 }
 
+/// The text on the clipboard now, for a form's marker of what was last copied. Empty when what was
+/// copied is not text, or when the clipboard stays busy past [`OPEN_TIMEOUT`]. Only read: nothing
+/// on the clipboard is changed.
+pub fn copied_text() -> String {
+    unsafe {
+        let deadline = Instant::now() + OPEN_TIMEOUT;
+        while OpenClipboard(None).is_err() {
+            if Instant::now() >= deadline {
+                return String::new();
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let mut text = String::new();
+        if let Ok(handle) = GetClipboardData(CF_UNICODETEXT) {
+            let memory = HGLOBAL(handle.0);
+            let data = GlobalLock(memory) as *const u16;
+            if !data.is_null() {
+                let units = std::slice::from_raw_parts(data, GlobalSize(memory) / 2);
+                let end = units.iter().position(|&u| u == 0).unwrap_or(units.len());
+                text = String::from_utf16_lossy(&units[..end]);
+                let _ = GlobalUnlock(memory);
+            }
+        }
+        let _ = CloseClipboard();
+        text
+    }
+}
+
 /// Opens the clipboard as `window`, waiting out whoever has it open right now. The reader that has
 /// just been handed the text is one of them: its `CloseClipboard` is what this waits for.
 unsafe fn open(window: HWND) -> bool {

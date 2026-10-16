@@ -5,6 +5,15 @@ was published.
 
 ## Unreleased
 
+### Added
+
+- **What you last copied, inside an expansion.** «+ Add» under the text has a new item, **What
+  you last copied**. It puts `{{copied}}` (`{{copiado}}` in Spanish) where the cursor is, in your
+  accent color, and the sentence at the top of the screen says what it will be. When you use the
+  expansion, that spot gets the text you copied last. It works in a form too: the form window
+  shows it in the preview and inserts it with the rest. Expansions written by hand with espanso's
+  own `clipboard` variable now open in the editor instead of being shown as advanced.
+
 ## 0.0.7 — 2026-10-13
 
 ### Added

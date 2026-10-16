@@ -44,6 +44,10 @@
 //! the field types are written the way espanso writes its own (`text`, `multiline`, `choice`), so
 //! the file stays legible to anyone who knows espanso.
 //!
+//! A form may also hold what was last copied, as `{{name}}` in its text with `copied: name` beside
+//! `template`. Outside a form that marker is espanso's own clipboard variable, which espanso fills
+//! in; inside one, espanso never sees the text, so the window fills it in.
+//!
 //! The invariant: **the hex argument always names the expansion's own trigger.** It is written
 //! from the trigger whenever the match is written ([`SimpleMatch::normalized`]), so a trigger
 //! renamed anywhere — the editor, a folder's prefix, an import — can never leave the form pointing
@@ -97,6 +101,68 @@ pub struct FormSpec {
     pub template: String,
     /// One per name in the text, in the order they first appear.
     pub fields: Vec<FormField>,
+    /// The name of the `{{name}}` in the text that stands for what was last copied, if it has one.
+    /// Outside a form espanso fills that in itself; inside one, Khipu's window does.
+    pub copied: Option<String>,
+}
+
+/// One stretch of a text, as the editor and the window see it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Piece<'a> {
+    /// Written as it stands.
+    Text(&'a str),
+    /// A `[[name]]`: its trimmed name, and the marker as written.
+    Blank(&'a str, &'a str),
+    /// Where what was last copied goes: the marker as written.
+    Copied(&'a str),
+}
+
+/// Every `{{name}}` for `name` in the text, spaces inside the braces allowed the way espanso
+/// allows them, as byte ranges of the whole marker.
+pub fn copied_markers(text: &str, name: &str) -> Vec<std::ops::Range<usize>> {
+    let mut found = Vec::new();
+    let mut at = 0;
+    while let Some(open) = text[at..].find("{{").map(|i| at + i) {
+        let inner_start = open + 2;
+        let Some(close) = text[inner_start..].find("}}").map(|i| inner_start + i) else {
+            break;
+        };
+        if !name.is_empty() && text[inner_start..close].trim() == name {
+            found.push(open..close + 2);
+            at = close + 2;
+        } else {
+            at = open + 1;
+        }
+    }
+    found
+}
+
+/// The text cut into what is fixed, its blanks, and where what was last copied goes (the
+/// `{{copied}}` markers, if a name is given). The text is cut before anything is put in, so brackets
+/// in what was copied, or in an answer, are never read as a blank.
+pub fn pieces<'a>(text: &'a str, copied: Option<&str>) -> Vec<Piece<'a>> {
+    fn segment<'a>(out: &mut Vec<Piece<'a>>, part: &'a str) {
+        let mut last = 0;
+        for (range, name) in markers(part) {
+            if range.start > last {
+                out.push(Piece::Text(&part[last..range.start]));
+            }
+            out.push(Piece::Blank(name, &part[range.clone()]));
+            last = range.end;
+        }
+        if last < part.len() {
+            out.push(Piece::Text(&part[last..]));
+        }
+    }
+    let mut out = Vec::new();
+    let mut last = 0;
+    for range in copied.map(|name| copied_markers(text, name)).unwrap_or_default() {
+        segment(&mut out, &text[last..range.start]);
+        out.push(Piece::Copied(&text[range.clone()]));
+        last = range.end;
+    }
+    segment(&mut out, &text[last..]);
+    out
 }
 
 /// The longest a field's name may be. Past this it is a sentence in brackets, not a blank.
@@ -137,19 +203,6 @@ pub fn names(text: &str) -> Vec<String> {
         }
     }
     seen
-}
-
-/// The text with every marker swapped for its answer. A name with no answer comes out empty.
-pub fn fill(template: &str, answer: impl Fn(&str) -> String) -> String {
-    let mut out = String::with_capacity(template.len());
-    let mut last = 0;
-    for (range, name) in markers(template) {
-        out.push_str(&template[last..range.start]);
-        out.push_str(&answer(name));
-        last = range.end;
-    }
-    out.push_str(&template[last..]);
-    out
 }
 
 /// Every marker naming `old` renamed to `new`, spacing inside the brackets and all.
@@ -227,6 +280,9 @@ impl FormSpec {
         params.insert(key("trim"), Value::Bool(false));
         params.insert(key("template"), key(&self.template));
         params.insert(key("fields"), Value::Mapping(fields));
+        if let Some(copied) = &self.copied {
+            params.insert(key("copied"), key(copied));
+        }
         VarEntry {
             name: VAR_NAME.to_string(),
             var_type: "script".to_string(),
@@ -251,12 +307,16 @@ impl FormSpec {
         }
         // Only the keys this module writes, so nothing someone added by hand is lost on a save.
         let known = var.params.keys().all(|k| {
-            matches!(k.as_str(), Some("args" | "trim" | "template" | "fields"))
+            matches!(k.as_str(), Some("args" | "trim" | "template" | "fields" | "copied"))
         });
         if !known {
             return None;
         }
         let template = var.params.get("template")?.as_str()?.to_string();
+        let copied = match var.params.get("copied") {
+            None => None,
+            Some(name) => Some(name.as_str()?.to_string()),
+        };
         let declared = match var.params.get("fields") {
             Some(Value::Mapping(map)) => map.clone(),
             None | Some(Value::Null) => Mapping::new(),
@@ -285,7 +345,20 @@ impl FormSpec {
                 options,
             });
         }
-        Some(FormSpec { template, fields })
+        Some(FormSpec { template, fields, copied })
+    }
+
+    /// The text this form writes: each blank swapped for its answer, and what was last copied put
+    /// where it goes.
+    pub fn filled(&self, copied_text: &str, answer: impl Fn(&str) -> String) -> String {
+        pieces(&self.template, self.copied.as_deref())
+            .into_iter()
+            .map(|piece| match piece {
+                Piece::Text(text) => text.to_string(),
+                Piece::Blank(name, _) => answer(name),
+                Piece::Copied(_) => copied_text.to_string(),
+            })
+            .collect()
     }
 }
 
@@ -364,7 +437,7 @@ mod tests {
         let text = "Hola [[ cliente ]], sobre [[asunto]]. Gracias, [[cliente]]. [[]] [[a\nb]] [x]";
         assert_eq!(names(text), ["cliente", "asunto"]);
         assert_eq!(
-            fill(text, |n| n.to_uppercase()),
+            FormSpec { template: text.into(), ..Default::default() }.filled("", |n| n.to_uppercase()),
             "Hola CLIENTE, sobre ASUNTO. Gracias, CLIENTE. [[]] [[a\nb]] [x]"
         );
         assert_eq!(rename("[[a]] y [[ a ]] y [[b]]", "a", "c"), "[[c]] y [[c]] y [[b]]");
@@ -397,6 +470,7 @@ mod tests {
                     options: vec!["Formal".into(), "Cercano".into()],
                 },
             ],
+            copied: None,
         };
         SimpleMatch {
             trigger: trigger.to_string(),
@@ -447,6 +521,22 @@ mod tests {
         m.vars[0].params.insert(key("debug"), Value::Bool(true));
         assert_eq!(m.as_form(), None);
         assert!(!MatchEntry::Simple(m).is_safely_editable());
+    }
+
+    /// What was last copied goes where its marker is, and brackets in it are not blanks.
+    #[test]
+    fn what_was_copied_is_put_in_and_never_read_as_a_blank() {
+        let mut m = form_match(":c");
+        let mut spec = m.as_form().unwrap();
+        spec.template = "Hola [[cliente]]: {{ copiado }} y {{otro}}".into();
+        spec.copied = Some("copiado".into());
+        m.vars = vec![spec.to_var(":c")];
+        let back = m.as_form().unwrap();
+        assert_eq!(back.copied.as_deref(), Some("copiado"));
+        assert_eq!(names(&back.template), ["cliente"]);
+        let out = back.filled("[[x]] 50%", |n| n.to_uppercase());
+        assert_eq!(out, "Hola CLIENTE: [[x]] 50% y {{otro}}");
+        assert_eq!(copied_markers("{{a}}{{ a }}{{ab}}{{a", "a"), [0..5, 5..12]);
     }
 
     #[test]

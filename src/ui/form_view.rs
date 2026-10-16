@@ -38,7 +38,7 @@ use crate::i18n::Lang;
 use crate::settings::Settings;
 use crate::ui::controls;
 use crate::ui::studio::in_lang;
-use crate::yaml::form::{fill, markers, FieldKind, FormSpec};
+use crate::yaml::form::{pieces, FieldKind, FormSpec, Piece};
 use std::sync::{Arc, Mutex};
 
 /// The window's width in points. Wide enough for a sentence of label and a comfortable field;
@@ -54,9 +54,20 @@ pub fn initial_answers(spec: &FormSpec) -> Vec<String> {
     spec.fields.iter().map(|f| f.initial()).collect()
 }
 
-/// The text the form produces with these answers.
-pub fn filled(spec: &FormSpec, answers: &[String]) -> String {
-    fill(&spec.template, |name| answer_of(spec, answers, name).to_string())
+/// The text the form produces with these answers, and with what was last copied.
+pub fn filled(spec: &FormSpec, answers: &[String], copied: &str) -> String {
+    spec.filled(copied, |name| answer_of(spec, answers, name).to_string())
+}
+
+/// What the preview shows where what was last copied goes, when there is nothing real to show.
+fn copied_label(lang: Lang) -> &'static str {
+    in_lang(
+        lang,
+        "lo último que hayas copiado",
+        "whatever you last copied",
+        "ang huli mong kinopya",
+        "जो आपने आखिरी बार कॉपी किया",
+    )
 }
 
 fn answer_of<'a>(spec: &FormSpec, answers: &'a [String], name: &str) -> &'a str {
@@ -177,8 +188,15 @@ fn choice(ui: &mut egui::Ui, salt: &str, index: usize, options: &[String], answe
 }
 
 /// The text as it will be inserted: what is fixed in the ordinary ink, each answer in the accent,
-/// and a blank still empty shown by its name, faintly.
-pub fn result_preview(ui: &mut egui::Ui, spec: &FormSpec, answers: &[String]) {
+/// and a blank still empty shown by its name, faintly. What was last copied is in the accent too,
+/// or, when `copied` is `None` (the editor's «Probar»), said in words, faintly.
+pub fn result_preview(
+    ui: &mut egui::Ui,
+    spec: &FormSpec,
+    answers: &[String],
+    copied: Option<&str>,
+    lang: Lang,
+) {
     let is_light = !ui.visuals().dark_mode;
     let font = egui::TextStyle::Body.resolve(ui.style());
     let ink = ui.visuals().text_color();
@@ -191,17 +209,19 @@ pub fn result_preview(ui: &mut egui::Ui, spec: &FormSpec, answers: &[String]) {
         let piece = |job: &mut egui::text::LayoutJob, text: &str, color: egui::Color32| {
             job.append(text, 0.0, egui::TextFormat::simple(font.clone(), color));
         };
-        let template = &spec.template;
-        let mut last = 0;
-        for (range, name) in markers(template) {
-            piece(&mut job, &template[last..range.start], ink);
-            match answer_of(spec, answers, name) {
-                "" => piece(&mut job, &label(name), faint),
-                answer => piece(&mut job, answer, answer_ink),
+        for part in pieces(&spec.template, spec.copied.as_deref()) {
+            match part {
+                Piece::Text(text) => piece(&mut job, text, ink),
+                Piece::Blank(name, _) => match answer_of(spec, answers, name) {
+                    "" => piece(&mut job, &label(name), faint),
+                    answer => piece(&mut job, answer, answer_ink),
+                },
+                Piece::Copied(_) => match copied {
+                    Some(text) => piece(&mut job, text, answer_ink),
+                    None => piece(&mut job, copied_label(lang), faint),
+                },
             }
-            last = range.end;
         }
-        piece(&mut job, &template[last..], ink);
         egui::ScrollArea::vertical()
             .max_height(PREVIEW_MAX)
             .auto_shrink([false, true])
@@ -222,6 +242,8 @@ struct FormApp {
     title: String,
     spec: FormSpec,
     answers: Vec<String>,
+    /// What was last copied when the form opened, for the `{{...}}` that stands for it.
+    copied: String,
     lang: Lang,
     is_light: bool,
     outcome: Arc<Mutex<Option<String>>>,
@@ -368,7 +390,7 @@ impl eframe::App for FormApp {
                     ui.add_space(controls::GAP_SECTION);
                     ui.label(controls::small_muted(preview_label(self.lang), self.is_light));
                     ui.add_space(controls::GAP_TIGHT);
-                    result_preview(ui, &self.spec, &self.answers);
+                    result_preview(ui, &self.spec, &self.answers, Some(&self.copied), self.lang);
                     content_height = ui.min_rect().bottom() - top;
                 });
             });
@@ -381,7 +403,7 @@ impl eframe::App for FormApp {
         }
 
         if insert {
-            self.close(&ctx, Some(filled(&self.spec, &self.answers)));
+            self.close(&ctx, Some(filled(&self.spec, &self.answers, &self.copied)));
         } else if cancel {
             self.close(&ctx, None);
         }
@@ -421,9 +443,11 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
     let outcome = Arc::new(Mutex::new(None));
     let title = name.filter(|n| !n.trim().is_empty()).unwrap_or_else(|| trigger.clone());
     let answers = initial_answers(&spec);
+    // Read once, as the form opens: whatever is copied while it is up is not what was meant.
+    let copied = if spec.copied.is_some() { crate::paste::copied_text() } else { String::new() };
     // Not only for a Hindi interface: a form written in Hindi, opened with Khipu in Spanish, drew
     // its words as boxes.
-    let devanagari = lang == Lang::Hi || needs_devanagari(&title, &spec);
+    let devanagari = lang == Lang::Hi || needs_devanagari(&title, &spec, &copied);
 
     let scale = crate::display::system_scale();
     let tallest = crate::display::work_area(scale).map_or(720.0, |a| a.height * 0.85);
@@ -462,6 +486,7 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
                 title,
                 spec,
                 answers,
+                copied,
                 lang,
                 is_light,
                 outcome: shared,
@@ -526,9 +551,9 @@ fn dress(
 }
 
 /// Whether the form shows words in Devanagari: its name, its text, or what its blanks offer.
-fn needs_devanagari(title: &str, spec: &FormSpec) -> bool {
+fn needs_devanagari(title: &str, spec: &FormSpec, copied: &str) -> bool {
     use crate::yaml::model::has_devanagari;
-    has_devanagari(title) || spec.has_devanagari()
+    has_devanagari(title) || spec.has_devanagari() || has_devanagari(copied)
 }
 
 /// The result, to standard output, where espanso reads it. The preview build also leaves it beside
@@ -563,11 +588,12 @@ mod tests {
                     ..Default::default()
                 },
             ],
+            copied: None,
         };
         let mut answers = initial_answers(&spec);
         assert_eq!(answers, ["", "Formal"]);
         answers[0] = "Ana".into();
-        assert_eq!(filled(&spec, &answers), "Hola Ana, Formal. Adiós, Ana.");
+        assert_eq!(filled(&spec, &answers, ""), "Hola Ana, Formal. Adiós, Ana.");
         assert_eq!(label("cliente"), "Cliente");
         assert_eq!(label("ñandú"), "Ñandú");
     }

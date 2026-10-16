@@ -87,6 +87,17 @@ impl SimpleMatch {
         }
     }
 
+    /// If this match is a text with what was last copied in it — one `clipboard` variable and
+    /// nothing else, named in the text — returns that variable's name. The editor shows such a text
+    /// as it is, with the `{{name}}` in the accent like a blank.
+    pub fn as_copied(&self) -> Option<&str> {
+        let [var] = self.vars.as_slice() else {
+            return None;
+        };
+        let named = !super::form::copied_markers(&self.replace, &var.name).is_empty();
+        (var.var_type == "clipboard" && var.params.is_empty() && named).then_some(var.name.as_str())
+    }
+
     /// The text espanso would insert for this match, when it can be known for certain without
     /// asking espanso: plain text, or one date we format letter for letter the way espanso does.
     ///
@@ -173,7 +184,7 @@ impl MatchEntry {
                 } else if let Some(form) = m.as_form() {
                     // The text with its blanks showing, so a form reads as the message it writes.
                     form.template.chars().map(|c| if c == '\n' { ' ' } else { c }).collect()
-                } else if !m.vars.is_empty() {
+                } else if !m.vars.is_empty() && m.as_copied().is_none() {
                     t.preview_advanced_vars.to_string()
                 } else {
                     m.replace
@@ -193,7 +204,7 @@ impl MatchEntry {
     /// their preview.
     pub fn full_text(&self, t: &'static Strings) -> String {
         match self {
-            MatchEntry::Simple(m) if m.vars.is_empty() => m.replace.clone(),
+            MatchEntry::Simple(m) if m.vars.is_empty() || m.as_copied().is_some() => m.replace.clone(),
             MatchEntry::Simple(m) => match m.as_form() {
                 Some(form) => form.template,
                 None => self.preview(t),
@@ -204,13 +215,17 @@ impl MatchEntry {
 
     /// Whether the simple form can safely rewrite this match's `replace`/`vars` without losing
     /// anything. A plain text match, one of our own date presets or one of our own forms (see
-    /// [`super::form`]) qualifies; a match with other kinds of `vars` (shell commands, clipboard,
-    /// ...) round-trips fine when left untouched, but our form doesn't model those, so it must not
-    /// be allowed to silently drop them on save.
+    /// [`super::form`]) qualifies, and so does a text with what was last copied in it; a match with
+    /// other kinds of `vars` (shell commands, espanso's own forms, ...) round-trips fine when left
+    /// untouched, but our form doesn't model those, so it must not be allowed to silently drop
+    /// them on save.
     pub fn is_safely_editable(&self) -> bool {
         match self {
             MatchEntry::Simple(m) => {
-                m.vars.is_empty() || m.as_date_var().is_some() || m.as_form().is_some()
+                m.vars.is_empty()
+                    || m.as_date_var().is_some()
+                    || m.as_form().is_some()
+                    || m.as_copied().is_some()
             }
             MatchEntry::Advanced(_) => false,
         }

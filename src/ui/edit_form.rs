@@ -171,6 +171,9 @@ pub struct EditState {
     /// short text that starts empty. Kept when its marker leaves the text, so cutting a marker and
     /// putting it back does not lose what was set on it. See [`EditState::form`].
     pub fields: Vec<FormField>,
+    /// The name inside the `{{...}}` that stands for what was last copied: the one the stored
+    /// expansion uses, or the word for it in the language it was first added in. Empty until then.
+    pub copied: String,
 }
 
 impl EditState {
@@ -189,6 +192,7 @@ impl EditState {
             new_folder_input: String::new(),
             favorite: false,
             fields: Vec::new(),
+            copied: String::new(),
         }
     }
 
@@ -223,6 +227,11 @@ impl EditState {
             choosing_new_folder: false,
             new_folder_input: String::new(),
             favorite: false,
+            copied: form
+                .as_ref()
+                .and_then(|f| f.copied.clone())
+                .or_else(|| m.as_copied().map(str::to_string))
+                .unwrap_or_default(),
             fields: form.map(|f| f.fields).unwrap_or_default(),
         }
     }
@@ -243,7 +252,13 @@ impl EditState {
                         .unwrap_or(FormField { name, ..Default::default() })
                 })
                 .collect(),
+            copied: self.copied_in(text).map(str::to_string),
         })
+    }
+
+    /// The name of what was last copied, if the text has its marker in it.
+    pub fn copied_in(&self, text: &str) -> Option<&str> {
+        (!form::copied_markers(text, &self.copied).is_empty()).then_some(self.copied.as_str())
     }
 
     /// The settings of the field called `name`, made on first touch.
@@ -313,10 +328,19 @@ impl EditState {
                         label: self.label(),
                     }
                 }
+                // What was last copied, with no blanks, is espanso's own to fill in.
                 None => SimpleMatch {
                     trigger: self.trigger(),
                     replace: replace.clone(),
-                    vars: Vec::new(),
+                    vars: self
+                        .copied_in(replace)
+                        .map(|name| VarEntry {
+                            name: name.to_string(),
+                            var_type: "clipboard".to_string(),
+                            params: Default::default(),
+                        })
+                        .into_iter()
+                        .collect(),
                     label: self.label(),
                 },
             },
@@ -1032,6 +1056,25 @@ fn live_sentence(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light
         "Kapag tinype mo ang {trigger}, papalitan ito ng Khipu ng {result}.",
         "जब आप {trigger} लिखेंगे, Khipu उसे {result} से बदल देगा।",
     );
+    // The one marker a reader cannot guess from its name alone, said in words while it is there.
+    let copied = match &edit.kind {
+        Kind::Text { replace } => edit.copied_in(replace).map(|name| format!("{{{{{name}}}}}")),
+        Kind::Date { .. } => None,
+    };
+    let template = match &copied {
+        Some(_) => format!(
+            "{template} {}",
+            studio::text(
+                state,
+                "En {copied} irá lo último que hayas copiado.",
+                "{copied} will be whatever you last copied.",
+                "Sa {copied} mapupunta ang huli mong kinopya.",
+                "{copied} की जगह वह आएगा जो आपने आखिरी बार कॉपी किया।",
+            )
+        ),
+        None => template.to_string(),
+    };
+    let template = template.as_str();
     let (open, close) = match state.settings.lang {
         Lang::Es => ("«", "»"),
         _ => ("“", "”"),
@@ -1065,6 +1108,9 @@ fn live_sentence(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light
             rest = after;
         } else if let Some(after) = tail.strip_prefix("{result}") {
             put(result.clone());
+            rest = after;
+        } else if let (Some(after), Some(copied)) = (tail.strip_prefix("{copied}"), &copied) {
+            put(egui::RichText::new(copied).color(crate::app::accent(ui.visuals())));
             rest = after;
         } else {
             put(controls::muted("{", is_light));
@@ -1234,19 +1280,30 @@ fn try_answers_key() -> egui::Id {
     egui::Id::new("editor-try-answers")
 }
 
-/// The text with every `[[name]]` in the accent, so the blanks stand out from what is fixed.
-fn highlighted(ui: &egui::Ui, text: &str, ink: egui::Color32, wrap: f32) -> egui::text::LayoutJob {
+/// The text with every `[[name]]`, and the marker of what was last copied, in the accent, so what
+/// changes each time stands out from what is fixed.
+fn highlighted(
+    ui: &egui::Ui,
+    text: &str,
+    copied: Option<&str>,
+    ink: egui::Color32,
+    wrap: f32,
+) -> egui::text::LayoutJob {
     let font = egui::TextStyle::Body.resolve(ui.style());
     let blank = crate::app::accent(ui.visuals());
     let mut job = egui::text::LayoutJob::default();
     job.wrap.max_width = wrap;
-    let mut last = 0;
-    for (range, _) in form::markers(text) {
-        job.append(&text[last..range.start], 0.0, egui::TextFormat::simple(font.clone(), ink));
-        job.append(&text[range.clone()], 0.0, egui::TextFormat::simple(font.clone(), blank));
-        last = range.end;
+    for piece in form::pieces(text, copied) {
+        let (part, color) = match piece {
+            form::Piece::Text(part) => (part, ink),
+            form::Piece::Blank(_, part) | form::Piece::Copied(part) => (part, blank),
+        };
+        job.append(part, 0.0, egui::TextFormat::simple(font.clone(), color));
     }
-    job.append(&text[last..], 0.0, egui::TextFormat::simple(font, ink));
+    // An empty box still has a line, with the cursor the height of the text it is waiting for.
+    if job.sections.is_empty() {
+        job.append("", 0.0, egui::TextFormat::simple(font, ink));
+    }
     job
 }
 
@@ -1260,10 +1317,15 @@ fn new_blank_name(state: &AppState, text: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Puts a new `[[campo N]]` where the cursor was in the text, or at its end if it never had one,
-/// and leaves the cursor after it.
-fn insert_blank(ctx: &egui::Context, state: &AppState, text: &mut String) {
-    let marker = format!("[[{}]]", new_blank_name(state, text));
+/// The word inside `{{...}}` for what was last copied, in the interface's language. Letters only,
+/// and Latin ones, because espanso reads it as the name of a variable.
+fn copied_word(state: &AppState) -> &'static str {
+    studio::text(state, "copiado", "copied", "kinopya", "copied")
+}
+
+/// Puts `marker` where the cursor was in the text, or at its end if it never had one, and leaves
+/// the cursor after it.
+fn insert_marker(ctx: &egui::Context, text: &mut String, marker: &str) {
     let mut field = egui::TextEdit::load_state(ctx, replace_id()).unwrap_or_default();
     let chars = text.chars().count();
     let at = field
@@ -1271,7 +1333,7 @@ fn insert_blank(ctx: &egui::Context, state: &AppState, text: &mut String) {
         .char_range()
         .map_or(chars, |range| range.primary.index.0.max(range.secondary.index.0).min(chars));
     let byte = text.char_indices().nth(at).map_or(text.len(), |(b, _)| b);
-    text.insert_str(byte, &marker);
+    text.insert_str(byte, marker);
     let after = egui::text::CCursor::new(at + marker.chars().count());
     field.cursor.set_char_range(Some(egui::text::CCursorRange::one(after)));
     field.store(ctx, replace_id());
@@ -1291,8 +1353,9 @@ fn text_with_blanks(
     // it as the text does, with the page scrolling rather than the words being cut off.
     let height = ui.text_style_height(&egui::TextStyle::Body) * TEXT_AREA_ROWS + 16.0;
     let ink = ui.visuals().widgets.inactive.text_color();
+    let copied = edit.copied.clone();
     let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, wrap: f32| {
-        ui.painter().layout_job(highlighted(ui, buffer.as_str(), ink, wrap))
+        ui.painter().layout_job(highlighted(ui, buffer.as_str(), Some(&copied), ink, wrap))
     };
     ui.add_sized(
         egui::vec2(ui.available_width(), height),
@@ -1303,6 +1366,7 @@ fn text_with_blanks(
     let spec = edit.form(text);
     let mut open_try = false;
     let mut add_blank = false;
+    let mut add_copied = false;
     let mut to_date = false;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = controls::GAP;
@@ -1330,6 +1394,20 @@ fn text_with_blanks(
             "Ang petsa o oras sa sandaling iyon",
             "उस समय की दिनांक या समय",
         );
+        let copied = studio::text(
+            state,
+            "Lo último que copiaste",
+            "What you last copied",
+            "Ang huli mong kinopya",
+            "जो आपने आखिरी बार कॉपी किया",
+        );
+        let copied_tip = studio::text(
+            state,
+            "Al usar la expansión, aquí va lo último que hayas copiado",
+            "When you use it, the text you copied last goes here",
+            "Kapag ginamit mo ito, dito mapupunta ang huling tekstong kinopya mo",
+            "उपयोग करने पर, यहाँ वह टेक्स्ट आएगा जो आपने आखिरी बार कॉपी किया",
+        );
         // As wide as the list's own flyouts.
         egui::Popup::menu(&menu)
             .align(egui::RectAlign::BOTTOM_START)
@@ -1347,6 +1425,14 @@ fn text_with_blanks(
                 if by_keyboard {
                     ui.memory_mut(|m| m.request_focus(first));
                 }
+                // Both of these go into the text; the date is a whole expansion of its own, so it
+                // comes last.
+                if controls::menu_item(ui, Some(Glyph::Copy), copied, None, Tone::Normal, true)
+                    .on_hover_text(copied_tip)
+                    .clicked()
+                {
+                    add_copied = true;
+                }
                 if controls::menu_item(ui, Some(Glyph::Calendar), date, None, Tone::Normal, true).clicked() {
                     to_date = true;
                 }
@@ -1357,7 +1443,14 @@ fn text_with_blanks(
         }
     });
     if add_blank {
-        insert_blank(ui.ctx(), state, text);
+        let marker = format!("[[{}]]", new_blank_name(state, text));
+        insert_marker(ui.ctx(), text, &marker);
+    }
+    if add_copied {
+        if edit.copied.is_empty() {
+            edit.copied = copied_word(state).to_string();
+        }
+        insert_marker(ui.ctx(), text, &format!("{{{{{}}}}}", edit.copied));
     }
 
     let Some(spec) = spec else {
@@ -1561,7 +1654,7 @@ fn try_dialog(ctx: &egui::Context, state: &AppState, edit: &EditState, spec: &Fo
         ui.add_space(controls::GAP_SECTION);
         ui.label(controls::small_muted(crate::ui::form_view::preview_label(lang), is_light));
         ui.add_space(controls::GAP_TIGHT);
-        crate::ui::form_view::result_preview(ui, spec, &answers);
+        crate::ui::form_view::result_preview(ui, spec, &answers, None, lang);
         ui.add_space(controls::GAP_SECTION);
         controls::dialog_buttons(ui, |ui| {
             let done = studio::text(state, "Listo", "Done", "Tapos na", "हो गया");
@@ -1774,7 +1867,7 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light:
                     ));
                 } else if matches!(edit.kind, Kind::Text { .. }) {
                     // The blanks in the accent here too, so the preview reads like the box above.
-                    let job = highlighted(ui, &result, ui.visuals().text_color(), ui.available_width());
+                    let job = highlighted(ui, &result, Some(&edit.copied), ui.visuals().text_color(), ui.available_width());
                     ui.add(egui::Label::new(job).wrap().selectable(true));
                 } else {
                     ui.add(egui::Label::new(&result).wrap().selectable(true));
@@ -2211,6 +2304,40 @@ mod tests {
             assert_eq!(edit.trigger(), trigger);
             assert_eq!(edit.build_match().trigger, trigger);
         }
+    }
+
+    /// What was last copied is espanso's clipboard variable on its own, Khipu's to fill in inside
+    /// a form, and either way comes back from the file as the same text with the same marker.
+    #[test]
+    fn what_was_copied_survives_the_editor_alone_and_in_a_form() {
+        for text in ["Te reenvío: {{copiado}}", "Hola [[cliente]], te reenvío: {{ copiado }}"] {
+            let mut edit = EditState::new_for_create(":");
+            edit.word = "fw".into();
+            edit.copied = "copiado".into();
+            edit.kind = Kind::Text { replace: text.into() };
+            let m = edit.build_match();
+            let is_form = text.contains("[[");
+            assert_eq!(m.as_form().is_some(), is_form);
+            if !is_form {
+                assert_eq!(m.vars[0].var_type, "clipboard");
+                assert_eq!(m.as_copied(), Some("copiado"));
+            }
+            assert!(MatchEntry::Simple(m.clone()).is_safely_editable());
+            let back = EditState::new_for_edit(0, &m, None);
+            assert_eq!(back.copied, "copiado");
+            assert!(matches!(&back.kind, Kind::Text { replace } if replace == text));
+            assert_eq!(back.build_match(), m);
+        }
+        // Written by hand in espanso's way, with a parameter Khipu does not know: left alone.
+        let mut m = SimpleMatch {
+            trigger: ":c".into(),
+            replace: "{{clipboard}}".into(),
+            vars: vec![VarEntry { name: "clipboard".into(), var_type: "clipboard".into(), params: Default::default() }],
+            label: None,
+        };
+        assert!(MatchEntry::Simple(m.clone()).is_safely_editable());
+        m.vars[0].params.insert("x".into(), 1.into());
+        assert!(!MatchEntry::Simple(m).is_safely_editable());
     }
 
     /// Editing used to write `label: None` whatever the file said, so saving any change to an
