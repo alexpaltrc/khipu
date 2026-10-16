@@ -337,7 +337,7 @@ impl EditState {
                         .map(|name| VarEntry {
                             name: name.to_string(),
                             var_type: "clipboard".to_string(),
-                            params: Default::default(),
+                            ..Default::default()
                         })
                         .into_iter()
                         .collect(),
@@ -1506,12 +1506,20 @@ fn blank_row(
 
         // The name is typed into a copy and written back only while it is a name the text can
         // hold: not empty, not another blank's, nothing that would end the marker early.
+        //
+        // The copy is kept with the name it was typed over, and dropped as soon as the box lets go
+        // of the focus. The box's id is only its row number, so a copy left behind used to come
+        // back in the first row of the next expansion opened — or in this one, once a marker
+        // pasted higher up had moved the rows — and the next key typed renamed the wrong blank.
         let name_id = egui::Id::new(("editor-blank-name", index));
         let draft_id = name_id.with("draft");
         let ctx = ui.ctx().clone();
         let mut draft = if ctx.memory(|m| m.has_focus(name_id)) {
-            ctx.data(|d| d.get_temp::<String>(draft_id)).unwrap_or_else(|| field.name.clone())
+            ctx.data(|d| d.get_temp::<(String, String)>(draft_id))
+                .filter(|(over, _)| *over == field.name)
+                .map_or_else(|| field.name.clone(), |(_, draft)| draft)
         } else {
+            ctx.data_mut(|d| d.remove::<(String, String)>(draft_id));
             field.name.clone()
         };
         let kinds_width = controls::segmented_natural_width(ui, &kinds);
@@ -1536,12 +1544,13 @@ fn blank_row(
             changed
         };
         if name_changed {
-            ctx.data_mut(|d| d.insert_temp(draft_id, draft.clone()));
             let new = draft.trim();
             let valid = !new.is_empty()
                 && new.chars().count() <= form::NAME_MAX
                 && !new.contains(['[', ']', '\n', '\r'])
                 && !form::names(text).iter().any(|n| n == new);
+            let over = if valid { new.to_string() } else { field.name.clone() };
+            ctx.data_mut(|d| d.insert_temp(draft_id, (over, draft.clone())));
             if valid {
                 *text = form::rename(text, &field.name, new);
                 edit.fields.retain(|f| f.name != new);
@@ -2332,7 +2341,7 @@ mod tests {
         let mut m = SimpleMatch {
             trigger: ":c".into(),
             replace: "{{clipboard}}".into(),
-            vars: vec![VarEntry { name: "clipboard".into(), var_type: "clipboard".into(), params: Default::default() }],
+            vars: vec![VarEntry { name: "clipboard".into(), var_type: "clipboard".into(), ..Default::default() }],
             label: None,
         };
         assert!(MatchEntry::Simple(m.clone()).is_safely_editable());

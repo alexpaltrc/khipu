@@ -14,6 +14,16 @@ was published.
   shows it in the preview and inserts it with the rest. Expansions written by hand with espanso's
   own `clipboard` variable now open in the editor instead of being shown as advanced.
 
+### Fixed
+
+- **A field no longer takes the name of another one.** Clicking the name of a field could show
+  the name typed into a field of the last expansion edited, and the next key renamed the field to
+  it. The same could happen in one expansion after a field was copied higher up in the text.
+- **Forms with `{{…}}` in their text.** A form is now saved with `inject_vars: false`, so espanso
+  no longer reads braces in its text as a variable of its own and refuses to expand it.
+- **Nothing in a variable is lost on save.** An expansion whose variable has a key Khipu does not
+  show, such as `depends_on`, is now kept as it is instead of losing that key.
+
 ## 0.0.7 — 2026-10-13
 
 ### Added

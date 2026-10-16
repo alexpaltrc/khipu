@@ -287,6 +287,10 @@ impl FormSpec {
             name: VAR_NAME.to_string(),
             var_type: "script".to_string(),
             params,
+            // The text rides along in `template`, and espanso would otherwise read every `{{...}}`
+            // in it — what was last copied, or braces the user typed — as a variable of its own,
+            // and fail the expansion for want of one.
+            inject_vars: Some(false),
         }
     }
 
@@ -297,7 +301,10 @@ impl FormSpec {
         let [var] = m.vars.as_slice() else {
             return None;
         };
-        if var.var_type != "script" || m.replace.trim() != format!("{{{{{}}}}}", var.name) {
+        if var.var_type != "script"
+            || var.inject_vars == Some(true)
+            || m.replace.trim() != format!("{{{{{}}}}}", var.name)
+        {
             return None;
         }
         let args = var.params.get("args")?.as_sequence()?;
@@ -488,6 +495,7 @@ mod tests {
         file.entries.push(MatchEntry::Simple(m.clone()));
         let text = file.to_string_with_banner().unwrap();
         assert!(text.contains("khipu-form.cmd"), "{text}");
+        assert!(text.contains("inject_vars: false"), "{text}");
         let back = MatchFile::from_str(&text).unwrap();
         let MatchEntry::Simple(read) = &back.entries[0] else {
             panic!("a form must load as an expansion the editor can open");
@@ -498,6 +506,20 @@ mod tests {
         let spec = read.as_form().unwrap();
         let initial: Vec<String> = spec.fields.iter().map(FormField::initial).collect();
         assert_eq!(initial, ["", "Te escribo por", "Cercano"]);
+    }
+
+    /// A form saved before `inject_vars` was written still opens as one, and a variable with a key
+    /// Khipu does not know keeps the whole expansion out of the editor, and the key in the file.
+    #[test]
+    fn a_var_key_khipu_does_not_know_is_kept() {
+        let mut old = form_match(":cliente");
+        old.vars[0].inject_vars = None;
+        assert!(old.as_form().is_some());
+
+        let yaml = "matches:\n- trigger: ':x'\n  replace: '{{a}} {{b}}'\n  vars:\n  - name: a\n    type: clipboard\n  - name: b\n    type: echo\n    depends_on: [a]\n    params: {echo: hola}\n";
+        let file = MatchFile::from_str(yaml).unwrap();
+        assert!(matches!(file.entries[0], MatchEntry::Advanced(_)));
+        assert!(file.to_string_with_banner().unwrap().contains("depends_on"));
     }
 
     /// A trigger renamed by something that knows nothing of forms — a folder's prefix — is put

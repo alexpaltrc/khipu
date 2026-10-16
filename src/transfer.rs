@@ -364,6 +364,7 @@ mod tests {
             name: "salida".to_string(),
             var_type: "shell".to_string(),
             params,
+            inject_vars: None,
         }
     }
 

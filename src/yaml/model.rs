@@ -41,13 +41,21 @@ use serde_norway::{Mapping, Value};
 use std::collections::BTreeSet;
 
 /// A `vars:` entry inside a match, e.g. the "current date" variable.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+///
+/// Any other key (`depends_on`, ...) makes the whole match fail to read as simple, so it is kept
+/// as `Advanced` rather than losing that key on the next save.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct VarEntry {
     pub name: String,
     #[serde(rename = "type")]
     pub var_type: String,
     #[serde(default, skip_serializing_if = "Mapping::is_empty")]
     pub params: Mapping,
+    /// Whether espanso puts the values of other variables into `{{...}}` found in `params`. It does
+    /// unless told not to, and fails the whole expansion when a name is not a variable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inject_vars: Option<bool>,
 }
 
 impl VarEntry {
@@ -77,7 +85,7 @@ impl SimpleMatch {
             return None;
         }
         let var = &self.vars[0];
-        if var.var_type != "date" {
+        if var.var_type != "date" || var.inject_vars.is_some() {
             return None;
         }
         if self.replace.trim() == format!("{{{{{}}}}}", var.name) {
@@ -95,7 +103,8 @@ impl SimpleMatch {
             return None;
         };
         let named = !super::form::copied_markers(&self.replace, &var.name).is_empty();
-        (var.var_type == "clipboard" && var.params.is_empty() && named).then_some(var.name.as_str())
+        let plain = var.params.is_empty() && var.inject_vars.is_none();
+        (var.var_type == "clipboard" && plain && named).then_some(var.name.as_str())
     }
 
     /// The text espanso would insert for this match, when it can be known for certain without

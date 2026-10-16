@@ -156,5 +156,6 @@ fn build_date_var(var_name: &str, format: &str, tz: Option<&str>, month_lang: La
         name: var_name.to_string(),
         var_type: "date".to_string(),
         params,
+        inject_vars: None,
     }
 }
