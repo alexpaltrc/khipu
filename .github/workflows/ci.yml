@@ -1,0 +1,59 @@
+# Every push and pull request: build and test on Windows, the only system Khipu runs on, and keep
+# the exe as a download. A cloud session (Linux) cannot run the tests itself; this is where they run.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore: ["web/**", "**.md"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Build and test (Windows)
+    runs-on: windows-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: windows-${{ hashFiles('Cargo.lock') }}
+          restore-keys: windows-
+      - run: cargo build --release --locked
+      - run: cargo test --release --locked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Khipu-${{ github.sha }}
+          path: target/release/Khipu.exe
+          retention-days: 14
+
+  # The same check a cloud session runs. If this breaks, the cloud has lost its compiler.
+  cloud-check:
+    name: Type-check from Linux (cloud)
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal && rustup default stable && rustup target add x86_64-pc-windows-msvc
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-${{ hashFiles('Cargo.lock') }}
+          restore-keys: linux-
+      - run: cargo wcheck --locked

@@ -9,7 +9,7 @@
 
   espansod.exe, its DLLs and the starter .espanso/.espanso-runtime come from the newest portable
   ZIP in paquetes\, the same pristine copy every portable user gets. Never from the development
-  folder espanso-portable\: that one holds Alex's own expansions.
+  folder portable\: that one holds Alex's own expansions.
 
   Identity and publisher are the ones Partner Center assigned when "Khipu" was reserved
   (2026-10-05, Product identity page); the Store accepts no package that carries other values.
@@ -34,7 +34,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
-$paquetes = Join-Path $repo "..\..\paquetes" | Resolve-Path
+$paquetes = Join-Path $repo "..\paquetes" | Resolve-Path
 $exeName = "$DisplayName.exe"
 
 # --- Version: Cargo's 0.0.5-dev becomes the four numbers MSIX wants, 0.0.5.0 (or 0.0.5.<Revision>).

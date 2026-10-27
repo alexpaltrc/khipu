@@ -1,0 +1,5 @@
+# `cargo wcheck`: the whole crate and its tests type-checked for Windows, without linking. It is
+# what a Claude Code cloud session (Linux) can verify; on Windows it is just a slower `cargo check`.
+# The cloud's session-start hook installs the target. Tests themselves only run on Windows: CI.
+[alias]
+wcheck = "check --target x86_64-pc-windows-msvc --all-targets"
