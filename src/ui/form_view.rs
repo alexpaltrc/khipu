@@ -449,8 +449,15 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
     // its words as boxes.
     let devanagari = lang == Lang::Hi || needs_devanagari(&title, &spec, &copied);
 
-    let scale = crate::display::system_scale();
-    let tallest = crate::display::work_area(scale).map_or(720.0, |a| a.height * 0.85);
+    // The monitor being typed on, not the primary one: the form opens where the eyes already are.
+    let monitor = (!previous.is_invalid() && !studio)
+        .then(|| crate::display::monitor_of_window(previous))
+        .flatten();
+    let tallest = match monitor {
+        Some((work, scale)) => crate::display::WorkArea::from_rect(work, scale),
+        None => crate::display::work_area(crate::display::system_scale()),
+    }
+    .map_or(720.0, |a| a.height * 0.85);
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Khipu")
         .with_inner_size([WIDTH, 320.0])
@@ -466,7 +473,7 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
     }
     let options = eframe::NativeOptions {
         viewport,
-        centered: true,
+        centered: monitor.is_none(),
         persist_window: false,
         // Never written: nothing here asks eframe to keep anything. Named so that eframe does not
         // go looking for a folder of its own outside Khipu's.
@@ -481,6 +488,14 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
         options,
         Box::new(move |cc| {
             let window = cc.winit_window().cloned();
+            // Centred on that monitor in its own pixels, before the window is first shown, so a
+            // second screen at another scale gets no conversion through the primary's.
+            if let (Some(window), Some((work, _))) = (window.as_deref(), monitor) {
+                let size = window.outer_size();
+                let x = work.left + (work.right - work.left - size.width as i32) / 2;
+                let y = work.top + (work.bottom - work.top - size.height as i32) / 2;
+                window.set_outer_position(winit::dpi::PhysicalPosition::new(x, y));
+            }
             let is_light = dress(cc, window.as_deref(), theme_mode, devanagari);
             Ok(Box::new(FormApp {
                 title,

@@ -59,7 +59,7 @@ impl WorkArea {
     /// Both readings below arrive as a `RECT` and need exactly this, which is why it lives here
     /// rather than twice: the two of them disagreeing about what counts as usable is precisely the
     /// kind of drift that only shows up on somebody else's monitor.
-    fn from_rect(rect: RECT, scale: f32) -> Option<Self> {
+    pub fn from_rect(rect: RECT, scale: f32) -> Option<Self> {
         let scale = if scale > 0.1 { scale } else { 1.0 };
         let width = (rect.right - rect.left) as f32 / scale;
         let height = (rect.bottom - rect.top) as f32 / scale;
@@ -155,6 +155,31 @@ pub fn work_area_of_window(hwnd: windows::Win32::Foundation::HWND, scale: f32) -
         return None;
     }
     WorkArea::from_rect(info.rcWork, scale)
+}
+
+/// The work area of the monitor a window is on, in physical pixels, with that monitor's own scale.
+///
+/// For placing a window of ours on someone else's monitor: the scale is the monitor's, not the
+/// window's, since a window that is not DPI aware reports 96 wherever it is.
+pub fn monitor_of_window(hwnd: windows::Win32::Foundation::HWND) -> Option<(RECT, f32)> {
+    use windows::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+    };
+    use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
+
+    let mut info = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    let (mut dpi, mut unused) = (0u32, 0u32);
+    unsafe {
+        let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if !GetMonitorInfoW(monitor, &mut info).as_bool() {
+            return None;
+        }
+        GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi, &mut unused).ok()?;
+    }
+    Some((info.rcWork, if dpi == 0 { 1.0 } else { dpi as f32 / 96.0 }))
 }
 
 /// Puts a window in front of whatever the person is looking at, and gives it the keyboard.

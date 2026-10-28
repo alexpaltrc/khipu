@@ -26,6 +26,8 @@ was published.
 - **Dropping an expansion on a folder.** While you drag, the expansion now waits just below the
   folders instead of covering them, so you see which one will take it. The first expansions in
   the list, the ones under the folders, can now be dropped on them too.
+- **A form opens on the screen you are typing on.** With more than one monitor, the form window
+  now opens centred on the monitor of the app you were typing in, not always on the main one.
 - **«No folder» only when it has something.** The folder menu no longer lists «No folder» with a
   0 when every expansion is in a folder.
 
