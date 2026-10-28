@@ -2,12 +2,20 @@
 
 GUI de escritorio (Rust + egui) para espanso en Windows. Convive con `espansod.exe`.
 Antes se llamaba *Espanso Manager*; desde el 2026-10-05 es **Khipu** en todo (decisión de Alex).
-Se conservan a propósito con el nombre viejo: la identidad MSIX de pruebas `EspansoManager.Dev`.
 El repo es `github.com/alexpaltrc/khipu` (GitHub redirige la dirección vieja `espanso-manager`).
 
-Este archivo es la memoria del proyecto y viaja con el repo: lo leen las sesiones en el equipo
-de Alex y las de Claude Code en la nube. Lo que solo vale en el equipo local va en el
-`CLAUDE.md` de la carpeta de arriba, que no está en git.
+Este archivo es la memoria del proyecto: lo leen las sesiones en el equipo de Alex y las de
+Claude Code en la nube. Sigue el estándar personal de Alex (skill `alex-vibecode`); la nube no ve
+ese skill, así que lo esencial va aquí.
+
+## Cómo trabajar con Alex
+
+- Alex no programa: usa cada día la versión más reciente (Khipu Dev) para encontrar bugs e ideas.
+- Informes **en español**, resumidos, para alguien no técnico, y honestos: lo que no se pudo
+  medir se dice que no se pudo medir. Al cerrar un cambio, decir exactamente qué probar.
+- Prioridades, en orden: ultraminimalista, ultra simple, moderno, nativo de Windows 11,
+  rendimiento medido, elegancia. Ante la duda, la opción más simple.
+- Código, comentarios y commits en inglés; documentación en español; la app en cuatro idiomas.
 
 ## Estado
 
@@ -17,18 +25,37 @@ de Alex y las de Claude Code en la nube. Lo que solo vale en el equipo local va 
   `-dev` se quita en el commit que publica, y ese commit lleva la etiqueta de la versión.
 - **Microsoft Store**: Store ID `9NXXV15RJ94T`, `https://apps.microsoft.com/detail/9NXXV15RJ94T`.
   Pública desde que se aprobó el envío 2 (0.0.6). Cada actualización es un envío nuevo con
-  versión mayor (cuarto número en 0). Lo de Partner Center lo hace Alex.
+  versión mayor (cuarto número en 0). Lo de Partner Center lo hace Alex (`docs/store/GUIA.md`).
 - En uso diario por compañeros de trabajo de Alex.
 - Tema oculto «I got chiiills», con dos L, desde 0.0.6 (↑ ↑ ↓ ↓ ← → ← → en Consejos; en disco
   va como `Light` + `khipu_theme`; tiñe la barra de título con `DWMWA_CAPTION_COLOR`). El README
   lo esconde tras dos spoilers `<details>`.
 
+## La app de uso diario: Khipu Dev
+
+Desde el 2026-10-27 Alex usa **Khipu Dev**, la MSIX instalada, no la portable. Nunca se abre el
+exe suelto de `target/`.
+
+- Identidad propia: `AlexPalacios.Khipu.Dev`, publicador `CN=Alex Palacios Dev`, nombre
+  «Khipu Dev». No choca con una Khipu de la Store en Windows, pero comparten el mutex de
+  instancia única: no corren las dos a la vez (dos espanso escribirían doble).
+- Firmada con un certificado de desarrollo creado en el equipo de Alex (`CurrentUser\My`) y
+  confiado solo ahí (`LocalMachine\TrustedPeople`, `packaging/trust-dev-cert.ps1`, una vez, con
+  UAC). Sin modo de desarrollador.
+- Sus datos: `%LOCALAPPDATA%\Packages\AlexPalacios.Khipu.Dev_6pha5dhx37rs8\LocalState`
+  (`.espanso`, `.espanso-runtime`, `.khipu`). Sobreviven a cada actualización.
+- **Actualizarla**: `packaging/update-dev.ps1` (acceso directo «Actualizar Khipu» en el
+  escritorio de Alex): `git pull`, compila, firma, instala encima con el cuarto número +1 y la
+  vuelve a abrir. **Al terminar cualquier cambio en el equipo de Alex, correrlo**
+  (`-NoPull -NoPause`) y decir en una línea que ya está actualizada. Si se cierra la app, se
+  vuelve a abrir.
+
 ## Dónde corre la sesión
 
 Khipu es **solo para Windows**: el crate no compila para Linux, y sus pruebas tampoco corren ahí.
 
-**En el equipo de Alex (Windows):** todo. `cargo build --release`, `cargo test`, abrir la app,
-medir sobre el binario, desplegar el exe, construir la MSIX.
+**En el equipo de Alex (Windows):** todo. `cargo build --release`, `cargo test`, medir sobre el
+binario, actualizar Khipu Dev, construir la MSIX de la Store.
 
 **En la nube (Linux, `CLAUDE_CODE_REMOTE=true`):** el gancho de inicio instala el destino
 `x86_64-pc-windows-msvc`, y con eso:
@@ -37,42 +64,38 @@ medir sobre el binario, desplegar el exe, construir la MSIX.
   verificación que sí se puede hacer en la nube: tipos, préstamos y warnings.
 - No se puede: ejecutar `cargo test`, abrir la app, medir, ni tomar capturas. Decirlo así en
   el informe, nunca darlo por probado.
-- Trabajar en una rama y empujarla: **GitHub Actions** (`.github/workflows/ci.yml`) compila en
-  Windows, corre `cargo test` y deja `Khipu.exe` como artefacto descargable del run. Esa es la
-  prueba real; leer su resultado con `gh run list` / `gh run view` antes de decir que pasó.
-- Lo que no se puede en la nube (desplegar el exe, el ZIP portable, la MSIX, medir la
-  interfaz) queda pendiente para cuando Alex esté en su equipo: anotarlo en el informe.
+- **GitHub Actions** (`.github/workflows/ci.yml`) compila en Windows, corre `cargo test` y deja
+  `Khipu.exe` como artefacto. Es la prueba real: leerla con `gh run list` / `gh run view` antes
+  de decir que pasó. Un cambio no está terminado si la CI falla.
+- Al terminar, Alex lo trae a su Khipu Dev con «Actualizar Khipu». Decírselo en el informe.
 
 ## Organización
 
 ```
-Khipu/                  (carpeta local de Alex; solo khipu/ está en git)
-├─ khipu/               este repo
-│  ├─ src/ assets/ vendor/ packaging/ docs/
-│  └─ web/              el sitio de presentación (estático; ver web/README.md)
-├─ portable/            la app de uso diario de Alex: Khipu.exe, espansod.exe y SUS datos
-├─ paquetes/            ZIP portable y MSIX de cada versión
-├─ marca/               identidad, paleta, video, campaña y ficha de la Store, roadmap
-└─ archivo/             lo superado: versiones viejas de entregables, ZIPs, respaldos
+Vibecode\Khipu\          este repo (solo código y documentos)
+├─ src/                  la app (mapa abajo)
+├─ assets/khipu/         el paquete de identidad, tal cual se entregó
+├─ vendor/               eframe y epaint con un cambio cada uno (vendor/README.md)
+├─ packaging/            MSIX (Store y Dev), certificado Dev, «Actualizar Khipu», avisos de terceros
+├─ docs/                 capturas del README, roadmap y ficha/guía de la Store (docs/store/)
+├─ web/                  el sitio de presentación, estático (web/README.md)
+└─ .github/ .claude/ .cargo/   CI, arranque en la nube, alias `cargo wcheck`
 ```
 
-- `portable/` está fuera del repo a propósito: ahí viven `.espanso/match/base.yml` y
-  `.khipu/settings.json` con las expansiones reales de Alex. Nada personal entra a git.
-- Binario desplegado: `portable/Khipu.exe`, copia directa de `target/release/Khipu.exe`.
-- Paquete de prueba de la versión en curso: `paquetes/Khipu Portable <versión>.zip`, con una
-  carpeta `Khipu <versión>/` que lleva solo `Khipu.exe` y `Program Files/`. `portable/` es plana:
-  no copiarla tal cual.
+- Fuera del repo, en `Documentos\Vibecode Archivos\Khipu Archivos\`: el material de marca
+  (videos, campaña e imágenes de la Store, paleta). No es código; no traerlo de vuelta.
+- Nada personal entra a git: las expansiones de Alex viven en el LocalState de Khipu Dev.
 - Versiones publicadas: GitHub Releases, etiquetas `v0.0.1` a `v0.0.7`. Desde la 0.0.5 el ZIP se
   sube como `Khipu-Portable-<versión>.zip`, con guiones (GitHub cambia los espacios por puntos).
+  Lleva una carpeta `Khipu <versión>/` con solo `Khipu.exe` y `Program Files/`.
 - `PRIVACY.md` en `main` es la política de privacidad de la Store: no moverlo.
 - Datos: `.khipu/` (era `.espanso-manager/` hasta 0.0.4; sin migración).
-- **Edición instalada (MSIX)**: `packaging/build-msix.ps1` (`-Register` la instala en el equipo,
-  con modo desarrollador); sale en `paquetes/Khipu <versión>.msix` y toma espanso del ZIP portable
-  más nuevo de `paquetes/`. `-Revision N` sube el cuarto número para actualizar sin borrar
-  LocalState. La registrada corre desde `target\msix\layout`. Identidad por defecto: la de la
-  Store (`AlexPalacios.Khipu` / `CN=A3B4D4CD-AECB-4B6D-9268-AEAB19F8F17B`). **No registrar la
-  identidad de la Store en un equipo que vaya a instalarla desde la Store.** Canales: Store,
-  winget (solo fuente msstore) y el ZIP.
+- **MSIX**: `packaging/build-msix.ps1` (`-Channel Store` por defecto, `-Channel Dev` para Khipu
+  Dev). Sale en `target\msix\out\`. Toma espanso del ZIP portable de la última versión de GitHub
+  Releases (se baja una vez a `target\msix\`), o de `-RuntimeZip`. La de la Store va sin firmar
+  (la firma la Store) con `AlexPalacios.Khipu` / `CN=A3B4D4CD-AECB-4B6D-9268-AEAB19F8F17B`; no
+  instalarla en un equipo que la vaya a recibir de la Store. Canales: Store, winget (solo fuente
+  msstore) y el ZIP.
 - **Icono**: el paquete de identidad (2026-10-05) vive tal cual en `assets/khipu/` (su
   `README.md` e `inventario.json` describen cada archivo; no reordenarlo). El exe toma
   `app/Khipu.ico`; la MSIX copia `msix/Assets/*.png`; bandeja, ventana y bienvenida los dibuja
@@ -136,7 +159,8 @@ solo el índice para saber cuál abrir.
 
 ## Reglas permanentes
 
-- `portable/` contiene **únicamente la aplicación portable, no el instalador**.
+- La app que Alex usa nunca vive ni se abre desde esta carpeta: es Khipu Dev, instalada.
+- Limpio desde el principio: sin archivos sobrantes, carpetas vacías ni código muerto.
 - **Si un cambio hace algo más feo, no lo hagas.** La interfaz está terminada y aprobada.
 - El texto cortado en el borde de la ventana quita elegancia, prestigio y belleza.
 - **Nada de subagentes ni workflows.** Son lo más caro del plan. Verifica tú mismo.
@@ -155,9 +179,9 @@ solo el índice para saber cuál abrir.
 3. Local: `cargo build --release` y `cargo test`, sin warnings.
    Nube: `cargo wcheck` sin warnings, y después el CI de la rama en verde.
 4. Local: **probarlo por medición sobre el binario real**, contra el build del commit anterior
-   (o el paquete de `paquetes/`), mismo escenario antes y después. En la nube no se puede:
-   dejarlo anotado como pendiente.
-5. Local: desplegar el `.exe`, refrescar `paquetes/Khipu Portable <versión>.zip`.
+   (o el ZIP de la última versión en GitHub Releases), mismo escenario antes y después. En la
+   nube no se puede: dejarlo anotado como pendiente.
+5. Local: actualizar Khipu Dev (`packaging/update-dev.ps1 -NoPull -NoPause`), que la deja abierta.
 6. Commit con la sección *Unreleased* de `CHANGELOG.md` al día.
 7. Informar en español, incluyendo lo que quedó sin probar y por qué.
 

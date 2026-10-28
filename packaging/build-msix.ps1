@@ -1,59 +1,69 @@
 <#
-  Builds the installed (Microsoft Store) edition: an MSIX package.
+  Builds Khipu as an MSIX package, for one of two channels.
 
-    powershell -ExecutionPolicy Bypass -File packaging\build-msix.ps1            # build the .msix
-    powershell -ExecutionPolicy Bypass -File packaging\build-msix.ps1 -Register  # and install it here
+    powershell -ExecutionPolicy Bypass -File packaging\build-msix.ps1               # Store package
+    powershell -ExecutionPolicy Bypass -File packaging\build-msix.ps1 -Channel Dev  # Khipu Dev, installed here
 
-  The package is left unsigned. The Store signs what is uploaded to it; -Register installs the
-  unpacked layout directly, which Windows allows only with Developer Mode on.
+  Store: the identity Partner Center assigned when "Khipu" was reserved (2026-10-05, Product identity
+  page); the Store accepts no package that carries other values. Left unsigned: the Store signs what
+  is uploaded to it. Never install it on a PC that will get Khipu from the Store.
 
-  espansod.exe, its DLLs and the starter .espanso/.espanso-runtime come from the newest portable
-  ZIP in paquetes\, the same pristine copy every portable user gets. Never from the development
-  folder portable\: that one holds Alex's own expansions.
+  Dev: Alex's daily copy. Its own identity (AlexPalacios.Khipu.Dev, shown as "Khipu Dev"), so it
+  never meets a Store install in Windows' eyes and keeps its own LocalState. Signed with a
+  development certificate made on this PC, trusted only here (trust-dev-cert.ps1, once, as
+  administrator). Every build gets a higher fourth number than the installed one, so it installs
+  over it and LocalState, Alex's expansions, stays. Developer Mode is never needed.
 
-  Identity and publisher are the ones Partner Center assigned when "Khipu" was reserved
-  (2026-10-05, Product identity page); the Store accepts no package that carries other values.
-  It is a different package from the EspansoManager.Dev one registered on Alex's PC before that,
-  so Windows keeps them apart, each with its own LocalState. To update that older copy instead:
-    -Name EspansoManager.Dev -Publisher "CN=Alex Palacios" -Revision <higher> -Register
-  Do not -Register the Store identity on a PC that will install Khipu from the Store: the
-  developer copy would stand in the way of the signed one.
+  espansod.exe, its DLLs and the starter .espanso/.espanso-runtime come from a portable ZIP: by
+  default the one on the latest GitHub release, the same pristine copy every portable user gets,
+  downloaded once into target\msix\. -RuntimeZip names another.
+
+  The package is written to target\msix\out\. Release packages are uploaded to the Store and to
+  GitHub Releases; nothing keeps them here.
 #>
 param(
-    [string]$Name = "AlexPalacios.Khipu",
-    [string]$Publisher = "CN=A3B4D4CD-AECB-4B6D-9268-AEAB19F8F17B",
-    [string]$PublisherDisplayName = "Alex Palacios",
-    [string]$DisplayName = "Khipu",
-    [string]$Description = "Text expansions without touching a config file.",
+    [ValidateSet("Store", "Dev")]
+    [string]$Channel = "Store",
     [string]$RuntimeZip = "",
-    # The fourth number of the package version. Windows refuses to register a changed manifest
-    # under a version it already has installed, and uninstalling first would delete LocalState;
-    # a higher revision is an update instead, which keeps it.
-    [int]$Revision = 0,
-    [switch]$Register
+    # Store only: the fourth number. Dev picks its own.
+    [int]$Revision = 0
 )
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
-$paquetes = Join-Path $repo "..\paquetes" | Resolve-Path
-$exeName = "$DisplayName.exe"
+$work = Join-Path $repo "target\msix"
+$exeName = "Khipu.exe"
+$Description = "Text expansions without touching a config file."
+$PublisherDisplayName = "Alex Palacios"
 
-# --- Version: Cargo's 0.0.5-dev becomes the four numbers MSIX wants, 0.0.5.0 (or 0.0.5.<Revision>).
+if ($Channel -eq "Dev") {
+    $Name = "AlexPalacios.Khipu.Dev"
+    $Publisher = "CN=Alex Palacios Dev"
+    $DisplayName = "Khipu Dev"
+} else {
+    $Name = "AlexPalacios.Khipu"
+    $Publisher = "CN=A3B4D4CD-AECB-4B6D-9268-AEAB19F8F17B"
+    $DisplayName = "Khipu"
+}
+
+# --- Version: Cargo's 0.0.8-dev becomes the four numbers MSIX wants, 0.0.8.<Revision>. Dev goes one
+# past whatever is installed, so the new build always replaces it.
 $cargoVersion = (Select-String -Path (Join-Path $repo "Cargo.toml") -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
 $numeric = ($cargoVersion -split '-')[0]
+if ($Channel -eq "Dev") {
+    $Revision = 1
+    $installed = Get-AppxPackage -Name $Name
+    if ($installed) {
+        $v = [version]$installed.Version
+        if ("$($v.Major).$($v.Minor).$($v.Build)" -eq $numeric) { $Revision = $v.Revision + 1 }
+    }
+}
 $msixVersion = "$numeric.$Revision"
 
 # --- Build.
 Push-Location $repo
 try { cargo build --release; if ($LASTEXITCODE -ne 0) { throw "cargo build failed" } } finally { Pop-Location }
 
-# --- Stage the layout. Kept under target\ so -Register has a folder that stays put. A build that
-# only packs gets a folder of its own: the registered copy runs out of layout\, and packing the
-# Store identity there would close it and swap its files from under it.
-$stage = Join-Path $repo $(if ($Register) { "target\msix\layout" } else { "target\msix\pack" })
-# A copy registered with -Register runs straight out of this folder, espansod included, and a
-# running .exe cannot be deleted. Only processes started from here are closed.
-Get-Process | Where-Object { $_.Path -like "$stage\*" } | Stop-Process -Force
-Start-Sleep -Milliseconds 500
+$stage = Join-Path $work "layout"
 if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 $res = Join-Path $stage "Program Files"
 $seed = Join-Path $res "seed"
@@ -62,10 +72,17 @@ Copy-Item (Join-Path $repo "target\release\Khipu.exe") (Join-Path $stage $exeNam
 
 # --- espanso, from the portable ZIP.
 if ($RuntimeZip -eq "") {
-    $RuntimeZip = (Get-ChildItem $paquetes -Filter "Khipu Portable *.zip" | Sort-Object LastWriteTime | Select-Object -Last 1).FullName
+    $release = Invoke-RestMethod "https://api.github.com/repos/alexpaltrc/khipu/releases/latest"
+    $asset = $release.assets | Where-Object { $_.name -like "Khipu-Portable-*.zip" } | Select-Object -First 1
+    if (-not $asset) { throw "the latest release has no Khipu-Portable ZIP" }
+    $RuntimeZip = Join-Path $work $asset.name
+    if (-not (Test-Path $RuntimeZip)) {
+        New-Item -ItemType Directory -Force $work | Out-Null
+        Invoke-WebRequest $asset.browser_download_url -OutFile $RuntimeZip
+    }
 }
 Write-Host "espanso from: $RuntimeZip"
-$unzip = Join-Path $repo "target\msix\portable"
+$unzip = Join-Path $work "portable"
 if (Test-Path $unzip) { Remove-Item -Recurse -Force $unzip }
 Expand-Archive $RuntimeZip $unzip
 $pf = Get-ChildItem $unzip -Directory | ForEach-Object { Join-Path $_.FullName "Program Files" } | Select-Object -First 1
@@ -98,7 +115,7 @@ $manifest = $manifest.Replace('$NAME$', (X $Name)).Replace('$PUBLISHER$', (X $Pu
 $sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" | Sort-Object FullName | Select-Object -Last 1
 if (-not $sdk) { throw "makeappx.exe not found: install the Windows SDK" }
 $makepri = Join-Path $sdk.DirectoryName "makepri.exe"
-$priconfig = Join-Path $repo "target\msix\priconfig.xml"
+$priconfig = Join-Path $work "priconfig.xml"
 & $makepri createconfig /cf $priconfig /dq es-MX_en-US_fil-PH_hi-IN /pv 10.0.0 /o | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "makepri createconfig failed" }
 # The default config splits every scale into its own resources.scale-*.pri, which is meant for a
@@ -111,13 +128,37 @@ $config.Save($priconfig)
 if ($LASTEXITCODE -ne 0) { throw "makepri new failed" }
 
 # --- Pack.
-$makeappx = $sdk
-$out = Join-Path $paquetes "$DisplayName $cargoVersion.msix"
-& $makeappx.FullName pack /d $stage /p $out /o | Out-Host
+$outDir = Join-Path $work "out"
+New-Item -ItemType Directory -Force $outDir | Out-Null
+$out = Join-Path $outDir "$DisplayName $msixVersion.msix"
+& $sdk.FullName pack /d $stage /p $out /o | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "makeappx failed" }
 Write-Host "package: $out"
 
-if ($Register) {
-    Add-AppxPackage -Register (Join-Path $stage "AppxManifest.xml") -ForceApplicationShutdown
-    Write-Host "registered from: $stage"
+if ($Channel -eq "Dev") {
+    # --- Sign with the development certificate, made here the first time. Its private key never
+    # leaves this user's certificate store; only the public half is exported, for trusting.
+    $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq $Publisher } | Select-Object -First 1
+    if (-not $cert) {
+        $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject $Publisher `
+            -CertStoreLocation Cert:\CurrentUser\My -KeyUsage DigitalSignature `
+            -FriendlyName "Khipu Dev" -NotAfter (Get-Date).AddYears(10) `
+            -TextExtension @("2.5.29.19={text}")
+    }
+    Export-Certificate -Cert $cert -FilePath (Join-Path $work "khipu-dev.cer") | Out-Null
+    $signtool = Join-Path $sdk.DirectoryName "signtool.exe"
+    & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint /s My $out | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "signtool failed" }
+
+    $trusted = Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Thumbprint -eq $cert.Thumbprint }
+    if (-not $trusted) {
+        # Once per PC: one UAC prompt, answered by whoever is at the keyboard.
+        & (Join-Path $PSScriptRoot "trust-dev-cert.ps1")
+        $trusted = Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object { $_.Thumbprint -eq $cert.Thumbprint }
+        if (-not $trusted) { throw "this PC does not trust the Khipu Dev certificate, so Windows will not install it" }
+    }
+
+    # --- Install over the previous Khipu Dev. Windows closes it if it is open; LocalState stays.
+    Add-AppxPackage -Path $out -ForceApplicationShutdown -ForceUpdateFromAnyVersion
+    Write-Host "installed: $DisplayName $msixVersion"
 }
