@@ -1,37 +1,27 @@
 <#
-  "Actualizar Khipu", the shortcut on Alex's desktop: brings in what was done on GitHub (from the
-  cloud or elsewhere), builds Khipu Dev, installs it over the one in use and opens it again.
-  Expansions and settings live in the package's LocalState, which an update never touches.
+  Updates Khipu Dev, the copy where every change lands and Alex tries it: brings in what is on
+  GitHub, builds Khipu Dev and installs it over the one installed. Expansions and settings live in
+  the package's LocalState, which an update never touches. Never touches the stable Khipu from
+  the Store. If Khipu Dev was open, Windows closes it to update it and this opens it again.
 
-    powershell -ExecutionPolicy Bypass -File packaging\update-dev.ps1 [-NoPull] [-NoPause]
+    powershell -ExecutionPolicy Bypass -File packaging\update-dev.ps1 [-NoPull]
 #>
-param([switch]$NoPull, [switch]$NoPause)
+param([switch]$NoPull)
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
-$Host.UI.RawUI.WindowTitle = "Actualizar Khipu"
 
-function Finish([bool]$ok, [string]$message) {
-    Write-Host ""
-    Write-Host $message -ForegroundColor $(if ($ok) { "Green" } else { "Red" })
-    if (-not $NoPause) { Write-Host ""; Read-Host "Pulsa Enter para cerrar" | Out-Null }
-    exit $(if ($ok) { 0 } else { 1 })
-}
-
+Push-Location $repo
 try {
-    Push-Location $repo
     if (-not $NoPull) {
-        Write-Host "Bajando los cambios de GitHub..."
         git pull --ff-only
-        if ($LASTEXITCODE -ne 0) { throw "no se pudieron bajar los cambios de GitHub (git pull)" }
+        if ($LASTEXITCODE -ne 0) { throw "git pull failed" }
     }
-    Write-Host "Fabricando e instalando Khipu Dev..."
+    $wasOpen = Get-Process Khipu -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -like "*\AlexPalacios.Khipu.Dev_*" }
     & (Join-Path $PSScriptRoot "build-msix.ps1") -Channel Dev
-
     $package = Get-AppxPackage -Name "AlexPalacios.Khipu.Dev"
-    Start-Process "explorer.exe" "shell:AppsFolder\$($package.PackageFamilyName)!App"
-    Finish $true "Listo: Khipu Dev $($package.Version) instalada y abierta."
-} catch {
-    Finish $false "No se pudo actualizar: $($_.Exception.Message)"
+    if ($wasOpen) { Start-Process "explorer.exe" "shell:AppsFolder\$($package.PackageFamilyName)!App" }
+    Write-Host "Khipu Dev $($package.Version)$(if ($wasOpen) { ', reopened' })"
 } finally {
     Pop-Location
 }

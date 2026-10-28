@@ -8,8 +8,9 @@
   page); the Store accepts no package that carries other values. Left unsigned: the Store signs what
   is uploaded to it. Never install it on a PC that will get Khipu from the Store.
 
-  Dev: Alex's daily copy. Its own identity (AlexPalacios.Khipu.Dev, shown as "Khipu Dev"), so it
-  never meets a Store install in Windows' eyes and keeps its own LocalState. Signed with a
+  Dev: where every change lands and Alex tries it. Its own identity (AlexPalacios.Khipu.Dev, shown
+  as "Khipu Dev"), so it never meets a Store install in Windows' eyes and keeps its own LocalState.
+  Signed with a
   development certificate made on this PC, trusted only here (trust-dev-cert.ps1, once, as
   administrator). Every build gets a higher fourth number than the installed one, so it installs
   over it and LocalState, Alex's expansions, stays. Developer Mode is never needed.

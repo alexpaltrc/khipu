@@ -31,24 +31,34 @@ ese skill, así que lo esencial va aquí.
   va como `Light` + `khipu_theme`; tiñe la barra de título con `DWMWA_CAPTION_COLOR`). El README
   lo esconde tras dos spoilers `<details>`.
 
-## La app de uso diario: Khipu Dev
+## Estable y Dev
 
-Desde el 2026-10-27 Alex usa **Khipu Dev**, la MSIX instalada, no la portable. Nunca se abre el
-exe suelto de `target/`.
+Dos copias instaladas, ambas MSIX, con identidad y datos propios. Nunca se abre el exe suelto de
+`target/`.
 
-- Identidad propia: `AlexPalacios.Khipu.Dev`, publicador `CN=Alex Palacios Dev`, nombre
-  «Khipu Dev». No choca con una Khipu de la Store en Windows, pero comparten el mutex de
-  instancia única: no corren las dos a la vez (dos espanso escribirían doble).
-- Firmada con un certificado de desarrollo creado en el equipo de Alex (`CurrentUser\My`) y
-  confiado solo ahí (`LocalMachine\TrustedPeople`, `packaging/trust-dev-cert.ps1`, una vez, con
-  UAC). Sin modo de desarrollador.
-- Sus datos: `%LOCALAPPDATA%\Packages\AlexPalacios.Khipu.Dev_6pha5dhx37rs8\LocalState`
-  (`.espanso`, `.espanso-runtime`, `.khipu`). Sobreviven a cada actualización.
-- **Actualizarla**: `packaging/update-dev.ps1` (acceso directo «Actualizar Khipu» en el
-  escritorio de Alex): `git pull`, compila, firma, instala encima con el cuarto número +1 y la
-  vuelve a abrir. **Al terminar cualquier cambio en el equipo de Alex, correrlo**
-  (`-NoPull -NoPause`) y decir en una línea que ya está actualizada. Si se cierra la app, se
-  vuelve a abrir.
+- **Estable: «Khipu», la de la Microsoft Store.** La que Alex usa a diario, como cualquier
+  usuario. Solo cambia cuando se publica una versión y la Store la entrega. Mientras se trabaja
+  no se cierra, no se abre ni se toca.
+- **Dev: «Khipu Dev»** (`AlexPalacios.Khipu.Dev`, publicador `CN=Alex Palacios Dev`). Donde
+  llega cada cambio y donde Alex lo prueba cuando quiere. Firmada con un certificado de
+  desarrollo creado en el equipo de Alex (`CurrentUser\My`) y confiado solo ahí
+  (`LocalMachine\TrustedPeople`, `packaging/trust-dev-cert.ps1`, una vez, con UAC). Sin modo de
+  desarrollador. Sus datos: `%LOCALAPPDATA%\Packages\AlexPalacios.Khipu.Dev_6pha5dhx37rs8\LocalState`.
+- **No corren las dos a la vez**: comparten el mutex de instancia única (dos espanso escribirían
+  doble). Para probar Dev, Alex cierra la estable; Claude no la cierra por él.
+- **Actualizar Dev**: `packaging/update-dev.ps1` (`git pull`, compila, firma, instala encima con
+  el cuarto número +1). Al terminar cualquier cambio en el equipo de Alex, correrlo con
+  `-NoPull` y decir en una línea que ya está actualizada. No la abre: la abre Alex cuando quiera
+  probar. Si Claude la cerró y estaba abierta, la vuelve a abrir.
+
+## Bajar y subir cambios
+
+Hay una conversación en el equipo de Alex y otra en la nube (celular). Para que no choquen:
+
+- **Al empezar** (en el equipo de Alex), antes de cualquier otra cosa: `git pull`, unir a `main`
+  las ramas de la nube cuya CI pasó, actualizar Khipu Dev, y decir en una línea qué llegó.
+- **Al terminar**, subir el trabajo: en el equipo de Alex, `git push` a `main`; en la nube, a su
+  rama propia con PR, sin tocar `main`.
 
 ## Dónde corre la sesión
 
@@ -67,7 +77,8 @@ binario, actualizar Khipu Dev, construir la MSIX de la Store.
 - **GitHub Actions** (`.github/workflows/ci.yml`) compila en Windows, corre `cargo test` y deja
   `Khipu.exe` como artefacto. Es la prueba real: leerla con `gh run list` / `gh run view` antes
   de decir que pasó. Un cambio no está terminado si la CI falla.
-- Al terminar, Alex lo trae a su Khipu Dev con «Actualizar Khipu». Decírselo en el informe.
+- Al terminar, el trabajo llega a Khipu Dev la próxima vez que Alex abra la conversación de su
+  equipo. Decírselo en el informe.
 
 ## Organización
 
@@ -76,7 +87,7 @@ Vibecode\Khipu\          este repo (solo código y documentos)
 ├─ src/                  la app (mapa abajo)
 ├─ assets/khipu/         el paquete de identidad, tal cual se entregó
 ├─ vendor/               eframe y epaint con un cambio cada uno (vendor/README.md)
-├─ packaging/            MSIX (Store y Dev), certificado Dev, «Actualizar Khipu», avisos de terceros
+├─ packaging/            MSIX (Store y Dev), certificado Dev, actualizar Dev, avisos de terceros
 ├─ docs/                 capturas del README, roadmap y ficha/guía de la Store (docs/store/)
 ├─ web/                  el sitio de presentación, estático (web/README.md)
 └─ .github/ .claude/ .cargo/   CI, arranque en la nube, alias `cargo wcheck`
@@ -159,7 +170,8 @@ solo el índice para saber cuál abrir.
 
 ## Reglas permanentes
 
-- La app que Alex usa nunca vive ni se abre desde esta carpeta: es Khipu Dev, instalada.
+- Ninguna copia de Khipu vive ni se abre desde esta carpeta: la estable viene de la Store y Khipu
+  Dev se instala con su MSIX.
 - Limpio desde el principio: sin archivos sobrantes, carpetas vacías ni código muerto.
 - **Si un cambio hace algo más feo, no lo hagas.** La interfaz está terminada y aprobada.
 - El texto cortado en el borde de la ventana quita elegancia, prestigio y belleza.
@@ -168,8 +180,8 @@ solo el índice para saber cuál abrir.
   uso del plan. No adelantarse al lote que el usuario pidió.
 - Los informes al usuario van **en español**, y son honestos: lo que no se pudo medir
   se dice que no se pudo medir.
-- `git push` solo cuando Alex lo pida. En la nube, trabajar en una rama propia y abrir PR; no
-  empujar a `main` ni publicar versiones sin que Alex lo pida.
+- Cada conversación termina subiendo su trabajo («Bajar y subir cambios»). Publicar una versión
+  (etiqueta, GitHub Releases, Store) solo cuando Alex lo decide.
 
 ## Flujo por cada cambio
 
@@ -181,7 +193,7 @@ solo el índice para saber cuál abrir.
 4. Local: **probarlo por medición sobre el binario real**, contra el build del commit anterior
    (o el ZIP de la última versión en GitHub Releases), mismo escenario antes y después. En la
    nube no se puede: dejarlo anotado como pendiente.
-5. Local: actualizar Khipu Dev (`packaging/update-dev.ps1 -NoPull -NoPause`), que la deja abierta.
+5. Local: actualizar Khipu Dev (`packaging/update-dev.ps1 -NoPull`).
 6. Commit con la sección *Unreleased* de `CHANGELOG.md` al día.
 7. Informar en español, incluyendo lo que quedó sin probar y por qué.
 
@@ -191,5 +203,7 @@ solo el índice para saber cuál abrir.
 - Rust estable con `rustup`; fuentes de los crates para verificar en
   `%USERPROFILE%\.cargo\registry\src\index.crates.io-*\`.
 - Windows en español: Ctrl+A es *Abrir*, no *Seleccionar todo*.
+- Las expansiones se prueban en **Brave**, nunca en el Bloc de notas, y con un disparador que
+  Alex tenga de verdad (p. ej. `;fecha`).
 - Al probar con gestos sintéticos, re-enfocar la ventana antes de cada gesto y de cada
   captura: `PrintWindow` devuelve un fotograma viejo si la ventana no está al frente.
