@@ -90,6 +90,12 @@ const PREVIEW_MAX_HEIGHT: f32 = 168.0;
 /// boxes — which is also the plan's rule about not scaling controls indiscriminately, read the
 /// other way round.
 const FORM_MAX_WIDTH: f32 = 880.0;
+/// The preview's column, beside the form in a window wide enough for both. Standing apart and
+/// still while the form scrolls, it reads as something to look at, not one more thing to fill in.
+const SIDE_WIDTH: f32 = 300.0;
+/// The narrowest the form gets to make room for that column. Any narrower and the preview goes back
+/// under the text, where it was.
+const SIDE_FORM_MIN: f32 = 520.0;
 /// Width of the prefix box. Wide enough for the longest suggestion ("//") with the field padding
 /// around it, and no wider — the prefix is one or two symbols, not a sentence.
 /// Between the three parts of the form. With no card around each, the space is what tells them
@@ -757,15 +763,15 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             bottom: 2,
         }))
         .show(ui, |ui| {
-            // Rule and buttons both keep to the form's own width, so the strip reads as the foot
-            // of the form rather than of the window.
+            // Rule and buttons both keep to the form's own width, preview and all, so the strip
+            // reads as the foot of the form rather than of the window.
             let full = ui.available_width();
-            let margin = ((full - full.min(FORM_MAX_WIDTH)) * 0.5).max(0.0);
+            let (margin, span, _) = columns(full);
             // The rule sits on the panel's own top edge, which is the inner margin above where the
             // content begins — it separates the strip from the form, so it cannot be inside it.
             let edge = ui.max_rect();
             ui.painter().hline(
-                (edge.left() + margin)..=(edge.right() - margin),
+                (edge.left() + margin)..=(edge.left() + margin + span),
                 edge.top() - controls::GAP_SECTION,
                 egui::Stroke::new(1.0, crate::app::hairline(is_light)),
             );
@@ -796,19 +802,40 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             });
         });
 
-    controls::page_scroll(ui, "editor-body", |ui| {
-        let full = ui.available_width();
-        let width = full.min(FORM_MAX_WIDTH);
-        ui.horizontal(|ui| {
-            // The margin is the whole point of the horizontal, so nothing else may add to it.
-            ui.spacing_mut().item_spacing.x = 0.0;
-            ui.add_space(((full - width) * 0.5).max(0.0));
-            ui.vertical(|ui| {
-                ui.set_width(width);
-                show_form(ui, state, edit, problem.as_ref(), is_light);
+    let body = ui.available_rect_before_wrap();
+    let (margin, span, side) = columns(body.width());
+    let width = side.map_or(span, |side| span - side - PART_GAP);
+    // With the preview beside it, the form scrolls in a column of its own, scroll bar and all.
+    let form_rect = match side {
+        Some(_) => egui::Rect::from_min_max(body.min, egui::pos2(body.left() + margin + width, body.bottom())),
+        None => body,
+    };
+    ui.scope_builder(egui::UiBuilder::new().max_rect(form_rect), |ui| {
+        controls::page_scroll(ui, "editor-body", |ui| {
+            ui.horizontal(|ui| {
+                // The margin is the whole point of the horizontal, so nothing else may add to it.
+                ui.spacing_mut().item_spacing.x = 0.0;
+                ui.add_space(margin);
+                ui.vertical(|ui| {
+                    ui.set_width(width);
+                    show_form(ui, state, edit, problem.as_ref(), side.is_none(), is_light);
+                });
             });
         });
     });
+    // Drawn after the form, so it already shows this frame's keystroke.
+    if let (Some(side), View::Edit(edit)) = (side, &state.view) {
+        let column = egui::Rect::from_min_size(
+            egui::pos2(form_rect.right() + PART_GAP, body.top()),
+            egui::vec2(side, body.height()),
+        );
+        let edit = edit.clone();
+        ui.scope_builder(egui::UiBuilder::new().max_rect(column), |ui| {
+            // What the column holds around the box: its label, the trigger, the rule and the count.
+            let around = 120.0;
+            preview_pair(ui, state, &edit, (column.height() - around).max(PREVIEW_MAX_HEIGHT), is_light);
+        });
+    }
 
     // Read on every frame so the key never falls through to another screen, and acted on only when
     // the button beside it could have been pressed: the shortcut is the button, not a way past it.
@@ -858,6 +885,18 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             }
         }
     }
+}
+
+/// Where the form goes in a body `full` wide: its left margin, the width of the form and the
+/// preview beside it, and the preview's width when the window has room for it. Both are centred
+/// as one block, the way the form alone was.
+fn columns(full: f32) -> (f32, f32, Option<f32>) {
+    let side = (full >= SIDE_FORM_MIN + PART_GAP + SIDE_WIDTH).then_some(SIDE_WIDTH);
+    let span = match side {
+        Some(side) => (full - PART_GAP - side).min(FORM_MAX_WIDTH) + PART_GAP + side,
+        None => full.min(FORM_MAX_WIDTH),
+    };
+    (((full - span) * 0.5).max(0.0), span, side)
 }
 
 /// «¿Descartar los cambios?» Returns true once the answer is to throw them away; answering the
@@ -1233,7 +1272,7 @@ fn switch_kind(edit: &mut EditState, to_date: bool) {
 }
 
 /// What appears: text or date, whichever this is, and what it will actually produce.
-fn appears_here(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
+fn appears_here(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, inline_preview: bool, is_light: bool) {
     let t = state.t();
     ui.vertical(|ui| {
         ui.set_width(ui.available_width());
@@ -1268,8 +1307,11 @@ fn appears_here(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_li
             } => date_options(ui, t, preset, custom_format, custom_tz, month_lang),
         }
 
-        ui.add_space(controls::GAP_STACK);
-        preview_pair(ui, state, edit, is_light);
+        // Here only when the window has no room for it beside the form.
+        if inline_preview {
+            ui.add_space(controls::GAP_STACK);
+            preview_pair(ui, state, edit, PREVIEW_MAX_HEIGHT, is_light);
+        }
     });
 }
 
@@ -1820,7 +1862,7 @@ fn date_options(
 /// the result can be seen at all — nobody reads `%-d de %B de %Y` and sees a date. The sample comes
 /// from [`crate::datefmt`], which is the code that runs when the expansion is used, so what is on
 /// screen is what espanso will write.
-fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light: bool) {
+fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, max_height: f32, is_light: bool) {
     let trigger = edit.trigger();
     let result = match &edit.kind {
         Kind::Text { replace } => replace.clone(),
@@ -1865,7 +1907,7 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light:
         ui.add_space(controls::GAP);
         // Rounded down to whole lines, so the box never shows the top half of a line of text.
         let line = ui.text_style_height(&egui::TextStyle::Body);
-        let cap = (PREVIEW_MAX_HEIGHT / line).floor().max(3.0) * line;
+        let cap = (max_height / line).floor().max(3.0) * line;
         egui::ScrollArea::vertical()
             .id_salt("editor-preview")
             .max_height(cap)
@@ -2137,6 +2179,7 @@ fn show_form(
     state: &mut AppState,
     mut edit: EditState,
     problem: Option<&Problem>,
+    inline_preview: bool,
     is_light: bool,
 ) {
     live_sentence(ui, state, &edit, is_light);
@@ -2164,7 +2207,7 @@ fn show_form(
         step_heading(ui, 2, second, None, egui::Sense::hover());
     });
     ui.add_space(controls::GAP_ROW);
-    step_body(ui, lit, |ui| appears_here(ui, state, &mut edit, is_light));
+    step_body(ui, lit, |ui| appears_here(ui, state, &mut edit, inline_preview, is_light));
     note_step_touch(ui, 2, egui::Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=ui.cursor().top()));
     ui.add_space(PART_GAP);
 

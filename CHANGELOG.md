@@ -14,6 +14,13 @@ was published.
   shows it in the preview and inserts it with the rest. Expansions written by hand with espanso's
   own `clipboard` variable now open in the editor instead of being shown as advanced.
 
+### Changed
+
+- **The preview stays beside the form.** In a window wide enough, the preview of a new or edited
+  expansion now sits in its own column on the right and stays put while the form scrolls, so it
+  reads as something to look at rather than one more thing to fill in. In a narrow window it stays
+  under the text, as before.
+
 ### Fixed
 
 - **A field no longer takes the name of another one.** Clicking the name of a field could show
