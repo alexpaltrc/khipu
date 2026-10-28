@@ -1321,6 +1321,11 @@ fn replace_id() -> egui::Id {
     egui::Id::new("editor-replace")
 }
 
+/// The field just added from «+ Añadir», until its row is drawn and its name box takes the caret.
+fn naming_key() -> egui::Id {
+    egui::Id::new("editor-naming")
+}
+
 /// Set while «Probar» is on screen, with the answers typed into it.
 fn trying_key() -> egui::Id {
     egui::Id::new("editor-try")
@@ -1493,8 +1498,10 @@ fn text_with_blanks(
         }
     });
     if add_blank {
-        let marker = edit.new_blank(new_blank_name(state, text));
+        let name = new_blank_name(state, text);
+        let marker = edit.new_blank(name.clone());
         insert_marker(ui.ctx(), text, &marker);
+        ui.ctx().data_mut(|d| d.insert_temp(naming_key(), name));
     }
     if add_copied {
         if edit.copied.is_empty() {
@@ -1575,9 +1582,28 @@ fn blank_row(
         let kinds_width = controls::segmented_natural_width(ui, &kinds);
         let room = ui.available_width() - kinds_width - controls::GAP;
         let side_by_side = room >= 160.0;
+        // A field just added goes straight to its name, chosen whole, so the first thing typed
+        // names it and the marker in the text changes with it: «campo 1» is a placeholder, not a
+        // name anyone picked.
+        let naming = ctx.data(|d| d.get_temp::<String>(naming_key())).is_some_and(|n| n == field.name);
+        if naming {
+            ctx.data_mut(|d| d.remove::<String>(naming_key()));
+            let mut name_box = egui::TextEdit::load_state(&ctx, name_id).unwrap_or_default();
+            let all = egui::text::CCursorRange::two(
+                egui::text::CCursor::new(0),
+                egui::text::CCursor::new(draft.chars().count()),
+            );
+            name_box.cursor.set_char_range(Some(all));
+            name_box.store(&ctx, name_id);
+            ctx.memory_mut(|m| m.request_focus(name_id));
+        }
         let mut picked = None;
         let mut name_row = |ui: &mut egui::Ui, width: f32| {
-            ui.add(controls::text_field(&mut draft).id(name_id).desired_width(width))
+            let response = ui.add(controls::text_field(&mut draft).id(name_id).desired_width(width));
+            if naming {
+                response.scroll_to_me(None);
+            }
+            response
         };
         let name_changed = if side_by_side {
             ui.horizontal(|ui| {

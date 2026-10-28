@@ -20,6 +20,9 @@ was published.
   expansion now sits in its own column on the right and stays put while the form scrolls, so it
   reads as something to look at rather than one more thing to fill in. In a narrow window it stays
   under the text, as before.
+- **A new field asks for its name.** After **+ Add › A field to fill in**, the cursor jumps to the
+  new field's name with «field 1» selected, so what you type next names it, and you see the
+  marker in the text change with it.
 
 ### Fixed
 
