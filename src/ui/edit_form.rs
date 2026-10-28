@@ -261,6 +261,14 @@ impl EditState {
         (!form::copied_markers(text, &self.copied).is_empty()).then_some(self.copied.as_str())
     }
 
+    /// A new blank's marker, under the first free name. A name is free once its marker is gone
+    /// from the text, but what was set on that field is kept for a cut and paste, so a new blank
+    /// that takes the name starts over instead of coming back as the old one's list or value.
+    fn new_blank(&mut self, name: String) -> String {
+        self.fields.retain(|f| f.name != name);
+        format!("[[{name}]]")
+    }
+
     /// The settings of the field called `name`, made on first touch.
     fn field_mut(&mut self, name: &str) -> &mut FormField {
         let at = match self.fields.iter().position(|f| f.name == name) {
@@ -1443,7 +1451,7 @@ fn text_with_blanks(
         }
     });
     if add_blank {
-        let marker = format!("[[{}]]", new_blank_name(state, text));
+        let marker = edit.new_blank(new_blank_name(state, text));
         insert_marker(ui.ctx(), text, &marker);
     }
     if add_copied {
@@ -2347,6 +2355,22 @@ mod tests {
         assert!(MatchEntry::Simple(m.clone()).is_safely_editable());
         m.vars[0].params.insert("x".into(), 1.into());
         assert!(!MatchEntry::Simple(m).is_safely_editable());
+    }
+
+    /// A field deleted from the text and a new one added in its place: the new one takes the
+    /// freed name, and used to take the deleted one's list and options with it.
+    #[test]
+    fn a_new_field_does_not_inherit_a_deleted_one() {
+        let mut edit = EditState::new_for_create(":");
+        edit.field_mut("campo 1").kind = FieldKind::Choice;
+        edit.field_mut("campo 1").options = vec!["a".into(), "b".into()];
+        let text = edit.new_blank("campo 1".into());
+        let spec = edit.form(&text).unwrap();
+        assert_eq!(spec.fields, vec![FormField { name: "campo 1".into(), ..Default::default() }]);
+
+        // Cut and pasted back without a new field in between, it is still what it was.
+        edit.field_mut("campo 2").kind = FieldKind::Long;
+        assert_eq!(edit.form("[[campo 2]]").unwrap().fields[0].kind, FieldKind::Long);
     }
 
     /// Editing used to write `label: None` whatever the file said, so saving any change to an

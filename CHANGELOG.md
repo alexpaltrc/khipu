@@ -23,6 +23,9 @@ was published.
   no longer reads braces in its text as a variable of its own and refuses to expand it.
 - **Nothing in a variable is lost on save.** An expansion whose variable has a key Khipu does not
   show, such as `depends_on`, is now kept as it is instead of losing that key.
+- **A new field starts empty.** After deleting a field from the text, the next one added took its
+  name and came back as the deleted one's list, options or starting value. Cutting a field and
+  pasting it elsewhere still keeps what was set on it.
 - **Dropping an expansion on a folder.** While you drag, the expansion now waits just below the
   folders instead of covering them, so you see which one will take it. The first expansions in
   the list, the ones under the folders, can now be dropped on them too.
