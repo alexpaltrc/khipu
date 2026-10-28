@@ -1142,9 +1142,12 @@ fn folder_menu(
                         }
                     }
                 });
-            let loose = list.ungrouped.len().to_string();
-            if controls::menu_check_item(ui, t.no_folder, Some(&loose), active == Some("")).clicked() {
-                pick = Some(Some(String::new()));
+            // Only when something is loose, or when it is the filter in use, so it can be left.
+            if !list.ungrouped.is_empty() || active == Some("") {
+                let loose = list.ungrouped.len().to_string();
+                if controls::menu_check_item(ui, t.no_folder, Some(&loose), active == Some("")).clicked() {
+                    pick = Some(Some(String::new()));
+                }
             }
             controls::menu_separator(ui);
             if controls::menu_item(ui, Some(Glyph::Add), &new_folder, None, Tone::Normal, true).clicked() {
@@ -1215,12 +1218,13 @@ fn forget_selection(ctx: &egui::Context, state: &mut AppState) {
 /// quiet menu and take no room at all.
 fn drop_targets(ui: &mut egui::Ui, state: &mut AppState, list: &ListCache, at: egui::Rect) {
     if !egui::DragAndDrop::has_payload_of_type::<DragPayload>(ui.ctx()) {
+        ui.ctx().data_mut(|d| d.remove::<egui::Rect>(drop_strip_key()));
         return;
     }
     let t = state.t();
     let is_light = !ui.visuals().dark_mode;
     let mut drop_on: Option<(Option<String>, std::sync::Arc<DragPayload>)> = None;
-    egui::Area::new(egui::Id::new("library-drop-targets"))
+    let strip = egui::Area::new(egui::Id::new("library-drop-targets"))
         .order(egui::Order::Foreground)
         .fixed_pos(at.left_top())
         .interactable(true)
@@ -1268,6 +1272,7 @@ fn drop_targets(ui: &mut egui::Ui, state: &mut AppState, list: &ListCache, at: e
                     });
                 });
         });
+    ui.ctx().data_mut(|d| d.insert_temp(drop_strip_key(), strip.response.rect));
     if let Some((folder, payload)) = drop_on {
         state.assign_folder_to_triggers(&payload, folder);
     }
@@ -3350,6 +3355,11 @@ fn list_span_key() -> egui::Id {
     egui::Id::new("list_span")
 }
 
+/// Where the folders to drop on are this frame, while a drag shows them (`drop_targets`).
+fn drop_strip_key() -> egui::Id {
+    egui::Id::new("drop_strip")
+}
+
 fn drag_is_deliberate(ui: &egui::Ui) -> bool {
     let (pressed, distance) = ui.input(|i| {
         (
@@ -3393,9 +3403,17 @@ fn drag_source(
 ) -> Option<egui::Response> {
     let deliberate = drag_is_deliberate(ui);
     if deliberate && ui.ctx().is_being_dragged(id) {
-        let layer_id = egui::LayerId::new(egui::Order::Tooltip, id);
-        let response = ui
-            .scope_builder(egui::UiBuilder::new().layer_id(layer_id), |ui| {
+        // An area that takes no pointer, so the folders it floats over still feel the hand that
+        // carries it: a layer of its own counted in egui's hit test, and won it over the folder
+        // underneath, so the folder could not be told it had been dropped on.
+        let width = ui.available_width();
+        let area = egui::Area::new(id.with("ghost"))
+            .order(egui::Order::Tooltip)
+            .interactable(false)
+            .constrain(false)
+            .fixed_pos(ui.cursor().min)
+            .show(ui.ctx(), |ui| {
+                ui.set_max_width(width);
                 if count > 1 {
                     egui::Frame::popup(ui.style()).show(ui, |ui| {
                         ui.label(fill(t.moving_n, &[("n", &count.to_string())]));
@@ -3403,12 +3421,15 @@ fn drag_source(
                 } else {
                     // On a surface of its own, as the badge above: bare, its text ran into the
                     // rows it passed over.
+                    ui.set_min_width(width);
                     egui::Frame::popup(ui.style()).inner_margin(0).show(ui, |ui| {
                         add_contents(ui);
                     });
                 }
-            })
-            .response;
+            });
+        let layer_id = area.response.layer_id;
+        let response = area.response;
+        ui.allocate_space(response.rect.size());
         // A single row moves from where it was taken, so it stays under the hand that holds it;
         // centred on the pointer, a wide row took hold by its trigger left that end off the window.
         let anchor = if count > 1 {
@@ -3425,6 +3446,11 @@ fn drag_source(
             let rect = response.rect;
             let (min, max) = (list.min - rect.left(), list.max - rect.right());
             delta.x = if min <= max { delta.x.clamp(min, max) } else { min };
+            // Never over the folders it can be dropped on: it waits just below them, so the one
+            // under the pointer stays in sight and shows that it will take the drop.
+            if let Some(strip) = ui.ctx().data(|d| d.get_temp::<egui::Rect>(drop_strip_key())) {
+                delta.y = delta.y.max(strip.bottom() + controls::GAP_TIGHT - rect.top());
+            }
             ui.ctx()
                 .transform_layer_shapes(layer_id, egui::emath::TSTransform::from_translation(delta));
         }

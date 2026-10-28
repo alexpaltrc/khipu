@@ -23,6 +23,11 @@ was published.
   no longer reads braces in its text as a variable of its own and refuses to expand it.
 - **Nothing in a variable is lost on save.** An expansion whose variable has a key Khipu does not
   show, such as `depends_on`, is now kept as it is instead of losing that key.
+- **Dropping an expansion on a folder.** While you drag, the expansion now waits just below the
+  folders instead of covering them, so you see which one will take it. The first expansions in
+  the list, the ones under the folders, can now be dropped on them too.
+- **«No folder» only when it has something.** The folder menu no longer lists «No folder» with a
+  0 when every expansion is in a folder.
 
 ## 0.0.7 — 2026-10-13
 
