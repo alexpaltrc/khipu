@@ -2447,10 +2447,10 @@ impl Island {
         }
     }
 
-    /// New words in place of the ones showing, which leave from the end as these arrive.
-    fn say(&mut self, now: f64, words: Words) {
+    /// New words in place of the ones showing, which begin to leave at `out` as these arrive.
+    fn say(&mut self, out: f64, words: Words) {
         let mut old = std::mem::replace(&mut self.words, words);
-        old.out.get_or_insert(now);
+        old.out.get_or_insert(out);
         self.leaving = Some(old);
     }
 
@@ -2596,7 +2596,7 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
         match island.as_mut() {
             None => island = Some(Island::new(now, key, words(later(WORDS_DELAY)))),
             Some(isl) if isl.key != key || isl.phase == Phase::Closing => {
-                isl.say(now, words(later(SWAP_DELAY)));
+                isl.say(later(0.0), words(later(SWAP_DELAY)));
                 isl.key = key;
                 isl.phase = Phase::Open;
                 isl.since = now;
@@ -2611,14 +2611,14 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
     } else if let Some(isl) = island.as_mut() {
         let done = match isl.phase {
             Phase::Open => true,
-            Phase::Undone => now - isl.since >= if motion { UNDONE_STAY } else { 0.0 },
+            Phase::Undone => now - isl.since >= UNDONE_STAY,
             Phase::Closing => false,
         };
         if done {
             isl.phase = Phase::Closing;
             isl.since = now;
-            isl.words.out.get_or_insert(now);
-            isl.bar_out.get_or_insert(now);
+            isl.words.out.get_or_insert(later(0.0));
+            isl.bar_out.get_or_insert(later(0.0));
         }
     }
     let Some(mut isl) = island else { return false };
@@ -2685,7 +2685,7 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
     if isl.morph.to == 0.0 && isl.morph.x < 0.5 {
         isl.landed = None;
     }
-    if isl.morph.to == 1.0 && isl.landed.is_none() && isl.morph.x > 0.97 {
+    if motion && isl.morph.to == 1.0 && isl.landed.is_none() && isl.morph.x > 0.97 {
         isl.landed = Some(now);
     }
 
@@ -2816,8 +2816,12 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
 
     // The plus folding into the check: the upright bar turns into the long stroke and the level one
     // shortens into the short one, so neither shrinks to a dot on the way; the ink
-    // turning from the accent's to the green of done. Lands with a beat and a ring.
-    let icon = egui::pos2(center_x + isl.icon.x, middle);
+    // turning from the accent's to the green of done. Lands with a beat and a ring. It never trails
+    // past the round end as the pill closes on it: the end carries it home.
+    let icon = egui::pos2(
+        (center_x + isl.icon.x).clamp(rect.left() + radius, (rect.right() - radius).max(rect.left() + radius)),
+        middle,
+    );
     let m = isl.morph.x.clamp(-0.15, 1.15);
     let landed = isl.landed.map_or(0.0, |at| (now - at) / POP);
     let beat = 1.0 + POP_SIZE * (std::f32::consts::PI * landed.clamp(0.0, 1.0) as f32).sin();
@@ -2871,10 +2875,10 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
     if live && undo.as_ref().is_some_and(|u| u.clicked()) {
         state.undo_from_banner();
         let subject = isl.words.subject.clone();
-        isl.say(now, Words { text: t.undone.to_owned(), subject, action: false, at: later(SWAP_DELAY), out: None });
+        isl.say(later(0.0), Words { text: t.undone.to_owned(), subject, action: false, at: later(SWAP_DELAY), out: None });
         isl.phase = Phase::Undone;
         isl.since = now;
-        isl.bar_out = Some(now);
+        isl.bar_out = Some(later(0.0));
         isl.spin.to -= std::f32::consts::TAU;
         isl.press.v = -9.0;
     }
