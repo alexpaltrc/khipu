@@ -13,9 +13,6 @@ was published.
   expansion, that spot gets the text you copied last. It works in a form too: the form window
   shows it in the preview and inserts it with the rest. Expansions written by hand with espanso's
   own `clipboard` variable now open in the editor instead of being shown as advanced.
-- **Khipu Dev wears «DEV».** The development copy shows an amber «DEV» label on its icon in Start,
-  the taskbar, the notification area and its window, and its windows are titled «Khipu Dev», so
-  it is never taken for Khipu from the Store. Khipu itself looks exactly as before.
 
 ### Changed
 
