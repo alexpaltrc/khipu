@@ -1015,6 +1015,12 @@ fn step_heading(ui: &mut egui::Ui, number: usize, question: &str, trailing: Opti
     if response.hovered() && sense.senses_click() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
+    let said = match trailing {
+        Some(trailing) => format!("{question} {trailing}"),
+        None => question.to_owned(),
+    };
+    let kind = if sense.senses_click() { egui::WidgetType::Button } else { egui::WidgetType::Label };
+    response.widget_info(|| egui::WidgetInfo::labeled(kind, true, &said));
     response
 }
 
@@ -1092,17 +1098,19 @@ fn when_you_type(
         // upward.
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = controls::GAP;
-            ui.add(
+            let prefix = ui.add(
                 controls::text_field(&mut edit.prefix)
                     .desired_width(PREFIX_FIELD_WIDTH)
                     .hint_text(t.prefix_field_hint),
             );
+            controls::say_as(&prefix, studio::text(state, "Prefijo", "Prefix", "Prefix", "उपसर्ग"));
             let word = ui.add(
                 controls::text_field(&mut edit.word)
                     .id(word_field_id())
                     .desired_width(ui.available_width().max(90.0))
                     .hint_text(t.word_field_hint),
             );
+            controls::say_as(&word, studio::text(state, "Activador", "Trigger", "Trigger", "ट्रिगर"));
             // Enter is «next question»: on to the text, the way Tab would go.
             if word.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 // The text box takes the focus within this same frame, further down: left in the
@@ -1491,6 +1499,7 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
         })
         .inner;
     let response = output.response.response.clone();
+    controls::say_as(&response, studio::text(state, "Texto", "Text", "Teksto", "टेक्स्ट"));
 
     // The galley is this frame's only while nothing below has to change the text it was laid out
     // from; when something does, the pills wait a frame for the new one.
@@ -2354,7 +2363,7 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
                 let selected_text = edit.folder.clone().unwrap_or_else(|| t.no_folder.to_string());
                 // Truncating rather than extending: a long folder name may not push the control out
                 // past the edge of the card it is in.
-                egui::ComboBox::from_id_salt("edit_folder_combo")
+                let picker = egui::ComboBox::from_id_salt("edit_folder_combo")
                     .selected_text(selected_text)
                     .truncate()
                     .width(rest)
@@ -2369,6 +2378,7 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
                             }
                         }
                     });
+                controls::say_as(&picker.response, studio::text(state, "Carpeta", "Folder", "Folder", "फ़ोल्डर"));
             }
         }
         // Esc while naming a folder backs out of the naming, not out of the whole form.
@@ -2396,7 +2406,7 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
 fn favorite_row(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = controls::GAP_WIDE;
-        controls::toggle(ui, &mut edit.favorite);
+        controls::toggle(ui, &mut edit.favorite, studio::text(state, "Favorita", "Favorite", "Paborito", "पसंदीदा"));
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = controls::GAP_TIGHT;
             ui.label(controls::h3(studio::text(state, "Favorita", "Favorite", "Paborito", "पसंदीदा")));
@@ -2476,6 +2486,7 @@ fn show_form(
     if heading.clicked() {
         ui.data_mut(|d| d.insert_temp(more_open_key(), !open));
     }
+    ui.ctx().accesskit_node_builder(heading.id, |node| node.set_expanded(open));
     ui.add_space(controls::GAP_ROW);
     step_body(ui, lit, |ui| {
         if !open {

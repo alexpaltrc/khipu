@@ -135,6 +135,7 @@ pub fn fields(
                         .id(field_id(salt, i))
                         .desired_width(f32::INFINITY),
                 );
+                controls::say_as(&response, &label(&field.name));
                 if response.lost_focus() && ui.input(|inp| inp.key_pressed(egui::Key::Enter)) {
                     match typed.iter().find(|&&next| next > i) {
                         Some(&next) => {
@@ -146,21 +147,22 @@ pub fn fields(
                 }
             }
             FieldKind::Long => {
-                ui.add(
+                let response = ui.add(
                     controls::multiline_field(answer)
                         .id(field_id(salt, i))
                         .desired_rows(LONG_ROWS)
                         .desired_width(f32::INFINITY),
                 );
+                controls::say_as(&response, &label(&field.name));
             }
-            FieldKind::Choice => choice(ui, salt, i, &field.options, answer),
+            FieldKind::Choice => choice(ui, salt, i, &label(&field.name), &field.options, answer),
         }
     }
     submit
 }
 
 /// A list's options: side by side as segments while they fit, a drop-down when they do not.
-fn choice(ui: &mut egui::Ui, salt: &str, index: usize, options: &[String], answer: &mut String) {
+fn choice(ui: &mut egui::Ui, salt: &str, index: usize, name: &str, options: &[String], answer: &mut String) {
     let options: Vec<&str> = options.iter().map(|o| o.trim()).filter(|o| !o.is_empty()).collect();
     if options.is_empty() {
         ui.label(controls::muted("—", !ui.visuals().dark_mode));
@@ -173,7 +175,7 @@ fn choice(ui: &mut egui::Ui, salt: &str, index: usize, options: &[String], answe
         }
         return;
     }
-    egui::ComboBox::from_id_salt((salt, "form-combo", index))
+    let picker = egui::ComboBox::from_id_salt((salt, "form-combo", index))
         .selected_text(answer.as_str())
         .truncate()
         .width(ui.available_width())
@@ -185,6 +187,7 @@ fn choice(ui: &mut egui::Ui, salt: &str, index: usize, options: &[String], answe
                 }
             }
         });
+    controls::say_as(&picker.response, name);
 }
 
 /// The text as it will be inserted: what is fixed in the ordinary ink, each answer in the accent,

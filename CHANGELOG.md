@@ -18,6 +18,10 @@ was published.
   an × to take it back off. It works by program, so a browser counts whole, every page in it. Khipu
   keeps this in one file of its own in espanso's config folder and never touches your own files
   there; the global pause works as before.
+- **Screen readers.** Narrator and other screen readers now read Khipu: every expansion by its
+  trigger, name and text; every field, switch, choice and list by its name and state; and the
+  form window's fields by the name of the blank. Nothing changes on screen. The app grows by
+  about 160 KB.
 
 ### Changed
 

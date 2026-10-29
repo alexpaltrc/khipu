@@ -1084,7 +1084,12 @@ fn segmented_faces(
                             });
                             response.on_hover_text(name)
                         }
-                        SegmentFace::Words(_) => response,
+                        SegmentFace::Words(galley) => {
+                            response.widget_info(|| {
+                                egui::WidgetInfo::selected(egui::WidgetType::RadioButton, true, is_selected, galley.text())
+                            });
+                            response
+                        }
                     };
 
                     if response.hovered() {
@@ -1112,7 +1117,7 @@ fn segmented_faces(
 ///
 /// The travel is animated through egui's own bool animations, one animation system for the whole
 /// app, and it costs a repaint only while the knob is actually moving.
-pub fn toggle(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
+pub fn toggle(ui: &mut egui::Ui, on: &mut bool, name: &str) -> egui::Response {
     let size = egui::vec2(40.0, 20.0);
     let (rect, mut response) = ui.allocate_exact_size(size, egui::Sense::click());
     if response.clicked() {
@@ -1122,6 +1127,7 @@ pub fn toggle(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
     if response.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
+    response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, true, *on, name));
     focus_ring(ui, &response, rect.height() * 0.5);
 
     if ui.is_rect_visible(rect) {
@@ -1670,6 +1676,7 @@ pub fn search_field(
         // margins off here as well left every search box 44 points short of the width it was given.
         .desired_width(width);
     let response = ui.add(edit);
+    say_as(&response, hint);
     let rect = response.rect;
     let icon = egui::Rect::from_min_size(
         egui::pos2(rect.left() + 12.0, rect.center().y - 7.0),
@@ -1680,6 +1687,13 @@ pub fn search_field(
         field_underline(ui, rect);
     }
     response
+}
+
+/// The name a screen reader gives `response`'s widget, for a field whose name is drawn beside it
+/// (or only as its placeholder) rather than carried by the widget itself. Does nothing unless one
+/// is listening.
+pub fn say_as(response: &egui::Response, name: &str) {
+    response.ctx.accesskit_node_builder(response.id, |node| node.set_label(name));
 }
 
 /// The thin accent line Windows draws under a field that has the keyboard.

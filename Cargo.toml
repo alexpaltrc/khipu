@@ -41,7 +41,7 @@ strip = true
 panic = "abort"
 
 [dependencies]
-eframe = { version = "0.36.1", default-features = false, features = ["glow", "persistence", "default_fonts"] }
+eframe = { version = "0.36.1", default-features = false, features = ["accesskit", "glow", "persistence", "default_fonts"] }
 egui = "0.36.1"
 raw-window-handle = "0.6.2"
 rfd = "0.17.2"

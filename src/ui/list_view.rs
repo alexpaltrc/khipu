@@ -2542,6 +2542,28 @@ fn show_row_inner(
             });
 
             if let Some(resp) = &outer.inner {
+                // What a screen reader says for the card: the trigger, its name, what it writes and
+                // what is special about it. Built only when one is listening.
+                resp.widget_info(|| {
+                    let mut said = vec![row.trigger.clone()];
+                    said.extend(row.name.clone());
+                    said.push(row.preview.clone());
+                    if row.favorite {
+                        said.push(studio::text(state, "favorita", "starred", "paborito", "पसंदीदा").into());
+                    }
+                    if row.form {
+                        said.push(studio::text(state, "formulario", "form", "form", "फ़ॉर्म").into());
+                    }
+                    if row.off {
+                        said.push(studio::text(state, "desactivada", "off", "naka-off", "बंद").into());
+                    }
+                    // A box to tick while picking several; otherwise a button that opens it.
+                    if pass.select_mode {
+                        egui::WidgetInfo::selected(egui::WidgetType::Checkbox, true, is_selected, said.join(", "))
+                    } else {
+                        egui::WidgetInfo::labeled(egui::WidgetType::Button, true, said.join(", "))
+                    }
+                });
                 if resp.hovered() {
                     ui.ctx()
                         .data_mut(|d| d.insert_temp(hovered_row_pending_key(), drag_id));
@@ -3194,7 +3216,8 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
                 "Kapag nakapatay, hindi ito nag-e-expand at wala sa launcher. Nananatili ito rito para buksan muli kapag kailangan.",
                 "बंद होने पर यह न विस्तार करता है, न लॉन्चर में दिखता है। यह यहीं रहता है, ज़रूरत पर फिर से चालू करने के लिए।",
             );
-            if controls::toggle(ui, &mut on).on_hover_text(tip).changed() {
+            let name = studio::text(state, "Activada", "On", "Nakabukas", "चालू");
+            if controls::toggle(ui, &mut on, name).on_hover_text(tip).changed() {
                 switch_to = Some(!on);
             }
             let word = if was_off {

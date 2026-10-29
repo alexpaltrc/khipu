@@ -727,6 +727,11 @@ fn row(
         egui::vec2(ui.available_width(), ROW_HEIGHT),
         egui::Sense::click(),
     );
+    response.widget_info(|| {
+        let said = [Some(hit.trigger.as_str()), hit.name.as_deref(), Some(hit.preview.as_str())];
+        let said: Vec<&str> = said.into_iter().flatten().filter(|s| !s.is_empty()).collect();
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, true, said.join(", "))
+    });
     if !ui.is_rect_visible(rect) {
         return response;
     }

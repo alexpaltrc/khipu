@@ -341,7 +341,7 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     card(ui, |ui| {
         let mut autostart = state.autostart_enabled && !crate::EXPERIMENTAL;
         let changed = row(ui, t.autostart_checkbox, t.autostart_hint, 40.0, |ui| {
-            ui.add_enabled_ui(!crate::EXPERIMENTAL, |ui| controls::toggle(ui, &mut autostart).changed())
+            ui.add_enabled_ui(!crate::EXPERIMENTAL, |ui| controls::toggle(ui, &mut autostart, t.autostart_checkbox).changed())
                 .inner
         });
         if changed {
@@ -362,7 +362,7 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
         let mut picked = None;
         row(ui, t.language_section, t.language_hint, combo, |ui| {
             let shown = names[Lang::ALL.iter().position(|l| *l == current).unwrap_or(0)];
-            egui::ComboBox::from_id_salt("settings_language")
+            let picker = egui::ComboBox::from_id_salt("settings_language")
                 .selected_text(shown)
                 .width(combo)
                 .icon(controls::dropdown_chevron)
@@ -373,6 +373,7 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
                         }
                     }
                 });
+            controls::say_as(&picker.response, t.language_section);
         });
         if let Some(lang) = picked {
             state.set_language(lang);
@@ -442,9 +443,10 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
             divider(ui);
 
             let mut first = state.settings.favorites_first;
+            let name = studio::text(state, "Favoritos primero", "Favorites first", "Mga paborito muna", "पसंदीदा पहले");
             let changed = row(
                 ui,
-                studio::text(state, "Favoritos primero", "Favorites first", "Mga paborito muna", "पसंदीदा पहले"),
+                name,
                 studio::text(
                     state,
                     "Las expansiones con estrella salen arriba al buscar.",
@@ -453,7 +455,7 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
                     "खोजने पर तारांकित विस्तार सबसे ऊपर आते हैं।",
                 ),
                 40.0,
-                |ui| controls::toggle(ui, &mut first).changed(),
+                |ui| controls::toggle(ui, &mut first, name).changed(),
             );
             if changed {
                 state.set_favorites_first(first);
