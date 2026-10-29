@@ -255,7 +255,6 @@ pub struct Strings {
     pub confirm_delete_folder_title: &'static str,
     pub confirm_delete_folder_body: &'static str,
     pub confirm_delete_selection_title: &'static str,
-    pub confirm_delete_undo: &'static str,
     pub see_more: &'static str,
 
     // --- edit form -----------------------------------------------------------------------
@@ -339,7 +338,6 @@ pub struct Strings {
     // --- banners and dialogs -------------------------------------------------------------
     pub banner_close_tip: &'static str,
     pub undo: &'static str,
-    pub move_undone: &'static str,
     pub autostart_error: &'static str,
     pub autostart_vetoed: &'static str,
     pub prefix_save_error: &'static str,
@@ -488,7 +486,6 @@ pub static EN: Strings = Strings {
     confirm_delete_folder_title: "Delete folder \"{name}\"",
     confirm_delete_folder_body: "You are about to delete the folder \"{name}\" and everything inside it:",
     confirm_delete_selection_title: "Delete {n} expansions",
-    confirm_delete_undo: "This cannot be undone.",
     see_more: "Show {n} more",
 
     edit_title_new: "New expansion",
@@ -562,7 +559,6 @@ pub static EN: Strings = Strings {
 
     banner_close_tip: "Close",
     undo: "Undo",
-    move_undone: "The move was undone.",
     autostart_error: "Could not change the Windows start-up setting: {err}",
     autostart_vetoed: "Windows has this app's start-up turned off. Turn it on in Settings › Apps › Startup.",
     prefix_save_error: "Could not save the prefix setting: {err}",
@@ -696,7 +692,6 @@ pub static ES: Strings = Strings {
     confirm_delete_folder_title: "Eliminar carpeta \"{name}\"",
     confirm_delete_folder_body: "Vas a eliminar la carpeta \"{name}\" y todo lo que contiene:",
     confirm_delete_selection_title: "Eliminar {n} expansiones",
-    confirm_delete_undo: "Esta acción no se puede deshacer.",
     see_more: "Ver {n} más",
 
     edit_title_new: "Nueva expansión",
@@ -770,7 +765,6 @@ pub static ES: Strings = Strings {
 
     banner_close_tip: "Cerrar",
     undo: "Deshacer",
-    move_undone: "Se deshizo el movimiento.",
     autostart_error: "No se pudo cambiar el inicio automático con Windows: {err}",
     autostart_vetoed: "Windows tiene apagado el inicio de esta app. Enciéndelo en Configuración › Aplicaciones › Inicio.",
     prefix_save_error: "No se pudo guardar el ajuste de prefijo: {err}",
@@ -904,7 +898,6 @@ pub static FIL: Strings = Strings {
     confirm_delete_folder_title: "Burahin ang folder na \"{name}\"",
     confirm_delete_folder_body: "Buburahin mo ang folder na \"{name}\" at ang lahat ng nasa loob nito:",
     confirm_delete_selection_title: "Burahin ang {n} expansion",
-    confirm_delete_undo: "Hindi ito maaaring bawiin.",
     see_more: "Ipakita ang {n} pa",
 
     edit_title_new: "Bagong expansion",
@@ -978,7 +971,6 @@ pub static FIL: Strings = Strings {
 
     banner_close_tip: "Isara",
     undo: "I-undo",
-    move_undone: "Naibalik ang paglipat.",
     autostart_error: "Hindi mabago ang setting ng pagsisimula sa Windows: {err}",
     autostart_vetoed: "Naka-off sa Windows ang pagsisimula ng app na ito. I-on ito sa Settings › Apps › Startup.",
     prefix_save_error: "Hindi ma-save ang setting ng prefix: {err}",
@@ -1112,7 +1104,6 @@ pub static HI: Strings = Strings {
     confirm_delete_folder_title: "फ़ोल्डर \"{name}\" हटाएँ",
     confirm_delete_folder_body: "आप फ़ोल्डर \"{name}\" और उसमें मौजूद सब कुछ हटाने जा रहे हैं:",
     confirm_delete_selection_title: "{n} विस्तार हटाएँ",
-    confirm_delete_undo: "यह क्रिया पूर्ववत नहीं की जा सकती।",
     see_more: "{n} और दिखाएँ",
 
     edit_title_new: "नया विस्तार",
@@ -1186,7 +1177,6 @@ pub static HI: Strings = Strings {
 
     banner_close_tip: "बंद करें",
     undo: "पूर्ववत करें",
-    move_undone: "स्थानांतरण पूर्ववत कर दिया गया।",
     autostart_error: "Windows स्टार्ट-अप सेटिंग नहीं बदली जा सकी: {err}",
     autostart_vetoed: "Windows ने इस ऐप का स्टार्ट-अप बंद कर रखा है। इसे सेटिंग्स › ऐप्स › स्टार्टअप में चालू करें।",
     prefix_save_error: "उपसर्ग सेटिंग सहेजी नहीं जा सकी: {err}",

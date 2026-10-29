@@ -53,6 +53,8 @@ La etapa 1 puede dividirse en entregas pequeñas. La accesibilidad debe acompañ
 
 **Forma elegida (Alex, 2026-10-28): «La isla».** El «+» de abajo al centro se transforma, con una animación, en una píldora pequeña: «✓ Guardada · Deshacer», con una línea de progreso que se vacía para avisar cuándo se va. Si el ratón está encima, se queda. «La cuerda» (un nudo por acción reciente) queda como posible paso siguiente.
 
+**Hecho en 0.0.8.** La isla deshace guardar, eliminar, importar y mover a carpeta (8 s, se queda con el ratón encima). Falta «Recuperar…» desde un respaldo.
+
 **Primera entrega.** Después de eliminar: “Expansión eliminada · Deshacer”. Para recuperación: elegir un respaldo, ver qué se recuperará y confirmar. Crear una copia del estado actual antes de restaurar. Restaurar también carpetas y estado de activación, no solo textos.
 
 **Base técnica.** Ya existen 20 respaldos rotativos de `base.yml` y `_disabled.yml`; `UndoAction` actualmente cubre movimientos de carpeta. Las carpetas se almacenan en `settings.json`, separado de esos respaldos. Antes de ofrecer recuperación completa hay que guardar conjuntamente el estado lógico necesario y validar que un fallo no deje archivos de momentos distintos. No restaurar indiscriminadamente preferencias de ventana o equipo al recuperar textos.

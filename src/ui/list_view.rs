@@ -2189,6 +2189,28 @@ fn new_button(ui: &mut egui::Ui, state: &mut AppState, area: egui::Rect) {
     let travel = window.bottom() + controls::GAP_SECTION - rest.top();
     let rect = rest.translate(egui::vec2(0.0, travel * (1.0 - ease_out_back(progress))));
 
+    // While something just done can be taken back, the button is the island that says so.
+    let offer = state.undo_offer().map(|banner| {
+        let gone = banner.posted.elapsed().as_secs_f32() / crate::app::UNDO_LIFE.as_secs_f32();
+        (island_words(&banner.message), (1.0 - gone).clamp(0.0, 1.0))
+    });
+    let words_id = egui::Id::new("undo-island");
+    if let Some((words, _)) = &offer {
+        ctx.data_mut(|d| d.insert_temp(words_id, words.clone()));
+    }
+    let morph = ctx.animate_bool_with_time_and_easing(
+        words_id.with("morph"),
+        offer.is_some(),
+        if crate::theme::animations_enabled() { ISLAND_MORPH } else { 0.0 },
+        egui::emath::easing::cubic_in_out,
+    );
+    if morph > 0.0 {
+        // Still drawn with the words it had while it turns back into the «+».
+        let words: String = ctx.data(|d| d.get_temp(words_id)).unwrap_or_default();
+        island(ui, state, rect, area, &words, offer.map(|(_, left)| left), morph);
+        return;
+    }
+
     let t = state.t();
     let tip = keys::tip(t.new_expansion, keys::NEW, state.settings.lang);
     let response = ui.interact(rect, egui::Id::new("new-expansion-button"), egui::Sense::click());
@@ -2226,19 +2248,7 @@ fn new_button(ui: &mut egui::Ui, state: &mut AppState, area: egui::Rect) {
     };
 
     let painter = ui.painter().with_clip_rect(window);
-    let round = egui::CornerRadius::same((NEW_BUTTON * 0.5) as u8);
-    if crate::app::contrast().is_none() {
-        // Two shadows, as Fluent lifts what floats: a soft wide one, and a tight one at its foot.
-        let shadow = |offset: i8, blur: u8, alpha: u8| egui::Shadow {
-            offset: [0, offset],
-            blur,
-            spread: 0,
-            color: egui::Color32::from_black_alpha(alpha),
-        };
-        let (wide, tight) = if is_light { (34, 26) } else { (90, 70) };
-        painter.add(shadow(6, 18, wide).as_shape(rect, round));
-        painter.add(shadow(1, 3, tight).as_shape(rect, round));
-    }
+    lift(&painter, rect, is_light);
     painter.circle_filled(rect.center(), rect.width() * 0.5, fill);
     if crate::app::contrast().is_some() {
         painter.circle_stroke(rect.center(), rect.width() * 0.5 - 0.5, egui::Stroke::new(1.0, ink));
@@ -2262,6 +2272,186 @@ fn new_button(ui: &mut egui::Ui, state: &mut AppState, area: egui::Rect) {
 
     if response.clicked() {
         studio::create_expansion(&ctx, state);
+    }
+}
+
+/// Two shadows under what floats over the list, as Fluent lifts it: a soft wide one, and a tight
+/// one at its foot. None in a contrast theme, which draws an edge instead.
+fn lift(painter: &egui::Painter, rect: egui::Rect, is_light: bool) {
+    if crate::app::contrast().is_some() {
+        return;
+    }
+    let round = egui::CornerRadius::same((rect.height() * 0.5) as u8);
+    let shadow = |offset: i8, blur: u8, alpha: u8| egui::Shadow {
+        offset: [0, offset],
+        blur,
+        spread: 0,
+        color: egui::Color32::from_black_alpha(alpha),
+    };
+    let (wide, tight) = if is_light { (34, 26) } else { (90, 70) };
+    painter.add(shadow(6, 18, wide).as_shape(rect, round));
+    painter.add(shadow(1, 3, tight).as_shape(rect, round));
+}
+
+// --- The island ----------------------------------------------------------------------------------
+
+/// How long the «+» takes to become the island, and to come back.
+const ISLAND_MORPH: f32 = 0.35;
+/// The island's height: a little less than the button's, so it reads as resting where it was.
+const ISLAND_HEIGHT: f32 = 44.0;
+/// From either end of the island to what is written in it.
+const ISLAND_PAD: f32 = 18.0;
+/// How tall the hairline between what happened and «Deshacer» is.
+const ISLAND_RULE: f32 = 18.0;
+
+/// What the island says: the message as the banner had it, without its closing stop, which would
+/// sit oddly in front of «Deshacer».
+fn island_words(message: &str) -> String {
+    message.trim_end_matches(['.', '।']).to_string()
+}
+
+/// The «+» turned into a pill — «✓ Expansión guardada | Deshacer» — on the spot where the button
+/// rests, with a line along its foot running out until it turns back. `left` is the share of its
+/// time still to go, `None` once it is on its way back; `morph` is how far from round it is.
+///
+/// It grows from the circle on the same foot, the plus fading as the words come in, so it is
+/// plainly the same thing changed rather than something new arriving. The pointer on it holds it
+/// (the line fills again), and while it is up the «+» is not there to be pressed: Ctrl+N still is.
+fn island(
+    ui: &mut egui::Ui,
+    state: &mut AppState,
+    circle: egui::Rect,
+    area: egui::Rect,
+    words: &str,
+    left: Option<f32>,
+    morph: f32,
+) {
+    let ctx = ui.ctx().clone();
+    let is_light = !ui.visuals().dark_mode;
+    let t = state.t();
+    let (fill, ink) = crate::app::accent_fill(ui.visuals());
+    let page = crate::app::win_background_for(is_light);
+
+    // Laid out at full size first: the pill grows towards this, and its words never wrap — a long
+    // message ends in «…» before it would push the island past the page's margins.
+    let body = egui::TextStyle::Body.resolve(ui.style());
+    let action = ui.painter().layout_no_wrap(
+        t.undo.to_owned(),
+        egui::FontId::new(body.size, crate::fonts::semibold_family()),
+        ink,
+    );
+    let room = area.width() - 2.0 * f32::from(controls::page_margin(area.width()));
+    let fixed = ISLAND_PAD + glyphs::SIZE + controls::GAP + 2.0 * controls::GAP_WIDE + 1.0 + action.size().x + ISLAND_PAD;
+    let mut job = egui::text::LayoutJob::simple_singleline(words.to_owned(), body, ink);
+    job.wrap = egui::text::TextWrapping::truncate_at_width((room - fixed).max(0.0));
+    let message = ui.painter().layout_job(job);
+    let full = egui::vec2(fixed + message.size().x, ISLAND_HEIGHT);
+
+    let size = egui::Vec2::splat(NEW_BUTTON) + (full - egui::Vec2::splat(NEW_BUTTON)) * morph;
+    let rect = egui::Rect::from_min_size(
+        egui::pos2(circle.center().x - size.x * 0.5, circle.bottom() - size.y),
+        size,
+    );
+    let radius = size.y * 0.5;
+    let painter = ui.painter().with_clip_rect(ctx.content_rect());
+    lift(&painter, rect, is_light);
+    painter.rect_filled(rect, radius, fill);
+
+    // The plus goes in the first half of the change, the words come in the second.
+    let plus = (1.0 - morph * 2.0).clamp(0.0, 1.0);
+    if plus > 0.0 {
+        for bar in [egui::vec2(PLUS_ARM, PLUS_STROKE), egui::vec2(PLUS_STROKE, PLUS_ARM)] {
+            painter.rect_filled(
+                egui::Rect::from_center_size(rect.center(), bar),
+                PLUS_STROKE * 0.5,
+                ink.gamma_multiply(plus),
+            );
+        }
+    }
+    let shown = (morph * 2.0 - 1.0).clamp(0.0, 1.0);
+
+    // «Deshacer» is the pill's right end, pressed as one piece, like the half of a split button.
+    let start = circle.center().x - full.x * 0.5;
+    let rule_x = start + full.x - ISLAND_PAD - action.size().x - controls::GAP_WIDE - 1.0;
+    let live = left.is_some() && shown > 0.5;
+    let held = ui.interact(rect, egui::Id::new("undo-island-body"), egui::Sense::hover());
+    held.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, words));
+    let end = egui::Rect::from_min_max(egui::pos2(rule_x + 1.0, rect.top()), rect.max).intersect(rect);
+    let undo = ui.interact(
+        end,
+        egui::Id::new("undo-island-action"),
+        if live { egui::Sense::click() } else { egui::Sense::hover() },
+    );
+    undo.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, live, t.undo));
+    if live && (held.hovered() || undo.hovered()) {
+        state.hold_undo();
+    }
+    if live && undo.hovered() {
+        ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
+        let tint = if undo.is_pointer_button_down_on() { 0.2 } else { 0.1 };
+        let r = radius as u8;
+        painter.rect_filled(
+            end,
+            egui::CornerRadius { nw: 0, sw: 0, ne: r, se: r },
+            fill.lerp_to_gamma(page, tint),
+        );
+    }
+    if crate::app::contrast().is_some() {
+        painter.rect_stroke(rect, radius, egui::Stroke::new(1.0, ink), egui::StrokeKind::Inside);
+    }
+
+    if shown > 0.0 {
+        let painter = painter.with_clip_rect(rect);
+        let center_y = rect.center().y;
+        let mut x = start + ISLAND_PAD;
+        let check = egui::Rect::from_min_size(
+            egui::pos2(x, center_y - glyphs::SIZE * 0.5),
+            egui::Vec2::splat(glyphs::SIZE),
+        );
+        glyphs::paint(ui, check, Glyph::Check, glyphs::SIZE, ink.gamma_multiply(shown));
+        x += glyphs::SIZE + controls::GAP;
+        painter.galley(
+            egui::pos2(x, center_y - message.size().y * 0.5),
+            message.clone(),
+            ink.gamma_multiply(shown),
+        );
+        painter.vline(
+            rule_x,
+            egui::Rangef::new(center_y - ISLAND_RULE * 0.5, center_y + ISLAND_RULE * 0.5),
+            egui::Stroke::new(1.0, ink.gamma_multiply(0.35 * shown)),
+        );
+        painter.galley(
+            egui::pos2(rule_x + 1.0 + controls::GAP_WIDE, center_y - action.size().y * 0.5),
+            action,
+            ink.gamma_multiply(shown),
+        );
+        // The time it has left, along its foot between the two round ends, closing in on the
+        // middle from both sides — so it reads as time running out, not as a line under the words.
+        if let Some(left) = left {
+            let span = (rect.width() - 2.0 * radius) * left;
+            painter.rect_filled(
+                egui::Rect::from_center_size(
+                    egui::pos2(rect.center().x, rect.bottom() - 4.0),
+                    egui::vec2(span, 2.0),
+                ),
+                1.0,
+                ink.gamma_multiply(0.4 * shown),
+            );
+        }
+    }
+    if undo.has_focus() {
+        painter.rect_stroke(
+            rect.expand(3.0),
+            radius + 3.0,
+            egui::Stroke::new(2.0, ui.visuals().strong_text_color()),
+            egui::StrokeKind::Inside,
+        );
+    }
+    if left.is_some() {
+        ctx.request_repaint();
+    }
+    if live && undo.clicked() {
+        state.undo_from_banner();
     }
 }
 
@@ -3861,7 +4051,6 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
     let modal = controls::dialog(ctx, "pending_confirm").show(ctx, |ui| {
         ui.set_width(controls::dialog_width(ctx, MODAL_WIDTH));
         let is_light = !ui.visuals().dark_mode;
-        let danger = crate::app::danger(is_light);
         let accent_color = accent(ui.visuals());
         let quiet = crate::app::secondary_text(is_light);
         let trigger_width = trigger_column_width(ui, &pending.items);
@@ -3933,13 +4122,6 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
             });
 
         ui.add_space(controls::GAP_WIDE);
-        // The one sentence that matters, in the same red as the button that carries the action, so
-        // the modal never spends a second colour saying the same thing twice. A rename has no such
-        // sentence: nothing is lost, and changing the prefix back renames them back.
-        if !rename {
-            ui.add(egui::Label::new(egui::RichText::new(t.confirm_delete_undo).color(danger)).wrap());
-            ui.add_space(controls::GAP_STACK);
-        }
         controls::dialog_buttons(ui, |ui| {
             if controls::button(ui, t.cancel, Tone::Normal, true).clicked() {
                 cancel = true;

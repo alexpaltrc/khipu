@@ -495,7 +495,7 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     // the card that caused it.
     if let Some(note) = &state.settings_note {
         ui.add_space(controls::GAP_WIDE);
-        let (closed, _) = crate::app::infobar(ui, note, t);
+        let closed = crate::app::infobar(ui, note, t);
         if closed {
             state.settings_note = None;
         }

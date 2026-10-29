@@ -220,30 +220,68 @@ pub enum BannerKind {
 
 /// A change that the message announcing it can also take back.
 ///
-/// Dragging expansions into a folder is the one action here that happens without a confirmation —
-/// it has to, or the gesture would be unusable — and it can move a whole selection at once. Rather
-/// than putting a dialog in front of every drop, the result is simply reversible: the banner that
-/// says what happened carries the way to undo it.
+/// Saving, deleting and dragging into a folder each say what they did in the island that the «+»
+/// becomes for a few seconds, with «Deshacer» beside it — so none of them needs to ask first
+/// whether it is wanted, and none of them is final the moment it is done.
 pub enum UndoAction {
     /// Folder assignments exactly as they were before the move, as (trigger, previous folder).
     FolderMove(Vec<(String, Option<String>)>),
+    /// Everything a save or a deletion can change, as it was before it.
+    Restore(Box<Snapshot>),
+}
+
+/// The expansions, which of them are off, and the folders and stars filed against them — the
+/// whole of what a save or a deletion touches, and nothing of the window's own preferences.
+pub struct Snapshot {
+    entries: Vec<MatchEntry>,
+    off: BTreeSet<String>,
+    folder_by_trigger: std::collections::BTreeMap<String, String>,
+    folders: BTreeSet<String>,
+    favorites: BTreeSet<String>,
+}
+
+impl Snapshot {
+    fn of(match_file: &MatchFile, settings: &Settings) -> Self {
+        Snapshot {
+            entries: match_file.entries.clone(),
+            off: match_file.off.clone(),
+            folder_by_trigger: settings.folder_by_trigger.clone(),
+            folders: settings.folders.clone(),
+            favorites: settings.favorites.clone(),
+        }
+    }
+}
+
+/// An undo on offer, and the list as it stood when it was offered: once anything else has changed
+/// it, putting back the old state would take that change away too, so the offer is withdrawn.
+pub struct Undo {
+    action: UndoAction,
+    revision: u64,
 }
 
 pub struct Banner {
     pub kind: BannerKind,
     pub message: String,
-    pub undo: Option<UndoAction>,
+    /// Set only on a message that announces a change, and then it is drawn as the island, not here.
+    pub undo: Option<Undo>,
     /// When it was posted: a plain message goes away by itself a few seconds after this.
     pub posted: Instant,
 }
 
+/// How long the island offers to undo: time to see what happened and change one's mind, and
+/// not so long that the «+» is away when it is wanted. The pointer on it holds it.
+pub const UNDO_LIFE: Duration = Duration::from_secs(8);
+
 impl Banner {
-    /// How long a message that needs nothing from anyone stays up: long enough to read it twice,
-    /// never so long it outstays the moment. `None` for one that stays until it is closed: an
-    /// error, and a message that carries an undo.
+    /// How long a message stays up by itself: one that needs nothing from anyone, long enough to
+    /// read it twice and never so long it outstays the moment; one that offers an undo, for
+    /// [`UNDO_LIFE`]. `None` for an error, which stays until it is closed.
     pub fn lifetime(&self) -> Option<std::time::Duration> {
-        if self.kind != BannerKind::Info || self.undo.is_some() {
+        if self.kind != BannerKind::Info {
             return None;
+        }
+        if self.undo.is_some() {
+            return Some(UNDO_LIFE);
         }
         let reading = 4.0 + 0.05 * self.message.chars().count() as f32;
         Some(std::time::Duration::from_secs_f32(reading.min(10.0)))
@@ -1303,6 +1341,7 @@ impl AppState {
                 self.delete_one_at(index, pending.items.first().map(|(t, _)| t.as_str()));
             }
             PendingConfirmKind::DeleteFolder { ref folder } => {
+                let before = Snapshot::of(&self.match_file, &self.settings);
                 let message = crate::i18n::fill_count(t.folder_deleted, n, &[("name", folder)]);
                 self.remove_by_triggers(&triggers());
                 // The declaration goes with the contents. Left behind, the folder would come back
@@ -1314,13 +1353,18 @@ impl AppState {
                 if matches!(self.view, View::FolderOptions(ref f) if f == folder) {
                     self.view = View::List;
                 }
-                self.save_and_reload(message);
+                if self.save_and_reload(message) {
+                    self.offer_undo(UndoAction::Restore(Box::new(before)));
+                }
             }
             PendingConfirmKind::DeleteSelection => {
+                let before = Snapshot::of(&self.match_file, &self.settings);
                 let message = crate::i18n::fill_count(t.selection_deleted, n, &[]);
                 self.remove_by_triggers(&triggers());
                 self.clear_selection();
-                self.save_and_reload(message);
+                if self.save_and_reload(message) {
+                    self.offer_undo(UndoAction::Restore(Box::new(before)));
+                }
             }
             PendingConfirmKind::RenamePrefix => self.rename_to_prefix(pending.items),
         }
@@ -1343,6 +1387,7 @@ impl AppState {
         if expected.is_some_and(|want| want != trigger) {
             return;
         }
+        let before = Snapshot::of(&self.match_file, &self.settings);
         self.match_file.entries.remove(index);
         self.match_file.prune_off();
         self.settings.remove_trigger(&trigger);
@@ -1351,7 +1396,9 @@ impl AppState {
         self.touch_list();
         self.view = View::List;
         let t = self.t();
-        self.save_and_reload(t.expansion_deleted);
+        if self.save_and_reload(t.expansion_deleted) {
+            self.offer_undo(UndoAction::Restore(Box::new(before)));
+        }
     }
 
     pub fn start_rename_folder(&mut self, folder: &str) {
@@ -1474,9 +1521,7 @@ impl AppState {
             Some(f) => self.set_info_banner(crate::i18n::fill_count(t.moved_to_folder, n, &[("name", f)])),
             None => self.set_info_banner(crate::i18n::fill_count(t.removed_from_folder, n, &[])),
         }
-        if let Some(banner) = &mut self.banner {
-            banner.undo = Some(UndoAction::FolderMove(previous));
-        }
+        self.offer_undo(UndoAction::FolderMove(previous));
     }
 
     /// Switches expansions off, or back on.
@@ -1689,6 +1734,7 @@ impl AppState {
         let previous_entries = self.match_file.entries.clone();
         let previous_off = self.match_file.off.clone();
         let previous_settings = self.settings.clone();
+        let before = Snapshot::of(&self.match_file, &self.settings);
         self.match_file.entries.extend(merged.added);
         self.match_file.off.extend(merged.off);
         for (trigger, folder) in &merged.folders {
@@ -1708,7 +1754,9 @@ impl AppState {
                 &[("n", &added.to_string()), ("k", &skipped.to_string())],
             )
         };
-        if !self.save_and_reload(message) {
+        if self.save_and_reload(message) {
+            self.offer_undo(UndoAction::Restore(Box::new(before)));
+        } else {
             self.match_file.entries = previous_entries;
             self.match_file.off = previous_off;
             self.settings = previous_settings;
@@ -1749,21 +1797,80 @@ impl AppState {
     }
 
 
-    /// Puts back whatever the banner currently on screen is offering to undo.
-    pub fn undo_from_banner(&mut self) {
-        let Some(banner) = self.banner.take() else {
+    /// Lets the message just posted take back what it announces. Only a plain one: a save that
+    /// came with a warning is in red, and the warning is the thing to read. Nor one said inside
+    /// Ajustes, which went to its own note and left whatever was in the banner there.
+    fn offer_undo(&mut self, action: UndoAction) {
+        let revision = self.list_revision;
+        if self.settings_open {
             return;
-        };
-        let Some(UndoAction::FolderMove(previous)) = banner.undo else {
-            return;
-        };
-        for (trigger, folder) in &previous {
-            self.settings.set_folder(trigger, folder.clone());
         }
-        let _ = self.settings_store.save(&self.settings);
-        self.touch_list();
-        let t = self.t();
-        self.set_info_banner(t.move_undone);
+        if let Some(banner) = self.banner.as_mut().filter(|b| b.kind == BannerKind::Info) {
+            banner.undo = Some(Undo { action, revision });
+        }
+    }
+
+    /// The message the island is showing, while its undo still applies.
+    pub fn undo_offer(&self) -> Option<&Banner> {
+        self.banner
+            .as_ref()
+            .filter(|b| b.undo.as_ref().is_some_and(|u| u.revision == self.list_revision))
+    }
+
+    /// Starts the island's time again: the pointer is on it.
+    pub fn hold_undo(&mut self) {
+        if let Some(banner) = self.banner.as_mut().filter(|b| b.undo.is_some()) {
+            banner.posted = Instant::now();
+        }
+    }
+
+    /// Lets go of an undo that no longer applies, so it does not sit unseen until it runs out.
+    pub fn drop_stale_undo(&mut self) {
+        if self.banner.as_ref().is_some_and(|b| b.undo.is_some()) && self.undo_offer().is_none() {
+            self.banner = None;
+        }
+    }
+
+    /// Puts back whatever the island is offering to undo. Says nothing more: the list going
+    /// back to how it was, and the island to «+», is the answer.
+    pub fn undo_from_banner(&mut self) {
+        if self.undo_offer().is_none() {
+            return;
+        }
+        let Some(Undo { action, .. }) = self.banner.take().and_then(|b| b.undo) else {
+            return;
+        };
+        match action {
+            UndoAction::FolderMove(previous) => {
+                for (trigger, folder) in &previous {
+                    self.settings.set_folder(trigger, folder.clone());
+                }
+                let _ = self.settings_store.save(&self.settings);
+                self.touch_list();
+            }
+            UndoAction::Restore(snapshot) => {
+                let Snapshot { entries, off, folder_by_trigger, folders, favorites } = *snapshot;
+                self.match_file.entries = entries;
+                self.match_file.off = off;
+                self.settings.folder_by_trigger = folder_by_trigger;
+                self.settings.folders = folders;
+                self.settings.favorites = favorites;
+                let _ = self.settings_store.save(&self.settings);
+                self.clear_selection();
+                self.touch_list();
+                let t = self.t();
+                match yaml_io::save(&self.match_file_path, &self.match_file, &self.backups_dir) {
+                    Ok(warnings) => {
+                        if let Some(warning) = warnings.message(t) {
+                            self.set_error_banner(warning);
+                        }
+                        self.reload_note = None;
+                        self.reload.request(t);
+                    }
+                    Err(e) => self.set_error_banner(e.friendly_message(t)),
+                }
+            }
+        }
     }
 
     pub fn save_edit(&mut self, edit: &EditState) {
@@ -1795,6 +1902,7 @@ impl AppState {
         let previous_entries = self.match_file.entries.clone();
         let previous_off = self.match_file.off.clone();
         let previous_settings = self.settings.clone();
+        let before = Snapshot::of(&self.match_file, &self.settings);
 
         match edit.editing_index {
             Some(index) => self.match_file.entries[index] = MatchEntry::Simple(new_match.clone()),
@@ -1813,6 +1921,7 @@ impl AppState {
 
         if self.save_and_reload(t.expansion_saved) {
             self.view = View::List;
+            self.offer_undo(UndoAction::Restore(Box::new(before)));
         } else {
             // The red banner `save_and_reload` raised says why; the draft is still on screen,
             // untouched, to try again or cancel.
@@ -3329,19 +3438,16 @@ impl KhipuApp {
         let Some(banner) = &self.state.banner else {
             return;
         };
-        let (close, undo) = infobar(ui, banner, t);
-        if undo {
-            self.state.undo_from_banner();
-        } else if close {
+        if infobar(ui, banner, t) {
             self.state.banner = None;
         }
     }
 }
 
-/// One message in Windows' InfoBar, the full width of `ui`. Returns (closed, undo pressed).
+/// One message in Windows' InfoBar, the full width of `ui`. Returns whether it was closed.
 ///
 /// Drawn at the top of the window, and inside Ajustes for what is said while it is open.
-pub fn infobar(ui: &mut egui::Ui, banner: &Banner, t: &Strings) -> (bool, bool) {
+pub fn infobar(ui: &mut egui::Ui, banner: &Banner, t: &Strings) -> bool {
     let is_light = !ui.visuals().dark_mode;
     // Windows' InfoBar: a quiet tint of the severity, the one line colour around it, and the
     // severity said twice — by the icon's colour and by the icon's shape — never by colour
@@ -3351,7 +3457,6 @@ pub fn infobar(ui: &mut egui::Ui, banner: &Banner, t: &Strings) -> (bool, bool) 
         BannerKind::Error => (infobar_error(is_light), ui::glyphs::Glyph::Error, danger(is_light)),
     };
     let mut close = false;
-    let mut undo = false;
     egui::Frame::default()
         .fill(fill)
         .stroke(egui::Stroke::new(1.0, hairline(is_light)))
@@ -3382,12 +3487,6 @@ pub fn infobar(ui: &mut egui::Ui, banner: &Banner, t: &Strings) -> (bool, bool) 
                     {
                         close = true;
                     }
-                    if banner.undo.is_some()
-                        && ui::controls::subtle_button(ui, Some(ui::glyphs::Glyph::Undo), t.undo, None)
-                            .clicked()
-                    {
-                        undo = true;
-                    }
                     ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                         // Centred on the buttons' line while it is one line; from the top once
                         // it wraps, like the InfoBar's own message.
@@ -3398,7 +3497,7 @@ pub fn infobar(ui: &mut egui::Ui, banner: &Banner, t: &Strings) -> (bool, bool) 
                 });
             });
         });
-    (close, undo)
+    close
 }
 
 /// The preview build, opened behind everything for screenshots, takes its clicks from
@@ -3655,10 +3754,14 @@ impl eframe::App for KhipuApp {
         // overlaps the rest of the interface — it always pushes it, never covers it.
         //
         // A message that needs nothing from anyone leaves by itself once it has been read, unless
-        // the pointer is on it; one that went away is drawn as it was while it slides out.
+        // the pointer is on it; one that went away is drawn as it was while it slides out. One that
+        // offers an undo is not drawn here at all: the list's «+» becomes it, and holds it itself
+        // while the pointer is there.
+        self.state.drop_stale_undo();
         if let Some(banner) = &self.state.banner {
+            let island = banner.undo.is_some();
             match banner.lifetime() {
-                Some(life) if !self.banner_hovered => {
+                Some(life) if island || !self.banner_hovered => {
                     let left = life.saturating_sub(banner.posted.elapsed());
                     if left.is_zero() {
                         self.state.banner = None;
@@ -3669,16 +3772,16 @@ impl eframe::App for KhipuApp {
                 _ => {}
             }
         }
-        if let Some(banner) = &self.state.banner {
+        let top = self.state.banner.as_ref().filter(|b| b.undo.is_none());
+        if let Some(banner) = top {
             self.banner_leaving = Some(Banner {
                 kind: banner.kind,
                 message: banner.message.clone(),
-                // Only so the leaving copy keeps its button while it slides.
-                undo: banner.undo.as_ref().map(|_| UndoAction::FolderMove(Vec::new())),
+                undo: None,
                 posted: banner.posted,
             });
         }
-        let mut live = self.state.banner.is_some();
+        let mut live = top.is_some();
         // Both animations are told every frame, banner or not: egui starts an animation it has not
         // seen at its target, so one first asked when the banner arrives would not slide at all.
         let fade = ui.ctx().animate_bool(egui::Id::new("banner-fade"), live);
@@ -3702,7 +3805,7 @@ impl eframe::App for KhipuApp {
             )
             .show_collapsible(ui, &mut live, |ui| {
                 ui.set_opacity(fade);
-                if self.state.banner.is_some() {
+                if self.state.banner.as_ref().is_some_and(|b| b.undo.is_none()) {
                     self.show_banner(ui);
                 } else if let Some(leaving) = &self.banner_leaving {
                     infobar(ui, leaving, self.state.t());

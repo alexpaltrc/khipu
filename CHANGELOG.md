@@ -22,6 +22,11 @@ was published.
   trigger, name and text; every field, switch, choice and list by its name and state; and the
   form window's fields by the name of the blank. Nothing changes on screen. The app grows by
   about 160 KB.
+- **Undo.** After you save, delete, import or move expansions, the «+» button turns into a pill
+  that says what happened, with **Undo** at its right end. A thin line along its foot shows the
+  time left; it stays while the pointer is on it, then turns back into «+». Undo puts everything
+  back as it was, folders and favorites included. The delete confirmation no longer warns that
+  it can't be undone.
 
 ### Changed
 
