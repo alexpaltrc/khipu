@@ -338,6 +338,8 @@ pub struct Strings {
     // --- banners and dialogs -------------------------------------------------------------
     pub banner_close_tip: &'static str,
     pub undo: &'static str,
+    /// What the island says once its undo is done, before it turns back into «+».
+    pub undone: &'static str,
     pub autostart_error: &'static str,
     pub autostart_vetoed: &'static str,
     pub prefix_save_error: &'static str,
@@ -559,6 +561,7 @@ pub static EN: Strings = Strings {
 
     banner_close_tip: "Close",
     undo: "Undo",
+    undone: "Undone",
     autostart_error: "Could not change the Windows start-up setting: {err}",
     autostart_vetoed: "Windows has this app's start-up turned off. Turn it on in Settings › Apps › Startup.",
     prefix_save_error: "Could not save the prefix setting: {err}",
@@ -765,6 +768,7 @@ pub static ES: Strings = Strings {
 
     banner_close_tip: "Cerrar",
     undo: "Deshacer",
+    undone: "Deshecho",
     autostart_error: "No se pudo cambiar el inicio automático con Windows: {err}",
     autostart_vetoed: "Windows tiene apagado el inicio de esta app. Enciéndelo en Configuración › Aplicaciones › Inicio.",
     prefix_save_error: "No se pudo guardar el ajuste de prefijo: {err}",
@@ -971,6 +975,7 @@ pub static FIL: Strings = Strings {
 
     banner_close_tip: "Isara",
     undo: "I-undo",
+    undone: "Na-undo",
     autostart_error: "Hindi mabago ang setting ng pagsisimula sa Windows: {err}",
     autostart_vetoed: "Naka-off sa Windows ang pagsisimula ng app na ito. I-on ito sa Settings › Apps › Startup.",
     prefix_save_error: "Hindi ma-save ang setting ng prefix: {err}",
@@ -1177,6 +1182,7 @@ pub static HI: Strings = Strings {
 
     banner_close_tip: "बंद करें",
     undo: "पूर्ववत करें",
+    undone: "पूर्ववत किया गया",
     autostart_error: "Windows स्टार्ट-अप सेटिंग नहीं बदली जा सकी: {err}",
     autostart_vetoed: "Windows ने इस ऐप का स्टार्ट-अप बंद कर रखा है। इसे सेटिंग्स › ऐप्स › स्टार्टअप में चालू करें।",
     prefix_save_error: "उपसर्ग सेटिंग सहेजी नहीं जा सकी: {err}",

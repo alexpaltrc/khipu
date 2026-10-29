@@ -257,6 +257,17 @@ impl Snapshot {
 pub struct Undo {
     action: UndoAction,
     revision: u64,
+    /// The trigger it is about, when it is about one: the island writes it after the message.
+    subject: Option<String>,
+}
+
+/// An undo as the island shows it: what happened, the trigger it happened to, the share of its
+/// time still to go, and which offer it is — a new one has a new key.
+pub struct UndoOffer<'a> {
+    pub message: &'a str,
+    pub subject: Option<&'a str>,
+    pub left: f32,
+    pub key: u64,
 }
 
 pub struct Banner {
@@ -1354,7 +1365,7 @@ impl AppState {
                     self.view = View::List;
                 }
                 if self.save_and_reload(message) {
-                    self.offer_undo(UndoAction::Restore(Box::new(before)));
+                    self.offer_undo(UndoAction::Restore(Box::new(before)), None);
                 }
             }
             PendingConfirmKind::DeleteSelection => {
@@ -1363,7 +1374,7 @@ impl AppState {
                 self.remove_by_triggers(&triggers());
                 self.clear_selection();
                 if self.save_and_reload(message) {
-                    self.offer_undo(UndoAction::Restore(Box::new(before)));
+                    self.offer_undo(UndoAction::Restore(Box::new(before)), None);
                 }
             }
             PendingConfirmKind::RenamePrefix => self.rename_to_prefix(pending.items),
@@ -1397,7 +1408,7 @@ impl AppState {
         self.view = View::List;
         let t = self.t();
         if self.save_and_reload(t.expansion_deleted) {
-            self.offer_undo(UndoAction::Restore(Box::new(before)));
+            self.offer_undo(UndoAction::Restore(Box::new(before)), Some(trigger));
         }
     }
 
@@ -1521,7 +1532,7 @@ impl AppState {
             Some(f) => self.set_info_banner(crate::i18n::fill_count(t.moved_to_folder, n, &[("name", f)])),
             None => self.set_info_banner(crate::i18n::fill_count(t.removed_from_folder, n, &[])),
         }
-        self.offer_undo(UndoAction::FolderMove(previous));
+        self.offer_undo(UndoAction::FolderMove(previous), None);
     }
 
     /// Switches expansions off, or back on.
@@ -1755,7 +1766,7 @@ impl AppState {
             )
         };
         if self.save_and_reload(message) {
-            self.offer_undo(UndoAction::Restore(Box::new(before)));
+            self.offer_undo(UndoAction::Restore(Box::new(before)), None);
         } else {
             self.match_file.entries = previous_entries;
             self.match_file.off = previous_off;
@@ -1800,27 +1811,33 @@ impl AppState {
     /// Lets the message just posted take back what it announces. Only a plain one: a save that
     /// came with a warning is in red, and the warning is the thing to read. Nor one said inside
     /// Ajustes, which went to its own note and left whatever was in the banner there.
-    fn offer_undo(&mut self, action: UndoAction) {
+    fn offer_undo(&mut self, action: UndoAction, subject: Option<String>) {
         let revision = self.list_revision;
         if self.settings_open {
             return;
         }
         if let Some(banner) = self.banner.as_mut().filter(|b| b.kind == BannerKind::Info) {
-            banner.undo = Some(Undo { action, revision });
+            banner.undo = Some(Undo { action, revision, subject });
         }
     }
 
-    /// The message the island is showing, while its undo still applies.
-    pub fn undo_offer(&self) -> Option<&Banner> {
-        self.banner
-            .as_ref()
-            .filter(|b| b.undo.as_ref().is_some_and(|u| u.revision == self.list_revision))
+    /// What the island is showing, while its undo still applies.
+    pub fn undo_offer(&self) -> Option<UndoOffer<'_>> {
+        let banner = self.banner.as_ref()?;
+        let undo = banner.undo.as_ref().filter(|u| u.revision == self.list_revision)?;
+        let gone = banner.posted.elapsed().as_secs_f32() / UNDO_LIFE.as_secs_f32();
+        Some(UndoOffer {
+            message: &banner.message,
+            subject: undo.subject.as_deref(),
+            left: (1.0 - gone).clamp(0.0, 1.0),
+            key: undo.revision,
+        })
     }
 
-    /// Starts the island's time again: the pointer is on it.
-    pub fn hold_undo(&mut self) {
+    /// Stops the island's time for `dt`: the pointer is on it.
+    pub fn hold_undo(&mut self, dt: Duration) {
         if let Some(banner) = self.banner.as_mut().filter(|b| b.undo.is_some()) {
-            banner.posted = Instant::now();
+            banner.posted = (banner.posted + dt).min(Instant::now());
         }
     }
 
@@ -1921,7 +1938,7 @@ impl AppState {
 
         if self.save_and_reload(t.expansion_saved) {
             self.view = View::List;
-            self.offer_undo(UndoAction::Restore(Box::new(before)));
+            self.offer_undo(UndoAction::Restore(Box::new(before)), Some(new_match.trigger.clone()));
         } else {
             // The red banner `save_and_reload` raised says why; the draft is still on screen,
             // untouched, to try again or cancel.
