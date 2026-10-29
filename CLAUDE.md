@@ -5,8 +5,9 @@ Antes se llamaba *Espanso Manager*; desde el 2026-10-05 es **Khipu** en todo (de
 El repo es `github.com/alexpaltrc/khipu` (GitHub redirige la dirección vieja `espanso-manager`).
 
 Este archivo es la memoria del proyecto: lo leen las sesiones en el equipo de Alex y las de
-Claude Code en la nube. Sigue el estándar personal de Alex (skill `alex-vibecode`); la nube no ve
-ese skill, así que lo esencial va aquí.
+Claude Code en la nube. Sigue el estándar personal de Alex (skill `alex-vibecode`) en todo el
+proyecto y en cada conversación; cuando el skill cambia, manda su versión más reciente y el
+proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial va aquí.
 
 ## Cómo trabajar con Alex
 
@@ -37,11 +38,15 @@ Dos copias instaladas, ambas MSIX, con identidad y datos propios. Nunca se abre 
 `target/`.
 
 - **Estable: «Khipu», la de la Microsoft Store.** La que Alex usa a diario, como cualquier
-  usuario. Solo cambia cuando se publica una versión y la Store la entrega. Mientras se trabaja
-  no se cierra, no se abre ni se toca.
+  usuario, con sus ajustes y expansiones de verdad. Siempre instalada: si falta (p. ej. tras
+  formatear), se resuelve antes que nada abriendo su página de la Store para que Alex la instale;
+  Claude no la instala a mano. Solo cambia cuando se publica una versión y la Store la entrega.
+  Mientras se trabaja no se cierra, no se abre ni se toca.
 - **Dev: «Khipu Dev»** (`AlexPalacios.Khipu.Dev`, publicador `CN=Alex Palacios Dev`). Donde
-  llega cada cambio y donde Alex lo prueba cuando quiere. Firmada con un certificado de
-  desarrollo creado en el equipo de Alex (`CurrentUser\My`) y confiado solo ahí
+  llega cada cambio y donde Alex lo prueba cuando quiere, solo con datos de prueba: nunca los
+  ajustes ni las expansiones de Alex. Lleva «DEV» en el icono (pastilla ámbar, `src/icons.rs` y
+  los logos de la MSIX en `build-msix.ps1`) y «Khipu Dev» en el título (`install::is_dev`).
+  Firmada con un certificado de desarrollo creado en el equipo de Alex (`CurrentUser\My`) y confiado solo ahí
   (`LocalMachine\TrustedPeople`, `packaging/trust-dev-cert.ps1`, una vez, con UAC). Sin modo de
   desarrollador. Sus datos: `%LOCALAPPDATA%\Packages\AlexPalacios.Khipu.Dev_6pha5dhx37rs8\LocalState`.
 - **No corren las dos a la vez**: comparten el mutex de instancia única (dos espanso escribirían

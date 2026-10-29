@@ -155,6 +155,17 @@ pub fn is_packaged() -> bool {
     package_family_name().is_some()
 }
 
+/// Whether this is Khipu Dev, the package every change reaches before a release. It wears «Dev»
+/// on its icon and in its title so it is never taken for the Store's copy.
+pub fn is_dev() -> bool {
+    package_family_name().is_some_and(|family| family.starts_with("AlexPalacios.Khipu.Dev_"))
+}
+
+/// The name on this copy's windows and dialogs.
+pub fn app_name() -> &'static str {
+    if is_dev() { "Khipu Dev" } else { "Khipu" }
+}
+
 fn package_family_name() -> Option<&'static str> {
     static FAMILY: OnceLock<Option<String>> = OnceLock::new();
     FAMILY

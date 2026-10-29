@@ -101,6 +101,45 @@ Copy-Item -Recurse (Join-Path $pf ".espanso"), (Join-Path $pf ".espanso-runtime"
 # the list of apps ask for. Only qualified files: resources.pri (below) tells Windows which one to
 # take; without it Windows finds none of them, which is what Start showed until 0.0.5.
 Copy-Item (Join-Path $repo "assets\khipu\msix\Assets\*.png") (Join-Path $stage "Assets")
+if ($Channel -eq "Dev") {
+    # Khipu Dev wears «DEV» on every logo, the same label src\icons.rs draws on its window and tray
+    # icons, from the same geometry on the 40-unit canvas: an amber pill ringed clear, and the
+    # letters in ink. A wide logo takes it at the foot of its centred square.
+    Add-Type -AssemblyName System.Drawing
+    function Stadium([float]$s, [float]$r) {
+        $p = New-Object System.Drawing.Drawing2D.GraphicsPath
+        $p.AddArc((10 - $r) * $s, (32.5 - $r) * $s, 2 * $r * $s, 2 * $r * $s, 90, 180)
+        $p.AddArc((30 - $r) * $s, (32.5 - $r) * $s, 2 * $r * $s, 2 * $r * $s, 270, 180)
+        $p.CloseFigure()
+        $p
+    }
+    $letters = @(
+        @(11.0, 29.0, 11.0, 36.0), @(11.0, 29.0, 13.2, 29.0), @(13.2, 29.0, 15.4, 31.0),
+        @(15.4, 31.0, 15.4, 34.0), @(15.4, 34.0, 13.2, 36.0), @(13.2, 36.0, 11.0, 36.0),
+        @(18.0, 29.0, 18.0, 36.0), @(18.0, 29.0, 21.8, 29.0), @(18.0, 32.5, 21.2, 32.5),
+        @(18.0, 36.0, 21.8, 36.0), @(24.2, 29.0, 26.7, 36.0), @(26.7, 36.0, 29.2, 29.0))
+    foreach ($file in Get-ChildItem (Join-Path $stage "Assets\*.png")) {
+        $bmp = [System.Drawing.Bitmap]::FromFile($file.FullName)
+        $logo = New-Object System.Drawing.Bitmap $bmp
+        $bmp.Dispose()
+        $side = [Math]::Min($logo.Width, $logo.Height)
+        $s = $side / 40
+        $g = [System.Drawing.Graphics]::FromImage($logo)
+        $g.SmoothingMode = "AntiAlias"
+        $g.PixelOffsetMode = "HighQuality"
+        $g.TranslateTransform(($logo.Width - $side) / 2, ($logo.Height - $side) / 2)
+        $g.CompositingMode = "SourceCopy"
+        $g.FillPath((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::Transparent)), (Stadium $s 7.0))
+        $g.CompositingMode = "SourceOver"
+        $g.FillPath((New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(0xF5, 0xB0, 0x00))), (Stadium $s 5.5))
+        $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(0x21, 0x1B, 0x37)), (1.9 * $s)
+        $pen.StartCap = "Round"; $pen.EndCap = "Round"
+        foreach ($l in $letters) { $g.DrawLine($pen, $l[0] * $s, $l[1] * $s, $l[2] * $s, $l[3] * $s) }
+        $g.Dispose()
+        $logo.Save($file.FullName, [System.Drawing.Imaging.ImageFormat]::Png)
+        $logo.Dispose()
+    }
+}
 
 # --- Manifest. XML-escaped, since names and descriptions are free text.
 function X([string]$s) { [System.Security.SecurityElement]::Escape($s) }

@@ -1,4 +1,4 @@
-//! Khipu's identity — a bird on a knotted cord — at the size and contrast of the surface showing it.
+//! Khipu's identity â€” a bird on a knotted cord â€” at the size and contrast of the surface showing it.
 //!
 //! Explorer reads the multi-size resource in the executable, and the MSIX logos are files; both are
 //! the identity pack in `assets/khipu/` exactly as delivered, and nothing here writes them. What the
@@ -70,11 +70,14 @@ impl Appearance {
         Self { size, tones, accent }
     }
 
-    /// `news` adds the dot in the corner that says «Novedades» is waiting.
+    /// `news` adds the dot in the corner that says Â«NovedadesÂ» is waiting.
     pub fn tray_icon(self, paused: bool, news: bool) -> Result<tray_icon::Icon, String> {
         let mut data = symbol(self.size, if paused { self.tones.paused } else { self.tones.active });
         if news {
             badge(&mut data, self.accent);
+        }
+        if crate::install::is_dev() {
+            dev_label(&mut data);
         }
         tray_icon::Icon::from_rgba(data.rgba, data.width, data.height).map_err(|e| e.to_string())
     }
@@ -82,27 +85,42 @@ impl Appearance {
 
 /// The window's icon until [`apply_window`] puts the exe's own resource on it.
 pub fn window_fallback() -> Option<IconData> {
-    Some(app(64))
+    Some(window(64))
 }
 
 /// winit exposes separate small/title and large/taskbar icons on Windows. Let the resource loader
-/// choose the exact supplied size, rather than shrink a 256px icon into the 16px title bar.
+/// choose the exact supplied size, rather than shrink a 256px icon into the 16px title bar. Khipu
+/// Dev draws its own instead: the exe's resource has no Â«DEVÂ» on it.
 pub fn apply_window(window: &winit::window::Window) -> u32 {
     let dpi = (window.scale_factor() * 96.0).round() as u32;
     let load = |metric| {
         let size = unsafe { GetSystemMetricsForDpi(metric, dpi) }.clamp(8, 256) as u32;
-        winit::window::Icon::from_resource(1, Some(winit::dpi::PhysicalSize::new(size, size)))
-            .or_else(|_| {
-                // Preserve the existing build-without-Windows-SDK behaviour: resources are
-                // optional on that developer machine, but the running app still has an icon.
-                let data = app(size);
-                winit::window::Icon::from_rgba(data.rgba, data.width, data.height)
-            })
-            .ok()
+        let drawn = || {
+            // Preserve the existing build-without-Windows-SDK behaviour: resources are
+            // optional on that developer machine, but the running app still has an icon.
+            let data = self::window(size);
+            winit::window::Icon::from_rgba(data.rgba, data.width, data.height)
+        };
+        if crate::install::is_dev() {
+            drawn().ok()
+        } else {
+            winit::window::Icon::from_resource(1, Some(winit::dpi::PhysicalSize::new(size, size)))
+                .or_else(|_| drawn())
+                .ok()
+        }
     };
     window.set_window_icon(load(SM_CXSMICON));
     window.set_taskbar_icon(load(SM_CXICON));
     dpi
+}
+
+/// The app icon a window wears: with Â«DEVÂ» on Khipu Dev.
+fn window(px: u32) -> IconData {
+    let mut data = app(px);
+    if crate::install::is_dev() {
+        dev_label(&mut data);
+    }
+    data
 }
 
 /// The bird alone, in one colour, `px` pixels square: the tray's icon.
@@ -116,39 +134,106 @@ const DOT_CENTRE: Point = [33.5, 6.5];
 const DOT_RADIUS: f32 = 6.0;
 const DOT_GAP: f32 = 2.5;
 
-/// Puts the news dot on an icon already drawn. Each pixel is sampled like the bird, so the dot is
-/// as round at 16 px as at 64.
+/// Puts the news dot on an icon already drawn.
 fn badge(icon: &mut IconData, accent: [u8; 3]) {
+    let (dot, clear) = (DOT_RADIUS * DOT_RADIUS, (DOT_RADIUS + DOT_GAP).powi(2));
+    stamp(icon, |x, y| {
+        let d = (x - DOT_CENTRE[0]).powi(2) + (y - DOT_CENTRE[1]).powi(2);
+        if d <= dot {
+            Mark::Paint(accent)
+        } else if d <= clear {
+            Mark::Clear
+        } else {
+            Mark::Keep
+        }
+    });
+}
+
+/// Khipu Dev's label, on the 40-unit canvas: an amber pill across the foot of the icon with Â«DEVÂ»
+/// in ink, ringed clear like the dot. Below 24 px the letters blur into the pill, which still
+/// tells the two copies apart.
+const LABEL: [Point; 2] = [[10.0, 32.5], [30.0, 32.5]];
+const LABEL_RADIUS: f32 = 5.5;
+const LABEL_GAP: f32 = 1.5;
+const AMBER: [u8; 3] = [0xF5, 0xB0, 0x00];
+const LETTER_HALF_WIDTH: f32 = 0.95;
+const LETTERS: [[Point; 2]; 12] = [
+    // D: the stem, and the bowl in four strokes.
+    [[11.0, 29.0], [11.0, 36.0]],
+    [[11.0, 29.0], [13.2, 29.0]],
+    [[13.2, 29.0], [15.4, 31.0]],
+    [[15.4, 31.0], [15.4, 34.0]],
+    [[15.4, 34.0], [13.2, 36.0]],
+    [[13.2, 36.0], [11.0, 36.0]],
+    // E
+    [[18.0, 29.0], [18.0, 36.0]],
+    [[18.0, 29.0], [21.8, 29.0]],
+    [[18.0, 32.5], [21.2, 32.5]],
+    [[18.0, 36.0], [21.8, 36.0]],
+    // V
+    [[24.2, 29.0], [26.7, 36.0]],
+    [[26.7, 36.0], [29.2, 29.0]],
+];
+
+/// Puts Â«DEVÂ» on an icon already drawn.
+fn dev_label(icon: &mut IconData) {
+    let (pill, clear) = (LABEL_RADIUS * LABEL_RADIUS, (LABEL_RADIUS + LABEL_GAP).powi(2));
+    let ink = LETTER_HALF_WIDTH * LETTER_HALF_WIDTH;
+    stamp(icon, |x, y| {
+        let d = segment_distance_squared(x, y, LABEL[0], LABEL[1]);
+        if d > clear {
+            Mark::Keep
+        } else if d > pill {
+            Mark::Clear
+        } else if LETTERS.iter().any(|[a, b]| segment_distance_squared(x, y, *a, *b) <= ink) {
+            Mark::Paint(INK)
+        } else {
+            Mark::Paint(AMBER)
+        }
+    });
+}
+
+/// What a mark does to one sample of the icon under it.
+enum Mark {
+    Keep,
+    Clear,
+    Paint([u8; 3]),
+}
+
+/// Lays a mark over an icon already drawn. Each pixel is sampled like the bird, so a mark is as
+/// round at 16 px as at 64.
+fn stamp(icon: &mut IconData, mark: impl Fn(f32, f32) -> Mark) {
     let px = icon.width;
     let n = 8;
     let step = 40.0 / (px * n) as f32;
-    let (dot, clear) = (DOT_RADIUS * DOT_RADIUS, (DOT_RADIUS + DOT_GAP).powi(2));
     for py in 0..px {
         for qx in 0..px {
-            let (mut on_dot, mut in_gap) = (0u32, 0u32);
+            let (mut painted, mut kept, mut colour) = (0u32, 0u32, [0u32; 3]);
             for sy in 0..n {
                 let y = ((py * n + sy) as f32 + 0.5) * step;
                 for sx in 0..n {
                     let x = ((qx * n + sx) as f32 + 0.5) * step;
-                    let d = (x - DOT_CENTRE[0]).powi(2) + (y - DOT_CENTRE[1]).powi(2);
-                    if d <= dot {
-                        on_dot += 1;
-                    } else if d <= clear {
-                        in_gap += 1;
+                    match mark(x, y) {
+                        Mark::Keep => kept += 1,
+                        Mark::Clear => {}
+                        Mark::Paint(c) => {
+                            painted += 1;
+                            for i in 0..3 { colour[i] += c[i] as u32; }
+                        }
                     }
                 }
             }
-            if on_dot + in_gap == 0 {
+            let samples = n * n;
+            if kept == samples {
                 continue;
             }
-            let samples = (n * n) as f32;
-            let (f_dot, f_bird) = (on_dot as f32 / samples, 1.0 - (on_dot + in_gap) as f32 / samples);
             let pixel = &mut icon.rgba[((py * px + qx) * 4) as usize..][..4];
-            let bird = pixel[3] as f32 / 255.0 * f_bird;
-            let alpha = f_dot + bird;
+            let f_mark = painted as f32 / samples as f32;
+            let under = pixel[3] as f32 / 255.0 * kept as f32 / samples as f32;
+            let alpha = f_mark + under;
             for i in 0..3 {
                 pixel[i] = if alpha > 0.0 {
-                    ((accent[i] as f32 * f_dot + pixel[i] as f32 * bird) / alpha).round() as u8
+                    ((colour[i] as f32 / samples as f32 + pixel[i] as f32 * under) / alpha).round() as u8
                 } else {
                     0
                 };
@@ -415,6 +500,27 @@ mod tests {
             let ink: u32 = plain.rgba.chunks(4).map(|p| p[3] as u32).sum();
             let lost: u32 = plain.rgba.chunks(4).zip(news.rgba.chunks(4)).map(|(a, b)| a[3].saturating_sub(b[3]) as u32).sum();
             assert!(lost * 50 < ink, "{size}: lost {lost} of {ink}");
+        }
+    }
+
+    #[test]
+    fn the_dev_label_keeps_to_the_foot_of_the_icon() {
+        for size in [16, 20, 24, 32, 48, 64, 256] {
+            let plain = app(size);
+            let mut dev = plain.clone();
+            dev_label(&mut dev);
+            // Past the letters the pill is amber, solid.
+            let c = |p: Point| ((p[1] / 40.0 * size as f32) as u32 * size + (p[0] / 40.0 * size as f32) as u32) as usize * 4;
+            if size >= 32 {
+                assert_eq!(&dev.rgba[c([33.0, 32.5])..][..4], &[AMBER[0], AMBER[1], AMBER[2], 0xFF], "{size}");
+            }
+            // Above it, the bird's head and body are untouched.
+            for (i, (a, b)) in plain.rgba.chunks(4).zip(dev.rgba.chunks(4)).enumerate() {
+                let y = i as u32 / size;
+                if (y as f32 + 1.0) / size as f32 * 40.0 < LABEL[0][1] - LABEL_RADIUS - LABEL_GAP {
+                    assert_eq!(a, b, "{size} at row {y}");
+                }
+            }
         }
     }
 

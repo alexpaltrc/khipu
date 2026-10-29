@@ -170,7 +170,7 @@ impl SearchWindow {
     /// instead, sent when they are meant.
     pub fn keep_alive(&self, ctx: &egui::Context) {
         let builder = egui::ViewportBuilder::default()
-            .with_title("Khipu")
+            .with_title(crate::install::app_name())
             .with_inner_size(egui::vec2(WINDOW_WIDTH, 120.0))
             .with_decorations(false)
             .with_resizable(false)
@@ -399,7 +399,7 @@ fn own_hwnd() -> isize {
         let mut title = [0u16; 32];
         let len = unsafe { GetWindowTextW(hwnd, &mut title) }.max(0) as usize;
         if ex_style & WS_EX_TOPMOST.0 != 0
-            && String::from_utf16_lossy(&title[..len]) == "Khipu"
+            && String::from_utf16_lossy(&title[..len]) == crate::install::app_name()
         {
             unsafe { *(found.0 as *mut isize) = hwnd.0 as isize };
             return false.into();

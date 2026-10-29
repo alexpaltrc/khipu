@@ -109,7 +109,7 @@ fn acquire_single_instance_guard(t: &'static i18n::Strings) -> InstanceGuard {
     };
     if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
         rfd::MessageDialog::new()
-            .set_title("Khipu")
+            .set_title(install::app_name())
             .set_description(t.already_running)
             .set_level(rfd::MessageLevel::Info)
             .show();
@@ -255,7 +255,7 @@ fn main() {
         Err(e) => {
             let message = e.friendly_message(t);
             rfd::MessageDialog::new()
-                .set_title("Khipu")
+                .set_title(install::app_name())
                 .set_description(message.as_str())
                 .set_level(rfd::MessageLevel::Error)
                 .show();
@@ -302,7 +302,7 @@ fn main() {
                 ));
             }
             rfd::MessageDialog::new()
-                .set_title("Khipu")
+                .set_title(install::app_name())
                 .set_description(message)
                 .set_level(rfd::MessageLevel::Error)
                 .show();
@@ -344,7 +344,7 @@ fn main() {
     };
 
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title(if EXPERIMENTAL { "Khipu · Vista de prueba" } else { "Khipu" })
+        .with_title(if EXPERIMENTAL { "Khipu · Vista de prueba" } else { install::app_name() })
         .with_inner_size(fit(display::DEFAULT_SIZE))
         // Not passed through `fit`. This is the floor, and clamping a floor to the screen is how
         // a small primary monitor ends up licensing a window too small to use on a large one.

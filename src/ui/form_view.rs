@@ -459,7 +459,7 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
     }
     .map_or(720.0, |a| a.height * 0.85);
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("Khipu")
+        .with_title(crate::install::app_name())
         .with_inner_size([WIDTH, 320.0])
         .with_resizable(false)
         .with_maximize_button(false)
