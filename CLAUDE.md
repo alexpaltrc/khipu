@@ -198,6 +198,9 @@ solo el índice para saber cuál abrir.
 4. Local: **probarlo por medición sobre el binario real**, contra el build del commit anterior
    (o el ZIP de la última versión en GitHub Releases), mismo escenario antes y después. En la
    nube no se puede: dejarlo anotado como pendiente.
+   Si toca la interfaz, revisar con capturas ampliadas **alineación** (línea base entre fuentes,
+   iconos junto a texto, márgenes y centrados, al píxel), **optimización** (medida) y
+   **belleza** (igual o mejor que antes). Lo desalineado que se vea de paso, se dice y se arregla.
 5. Local: actualizar Khipu Dev (`packaging/update-dev.ps1 -NoPull`).
 6. Commit con la sección *Unreleased* de `CHANGELOG.md` al día.
 7. Informar en español, incluyendo lo que quedó sin probar y por qué.
