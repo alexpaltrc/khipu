@@ -189,7 +189,7 @@ fn choice(ui: &mut egui::Ui, salt: &str, index: usize, options: &[String], answe
 
 /// The text as it will be inserted: what is fixed in the ordinary ink, each answer in the accent,
 /// and a blank still empty shown by its name, faintly. What was last copied is in the accent too,
-/// or, when `copied` is `None` (the editor's «Probar»), said in words, faintly.
+/// or, when `copied` is `None` (the editor's preview), said in words, faintly.
 pub fn result_preview(
     ui: &mut egui::Ui,
     spec: &FormSpec,
@@ -197,36 +197,49 @@ pub fn result_preview(
     copied: Option<&str>,
     lang: Lang,
 ) {
-    let is_light = !ui.visuals().dark_mode;
-    let font = egui::TextStyle::Body.resolve(ui.style());
-    let ink = ui.visuals().text_color();
-    let answer_ink = accent(ui.visuals());
-    let faint = secondary_text(is_light);
     controls::inset_frame(ui).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        let mut job = egui::text::LayoutJob::default();
-        job.wrap.max_width = ui.available_width();
-        let piece = |job: &mut egui::text::LayoutJob, text: &str, color: egui::Color32| {
-            job.append(text, 0.0, egui::TextFormat::simple(font.clone(), color));
-        };
-        for part in pieces(&spec.template, spec.copied.as_deref()) {
-            match part {
-                Piece::Text(text) => piece(&mut job, text, ink),
-                Piece::Blank(name, _) => match answer_of(spec, answers, name) {
-                    "" => piece(&mut job, &label(name), faint),
-                    answer => piece(&mut job, answer, answer_ink),
-                },
-                Piece::Copied(_) => match copied {
-                    Some(text) => piece(&mut job, text, answer_ink),
-                    None => piece(&mut job, copied_label(lang), faint),
-                },
-            }
-        }
+        let job = result_job(ui, spec, answers, copied, lang, ui.available_width());
         egui::ScrollArea::vertical()
             .max_height(PREVIEW_MAX)
             .auto_shrink([false, true])
             .show(ui, |ui| ui.label(job));
     });
+}
+
+/// The text of [`result_preview`] without its box, `wrap` wide, for the editor's own preview.
+pub fn result_job(
+    ui: &egui::Ui,
+    spec: &FormSpec,
+    answers: &[String],
+    copied: Option<&str>,
+    lang: Lang,
+    wrap: f32,
+) -> egui::text::LayoutJob {
+    let is_light = !ui.visuals().dark_mode;
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let ink = ui.visuals().text_color();
+    let answer_ink = accent(ui.visuals());
+    let faint = secondary_text(is_light);
+    let mut job = egui::text::LayoutJob::default();
+    job.wrap.max_width = wrap;
+    let piece = |job: &mut egui::text::LayoutJob, text: &str, color: egui::Color32| {
+        job.append(text, 0.0, egui::TextFormat::simple(font.clone(), color));
+    };
+    for part in pieces(&spec.template, spec.copied.as_deref()) {
+        match part {
+            Piece::Text(text) => piece(&mut job, text, ink),
+            Piece::Blank(name, _) => match answer_of(spec, answers, name) {
+                "" => piece(&mut job, &label(name), faint),
+                answer => piece(&mut job, answer, answer_ink),
+            },
+            Piece::Copied(_) => match copied {
+                Some(text) => piece(&mut job, text, answer_ink),
+                None => piece(&mut job, copied_label(lang), faint),
+            },
+        }
+    }
+    job
 }
 
 /// The words of the window, which has no [`crate::app::AppState`] to ask.

@@ -20,9 +20,14 @@ was published.
   expansion now sits in its own column on the right and stays put while the form scrolls, so it
   reads as something to look at rather than one more thing to fill in. In a narrow window it stays
   under the text, as before. The sentence above the form that said the same thing again is gone.
-- **A new field asks for its name.** After **+ Add › A field to fill in**, the cursor jumps to the
-  new field's name with «field 1» selected, so what you type next names it, and you see the
-  marker in the text change with it.
+- **Fields live in the text.** A field to fill in is now a rounded pill inside the text, moved and
+  deleted in one piece: the cursor steps over it, and nothing typed lands inside it. Select some
+  words and **Make it a field** floats above them; click a pill to set its name, its kind and what
+  it starts with, or to turn it back into text. Several lines become a long text, and
+  `a / b / c` becomes a list with those options. The «Fields to fill in» section and **Try it**
+  are gone: the preview column is now the form itself, so you fill it in there and see the result
+  above it. A **Paste** button sits beside **+ Add**. A new field asks for its name, ready to type
+  over.
 
 ### Fixed
 
