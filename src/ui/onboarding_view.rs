@@ -759,11 +759,7 @@ fn try_it(ui: &mut egui::Ui, state: &mut AppState, enter: &Enter, focus_pending:
         let mut job = egui::text::LayoutJob { halign: egui::Align::Center, ..Default::default() };
         job.wrap.max_width = ui.available_width();
         job.append(before, 0.0, egui::TextFormat::simple(body.clone(), quiet));
-        job.append(
-            PROBE_TRIGGER,
-            0.0,
-            egui::TextFormat::simple(egui::FontId::monospace(body.size), crate::app::accent(ui.visuals())),
-        );
+        job.append(PROBE_TRIGGER, 0.0, controls::trigger_format(ui, &body, crate::app::accent(ui.visuals())));
         job.append(after, 0.0, egui::TextFormat::simple(body, quiet));
         ui.add(egui::Label::new(job).wrap());
     });
@@ -815,7 +811,7 @@ fn try_it(ui: &mut egui::Ui, state: &mut AppState, enter: &Enter, focus_pending:
     hint.append(
         PROBE_TRIGGER,
         0.0,
-        egui::TextFormat::simple(egui::FontId::monospace(body.size), crate::app::accent(ui.visuals()).gamma_multiply(shown_hint)),
+        controls::trigger_format(ui, &body, crate::app::accent(ui.visuals()).gamma_multiply(shown_hint)),
     );
     hint.append(after, 0.0, egui::TextFormat::simple(body, quiet));
     let ok = ui.painter().layout_job(ok);

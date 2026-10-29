@@ -19,7 +19,7 @@ was published.
 - **The preview stays beside the form.** In a window wide enough, the preview of a new or edited
   expansion now sits in its own column on the right and stays put while the form scrolls, so it
   reads as something to look at rather than one more thing to fill in. In a narrow window it stays
-  under the text, as before.
+  under the text, as before. The sentence above the form that said the same thing again is gone.
 - **A new field asks for its name.** After **+ Add › A field to fill in**, the cursor jumps to the
   new field's name with «field 1» selected, so what you type next names it, and you see the
   marker in the text change with it.
@@ -43,6 +43,9 @@ was published.
   now opens centred on the monitor of the app you were typing in, not always on the main one.
 - **«No folder» only when it has something.** The folder menu no longer lists «No folder» with a
   0 when every expansion is in a folder.
+- **Triggers sit on the line.** A trigger inside a sentence, like «;khipu» in the welcome, no
+  longer sits higher than the words around it, and the trigger at the top of the preview is
+  centred above its line.
 
 ## 0.0.7 — 2026-10-13
 

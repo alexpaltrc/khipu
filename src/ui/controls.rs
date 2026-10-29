@@ -304,6 +304,30 @@ pub fn code(text: impl Into<String>, visuals: &egui::Visuals) -> egui::RichText 
     egui::RichText::new(text).monospace().color(accent(visuals))
 }
 
+/// The format of a trigger inside a line of `body` text: monospaced, in `color`, on the words'
+/// baseline.
+///
+/// A row that mixes two faces lines them up by their bottoms, and Cascadia's descent is not Segoe's,
+/// so a trigger laid out plainly among words sits higher than they do. A glyph's baseline lands at
+/// the row's bottom less its line height and plus its ascent; a trigger given its own ascent plus
+/// the words' descent as its line height therefore shares their baseline. The words' sections keep
+/// the default bottom alignment.
+pub fn trigger_format(ui: &egui::Ui, body: &egui::FontId, color: egui::Color32) -> egui::TextFormat {
+    let mono = egui::FontId::monospace(body.size);
+    let measure = |font: egui::FontId| {
+        let line = ui.painter().layout_no_wrap("A".into(), font, color);
+        (baseline(&line), line.size().y)
+    };
+    let (words_base, words_height) = measure(body.clone());
+    let (mono_base, _) = measure(mono.clone());
+    egui::TextFormat {
+        font_id: mono,
+        color,
+        line_height: Some(mono_base + words_height - words_base),
+        ..Default::default()
+    }
+}
+
 /// The label above a field.
 pub fn field_label(text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text)
@@ -381,6 +405,9 @@ pub fn section_frame(is_light: bool) -> egui::Frame {
         .inner_margin(egui::Margin::same(SECTION_PAD))
 }
 
+/// The space above and below what an [`inset_frame`] holds.
+pub const INSET_MARGIN_Y: f32 = 10.0;
+
 /// A block sunk into a surface — the whole of what an expansion inserts, the bulk-action bar.
 /// A step below the surface and edged with the divider: part of the thing it sits in, not a card.
 pub fn inset_frame(ui: &egui::Ui) -> egui::Frame {
@@ -389,7 +416,7 @@ pub fn inset_frame(ui: &egui::Ui) -> egui::Frame {
         .fill(win_sunken_for(is_light))
         .stroke(egui::Stroke::new(1.0, hairline(is_light)))
         .corner_radius(RADIUS_INSET)
-        .inner_margin(egui::Margin::symmetric(12, 10))
+        .inner_margin(egui::Margin::symmetric(12, INSET_MARGIN_Y as i8))
 }
 
 /// A folder's name shown as a label. Sits a step *below* the card's colour, so it reads as stamped

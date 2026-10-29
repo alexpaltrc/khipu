@@ -40,12 +40,12 @@
 //!
 //! ## Three questions, in order
 //!
-//! A sentence on top says what the expansion will do, as it is being written: «Cuando escribas
-//! :hola, Khipu lo cambiará por…». Under it, three numbered questions: **¿Qué vas a escribir?**,
-//! **¿Qué quieres que aparezca?** and **¿Algo más?**. A step whose previous one is still empty is
-//! drawn faint, never locked: the order is a suggestion, and anybody may fill them in any order.
-//! The date and the blanks wait under «+ Añadir» until somebody asks for them; the name, the folder
-//! and the star wait folded inside the third step, which is optional and says so.
+//! Three numbered questions: **¿Qué vas a escribir?**, **¿Qué quieres que aparezca?** and **¿Algo
+//! más?**. A step whose previous one is still empty is drawn faint, never locked: the order is a
+//! suggestion, and anybody may fill them in any order. The date and the blanks wait under «+ Añadir»
+//! until somebody asks for them; the name, the folder and the star wait folded inside the third
+//! step, which is optional and says so. What the expansion will do is shown once, in the preview,
+//! and nothing on the form repeats it.
 //!
 //! ## Leaving is asked about only when there is something to lose
 //!
@@ -1064,111 +1064,6 @@ fn note_step_touch(ui: &egui::Ui, number: usize, area: egui::Rect) {
     }
 }
 
-/// The first line of what will appear, short enough to quote inside a sentence.
-fn quoted_result(edit: &EditState) -> Option<String> {
-    const LONGEST: usize = 48;
-    let whole = match &edit.kind {
-        Kind::Text { replace } => replace.clone(),
-        Kind::Date { preset, custom_format, custom_tz, month_lang } => match preset {
-            Some(p) => p.sample(*month_lang),
-            None if custom_format.trim().is_empty() => String::new(),
-            None => datefmt::sample(custom_format, (!custom_tz.trim().is_empty()).then(|| custom_tz.trim()), *month_lang),
-        },
-    };
-    let mut lines = whole.lines().map(str::trim).filter(|l| !l.is_empty());
-    let first = lines.next()?;
-    let more = lines.next().is_some();
-    if first.chars().count() > LONGEST {
-        let cut: String = first.chars().take(LONGEST).collect();
-        Some(format!("{}…", cut.trim_end()))
-    } else if more {
-        // «Saludos,…» reads as a typo; «Saludos…» as a line that goes on.
-        Some(format!("{}…", first.trim_end_matches([',', ';', ':'])))
-    } else {
-        Some(first.to_string())
-    }
-}
-
-/// «Cuando escribas :hola, Khipu lo cambiará por "Hola, ¿qué tal?".» — the whole expansion in one
-/// sentence, kept up to date as it is written.
-///
-/// One wrapped label rather than a row of pieces, so a long result wraps like the prose it is part
-/// of. The trigger carries the accent and the monospace, as it does everywhere it is something to
-/// type; what appears is in the ordinary ink, and the words around both are muted.
-fn live_sentence(ui: &mut egui::Ui, state: &AppState, edit: &EditState, is_light: bool) {
-    let template = studio::text(
-        state,
-        "Cuando escribas {trigger}, Khipu lo cambiará por {result}.",
-        "When you type {trigger}, Khipu will change it to {result}.",
-        "Kapag tinype mo ang {trigger}, papalitan ito ng Khipu ng {result}.",
-        "जब आप {trigger} लिखेंगे, Khipu उसे {result} से बदल देगा।",
-    );
-    // The one marker a reader cannot guess from its name alone, said in words while it is there.
-    let copied = match &edit.kind {
-        Kind::Text { replace } => edit.copied_in(replace).map(|name| format!("{{{{{name}}}}}")),
-        Kind::Date { .. } => None,
-    };
-    let template = match &copied {
-        Some(_) => format!(
-            "{template} {}",
-            studio::text(
-                state,
-                "En {copied} irá lo último que hayas copiado.",
-                "{copied} will be whatever you last copied.",
-                "Sa {copied} mapupunta ang huli mong kinopya.",
-                "{copied} की जगह वह आएगा जो आपने आखिरी बार कॉपी किया।",
-            )
-        ),
-        None => template.to_string(),
-    };
-    let template = template.as_str();
-    let (open, close) = match state.settings.lang {
-        Lang::Es => ("«", "»"),
-        _ => ("“", "”"),
-    };
-    let trigger = edit.trigger();
-    let trigger = if trigger.is_empty() { "…".to_string() } else { trigger };
-    let result = match quoted_result(edit) {
-        Some(result) => egui::RichText::new(format!("{open}{result}{close}")).color(ui.visuals().text_color()),
-        None => controls::muted(
-            studio::text(
-                state,
-                "lo que escribas en el paso 2",
-                "what you write in step 2",
-                "ang isusulat mo sa hakbang 2",
-                "चरण 2 में आप जो लिखेंगे",
-            ),
-            is_light,
-        ),
-    };
-    let mut job = egui::text::LayoutJob::default();
-    let style = ui.style().clone();
-    let mut put = |text: egui::RichText| {
-        text.append_to(&mut job, &style, egui::FontSelection::Default, egui::Align::Center);
-    };
-    let mut rest = template;
-    while let Some(at) = rest.find('{') {
-        put(controls::muted(&rest[..at], is_light));
-        let tail = &rest[at..];
-        if let Some(after) = tail.strip_prefix("{trigger}") {
-            put(controls::code(trigger.clone(), ui.visuals()).strong());
-            rest = after;
-        } else if let Some(after) = tail.strip_prefix("{result}") {
-            put(result.clone());
-            rest = after;
-        } else if let (Some(after), Some(copied)) = (tail.strip_prefix("{copied}"), &copied) {
-            put(egui::RichText::new(copied).color(crate::app::accent(ui.visuals())));
-            rest = after;
-        } else {
-            put(controls::muted("{", is_light));
-            rest = &tail[1..];
-        }
-    }
-    put(controls::muted(rest, is_light));
-    job.wrap.max_width = ui.available_width();
-    ui.add(egui::Label::new(job).wrap());
-}
-
 /// What you type: the two boxes that make the trigger, what they add up to, and anything wrong with it.
 fn when_you_type(
     ui: &mut egui::Ui,
@@ -1914,22 +1809,18 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, max_heigh
     ui.add_space(controls::GAP_TIGHT);
     controls::inset_frame(ui).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        ui.add(
-            egui::Label::new(
-                controls::code(
-                    if trigger.is_empty() { "…" } else { &trigger },
-                    ui.visuals(),
-                )
-                .strong(),
-            )
-            .wrap()
-            .selectable(false),
-        );
-        ui.add_space(controls::GAP);
-        let (rule, _) =
-            ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
-        ui.painter()
-            .rect_filled(rule, 0, crate::app::hairline(is_light));
+        // The trigger sits midway between the box's top edge and the rule under it, measured by its
+        // ink: its line box carries Cascadia's descent below the letters, which left it hugging the
+        // top. The rule is drawn at the foot of the trigger's own rectangle, with nothing between.
+        let width = ui.available_width();
+        let galley = egui::WidgetText::from(controls::code(if trigger.is_empty() { "…" } else { &trigger }, ui.visuals()).strong())
+            .into_galley(ui, Some(egui::TextWrapMode::Wrap), width, egui::TextStyle::Body);
+        let ink = galley.mesh_bounds;
+        let above = controls::INSET_MARGIN_Y + ink.min.y;
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(width, ink.max.y + above + 1.0), egui::Sense::hover());
+        ui.painter().galley(rect.min, galley, ui.visuals().text_color());
+        let rule = egui::Rect::from_min_max(egui::pos2(rect.left(), rect.bottom() - 1.0), rect.max);
+        ui.painter().rect_filled(rule, 0, crate::app::hairline(is_light));
         ui.add_space(controls::GAP);
         // Rounded down to whole lines, so the box never shows the top half of a line of text.
         let line = ui.text_style_height(&egui::TextStyle::Body);
@@ -2208,9 +2099,6 @@ fn show_form(
     inline_preview: bool,
     is_light: bool,
 ) {
-    live_sentence(ui, state, &edit, is_light);
-    ui.add_space(PART_GAP);
-
     let first = studio::text(state, "¿Qué vas a escribir?", "What will you type?", "Ano ang ita-type mo?", "आप क्या लिखेंगे?");
     step_heading(ui, 1, first, None, egui::Sense::hover());
     ui.add_space(controls::GAP_ROW);
