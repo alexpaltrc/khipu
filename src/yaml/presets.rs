@@ -111,6 +111,11 @@ pub fn month_lang_of(var: &VarEntry) -> Lang {
     datefmt::lang_from_locale_tag(var.param_str("locale"))
 }
 
+/// What a stored date var writes right now.
+pub fn sample_of(var: &VarEntry) -> String {
+    datefmt::sample(var.param_str("format").unwrap_or(""), var.param_str("tz"), month_lang_of(var))
+}
+
 /// Builds a custom (non-preset) date var from a user-chosen strftime format and optional IANA tz,
 /// for the "avanzado" escape hatch inside the date picker.
 pub fn build_custom_date_var(

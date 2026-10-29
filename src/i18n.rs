@@ -261,8 +261,6 @@ pub struct Strings {
     // --- edit form -----------------------------------------------------------------------
     pub edit_title_new: &'static str,
     pub edit_title_existing: &'static str,
-    pub kind_text: &'static str,
-    pub kind_date: &'static str,
     pub preset_date_only: &'static str,
     pub preset_datetime_utc: &'static str,
     pub preset_month_day_year: &'static str,
@@ -495,8 +493,6 @@ pub static EN: Strings = Strings {
 
     edit_title_new: "New expansion",
     edit_title_existing: "Edit expansion",
-    kind_text: "Text",
-    kind_date: "Current date or time",
     preset_date_only: "Date only (ISO 8601)",
     preset_datetime_utc: "Date and time in UTC (ISO 8601)",
     preset_month_day_year: "Month, day and year",
@@ -705,8 +701,6 @@ pub static ES: Strings = Strings {
 
     edit_title_new: "Nueva expansión",
     edit_title_existing: "Editar expansión",
-    kind_text: "Texto",
-    kind_date: "Fecha u hora actual",
     preset_date_only: "Solo la fecha (ISO 8601)",
     preset_datetime_utc: "Fecha y hora en UTC (ISO 8601)",
     preset_month_day_year: "Mes, día y año",
@@ -915,8 +909,6 @@ pub static FIL: Strings = Strings {
 
     edit_title_new: "Bagong expansion",
     edit_title_existing: "I-edit ang expansion",
-    kind_text: "Teksto",
-    kind_date: "Kasalukuyang petsa o oras",
     preset_date_only: "Petsa lamang (ISO 8601)",
     preset_datetime_utc: "Petsa at oras sa UTC (ISO 8601)",
     preset_month_day_year: "Buwan, araw at taon",
@@ -1125,8 +1117,6 @@ pub static HI: Strings = Strings {
 
     edit_title_new: "नया विस्तार",
     edit_title_existing: "विस्तार संपादित करें",
-    kind_text: "टेक्स्ट",
-    kind_date: "वर्तमान दिनांक या समय",
     preset_date_only: "केवल दिनांक (ISO 8601)",
     preset_datetime_utc: "UTC में दिनांक और समय (ISO 8601)",
     preset_month_day_year: "महीना, दिन और वर्ष",

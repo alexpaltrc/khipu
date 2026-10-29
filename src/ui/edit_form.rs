@@ -103,20 +103,51 @@ const SIDE_FORM_MIN: f32 = 520.0;
 const PART_GAP: f32 = 28.0;
 const PREFIX_FIELD_WIDTH: f32 = 72.0;
 
+/// How the date a text holds as `{{fecha}}` is written. Kept while its pill is out of the text, so
+/// cutting it and putting it back does not lose the format.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Kind {
-    Text {
-        replace: String,
-    },
-    Date {
-        preset: Option<DatePreset>,
-        custom_format: String,
-        custom_tz: String,
-        /// Which language a written-out month or weekday is spelled in. English by default, to
-        /// match the interface's own default, and stored in the expansion itself so it reads the
-        /// same on every machine it's shared with.
-        month_lang: Lang,
-    },
+pub struct DateChoice {
+    /// The name inside its `{{...}}`.
+    pub name: String,
+    pub preset: Option<DatePreset>,
+    pub custom_format: String,
+    pub custom_tz: String,
+    /// Which language a written-out month or weekday is spelled in, stored in the expansion itself
+    /// so it reads the same on every machine it's shared with.
+    pub month_lang: Lang,
+}
+
+impl Default for DateChoice {
+    fn default() -> Self {
+        let preset = DatePreset::IsoDateOnly;
+        Self {
+            name: DATE_VAR_NAME.to_string(),
+            preset: Some(preset),
+            custom_format: preset.format().to_string(),
+            custom_tz: String::new(),
+            month_lang: Lang::En,
+        }
+    }
+}
+
+impl DateChoice {
+    fn of(var: &VarEntry) -> Self {
+        Self {
+            name: var.name.clone(),
+            preset: DatePreset::detect(var),
+            custom_format: var.param_str("format").unwrap_or("").to_string(),
+            custom_tz: var.param_str("tz").unwrap_or("").to_string(),
+            month_lang: month_lang_of(var),
+        }
+    }
+
+    /// The `date` variable espanso reads.
+    fn var(&self) -> VarEntry {
+        match self.preset {
+            Some(p) => p.build_var(&self.name, self.month_lang),
+            None => build_custom_date_var(&self.name, &self.custom_format, Some(&self.custom_tz), self.month_lang),
+        }
+    }
 }
 
 /// Splits a stored trigger into its symbol prefix and the word after it.
@@ -154,16 +185,11 @@ pub struct EditState {
     /// Held apart from the word so the two can be edited independently; recombined on save.
     pub prefix: String,
     pub word: String,
-    pub kind: Kind,
+    /// The text it writes, with its blanks, what was last copied and the date as markers.
+    pub replace: String,
     /// What the user calls it, if anything. Written as espanso's `label`, which espanso itself
     /// shows in its own search bar; empty means no `label` at all.
     pub name: String,
-    /// The half of the Texto/Fecha switch that is not on screen, kept so that crossing the switch
-    /// cannot destroy work. Until Guardar is pressed, the replacement text — or a date format built
-    /// block by block — exists nowhere else, and one mis-click used to be enough to lose it with no
-    /// way back. Scratch state only: `build_match` never reads it, so the YAML written is the same
-    /// as it always was.
-    pub stashed_kind: Option<Kind>,
     /// Optional folder this expansion belongs to. Entirely our own bookkeeping, never written
     /// into espanso's YAML.
     pub folder: Option<String>,
@@ -180,6 +206,8 @@ pub struct EditState {
     /// The name inside the `{{...}}` that stands for what was last copied: the one the stored
     /// expansion uses, or the word for it in the language it was first added in. Empty until then.
     pub copied: String,
+    /// How the date is written, whether or not the text holds it.
+    pub date: DateChoice,
 }
 
 impl EditState {
@@ -188,47 +216,31 @@ impl EditState {
             editing_index: None,
             prefix: default_prefix.to_string(),
             word: String::new(),
-            kind: Kind::Text {
-                replace: String::new(),
-            },
+            replace: String::new(),
             name: String::new(),
-            stashed_kind: None,
             folder: None,
             choosing_new_folder: false,
             new_folder_input: String::new(),
             favorite: false,
             fields: Vec::new(),
             copied: String::new(),
+            date: DateChoice::default(),
         }
     }
 
     pub fn new_for_edit(index: usize, m: &SimpleMatch, folder: Option<String>) -> Self {
         let form = m.as_form();
-        let kind = if let Some(form) = &form {
-            // A form is edited as the text it fills in, markers and all.
-            Kind::Text {
-                replace: form.template.clone(),
-            }
-        } else if let Some(var) = m.as_date_var() {
-            Kind::Date {
-                preset: DatePreset::detect(var),
-                custom_format: var.param_str("format").unwrap_or("").to_string(),
-                custom_tz: var.param_str("tz").unwrap_or("").to_string(),
-                month_lang: month_lang_of(var),
-            }
-        } else {
-            Kind::Text {
-                replace: m.replace.clone(),
-            }
-        };
+        // A form is edited as the text it fills in, markers and all.
+        let replace = form.as_ref().map_or_else(|| m.replace.clone(), |f| f.template.clone());
+        let date = form.as_ref().and_then(|f| f.date.as_ref()).or_else(|| m.as_date_var());
         let (prefix, word) = split_trigger(&m.trigger);
         Self {
             editing_index: Some(index),
             prefix,
             word,
-            kind,
+            replace,
             name: m.label.clone().unwrap_or_default(),
-            stashed_kind: None,
+            date: date.map(DateChoice::of).unwrap_or_default(),
             folder,
             choosing_new_folder: false,
             new_folder_input: String::new(),
@@ -245,10 +257,15 @@ impl EditState {
     /// The form the text makes, if it has any `[[name]]` in it: one field per name, in the order the
     /// names first appear, each as set here or a short text if nothing was.
     pub fn form(&self, text: &str) -> Option<FormSpec> {
-        let names = form::names(text);
-        (!names.is_empty()).then(|| FormSpec {
+        let spec = self.as_spec(text);
+        (!spec.fields.is_empty()).then_some(spec)
+    }
+
+    /// The text as a form would see it, blanks or not: what the preview shows.
+    fn as_spec(&self, text: &str) -> FormSpec {
+        FormSpec {
             template: text.to_string(),
-            fields: names
+            fields: form::names(text)
                 .into_iter()
                 .map(|name| {
                     self.fields
@@ -259,12 +276,18 @@ impl EditState {
                 })
                 .collect(),
             copied: self.copied_in(text).map(str::to_string),
-        })
+            date: self.date_in(text).then(|| self.date.var()),
+        }
     }
 
     /// The name of what was last copied, if the text has its marker in it.
     pub fn copied_in(&self, text: &str) -> Option<&str> {
         (!form::copied_markers(text, &self.copied).is_empty()).then_some(self.copied.as_str())
+    }
+
+    /// Whether the text has the date's marker in it.
+    pub fn date_in(&self, text: &str) -> bool {
+        !form::copied_markers(text, &self.date.name).is_empty()
     }
 
     /// A new blank's marker, under the first free name. A name is free once its marker is gone
@@ -329,57 +352,29 @@ impl EditState {
     }
 
     pub fn build_match(&self) -> SimpleMatch {
-        match &self.kind {
-            Kind::Text { replace } => match self.form(replace) {
-                // Any blank makes it a form: one variable that opens Khipu's window. See
-                // [`crate::yaml::form`].
-                Some(spec) => {
-                    let trigger = self.trigger();
-                    SimpleMatch {
-                        vars: vec![spec.to_var(&trigger)],
-                        replace: format!("{{{{{}}}}}", form::VAR_NAME),
-                        trigger,
-                        label: self.label(),
-                    }
-                }
-                // What was last copied, with no blanks, is espanso's own to fill in.
-                None => SimpleMatch {
-                    trigger: self.trigger(),
-                    replace: replace.clone(),
-                    vars: self
-                        .copied_in(replace)
-                        .map(|name| VarEntry {
-                            name: name.to_string(),
-                            var_type: "clipboard".to_string(),
-                            ..Default::default()
-                        })
-                        .into_iter()
-                        .collect(),
-                    label: self.label(),
-                },
-            },
-            Kind::Date {
-                preset,
-                custom_format,
-                custom_tz,
-                month_lang,
-            } => {
-                let var: VarEntry = match preset {
-                    Some(p) => p.build_var(DATE_VAR_NAME, *month_lang),
-                    None => build_custom_date_var(
-                        DATE_VAR_NAME,
-                        custom_format,
-                        Some(custom_tz.as_str()),
-                        *month_lang,
-                    ),
-                };
-                SimpleMatch {
-                    trigger: self.trigger(),
-                    replace: format!("{{{{{DATE_VAR_NAME}}}}}"),
-                    vars: vec![var],
-                    label: self.label(),
-                }
-            }
+        let spec = self.as_spec(&self.replace);
+        // Any blank makes it a form: one variable that opens Khipu's window. See
+        // [`crate::yaml::form`].
+        if !spec.fields.is_empty() {
+            let trigger = self.trigger();
+            return SimpleMatch {
+                vars: vec![spec.to_var(&trigger)],
+                replace: format!("{{{{{}}}}}", form::VAR_NAME),
+                trigger,
+                label: self.label(),
+            };
+        }
+        // What was last copied and the date, with no blanks, are espanso's own to fill in.
+        let copied = spec.copied.map(|name| VarEntry {
+            name,
+            var_type: "clipboard".to_string(),
+            ..Default::default()
+        });
+        SimpleMatch {
+            trigger: self.trigger(),
+            replace: self.replace.clone(),
+            vars: copied.into_iter().chain(spec.date).collect(),
+            label: self.label(),
         }
     }
 }
@@ -475,7 +470,17 @@ fn date_option(
             if padding > 0.0 {
                 ui.add_space(padding);
             }
-            ui.label(sample_text(sample));
+            // On the option's baseline rather than centred beside it. See [`controls::baseline`].
+            let drop = controls::baseline_drop(ui, egui::RichText::new("x"), egui::RichText::new("x").monospace());
+            let line = egui::WidgetText::from(sample_text(sample)).into_galley(
+                ui,
+                Some(egui::TextWrapMode::Extend),
+                f32::INFINITY,
+                egui::TextStyle::Body,
+            );
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(line.size().x, placed.rect.height()), egui::Sense::hover());
+            let top = rect.center().y - line.size().y * 0.5 + drop;
+            ui.painter().galley(egui::pos2(rect.left(), top), line, ui.visuals().weak_text_color());
         }
     });
     if let Some(sample) = sample.as_ref().filter(|_| stack_sample) {
@@ -614,10 +619,7 @@ fn problem_with(state: &AppState, edit: &EditState) -> Option<Problem> {
     if taken {
         return Some(Problem::Duplicate(trigger));
     }
-    let Kind::Text { replace } = &edit.kind else {
-        return None;
-    };
-    edit.form(replace)?
+    edit.form(&edit.replace)?
         .fields
         .into_iter()
         .find(|f| f.kind == FieldKind::Choice && f.options.iter().all(|o| o.trim().is_empty()))
@@ -1142,71 +1144,16 @@ fn when_you_type(
     });
 }
 
-/// Text to date or back again.
-///
-/// The half being left behind goes into `stashed_kind`, and whatever was waiting there comes back.
-/// It used to throw the old half away and start the new one from its defaults, which meant a
-/// mis-click emptied the replacement box of an expansion being edited, and going straight back gave
-/// an empty box — the text was gone, and pressing Guardar wrote that emptiness over the stored
-/// version. Going to a date for the first time still starts from the defaults.
-fn switch_kind(edit: &mut EditState, to_date: bool) {
-    if matches!(edit.kind, Kind::Date { .. }) == to_date {
-        return;
-    }
-    let fresh = if to_date {
-        Kind::Date {
-            preset: Some(DatePreset::IsoDateOnly),
-            custom_format: DatePreset::IsoDateOnly.format().to_string(),
-            custom_tz: String::new(),
-            month_lang: Lang::En,
-        }
-    } else {
-        Kind::Text {
-            replace: String::new(),
-        }
-    };
-    let restored = match edit.stashed_kind.take() {
-        Some(kind) if matches!(&kind, Kind::Date { .. }) == to_date => kind,
-        _ => fresh,
-    };
-    edit.stashed_kind = Some(std::mem::replace(&mut edit.kind, restored));
-}
-
-/// What appears: text or date, whichever this is, and what it will actually produce.
+/// What appears: the text, with its blanks, the date and what was last copied as pills, and what it
+/// will actually produce.
 fn appears_here(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, inline_preview: bool, is_light: bool) {
-    let t = state.t();
     ui.vertical(|ui| {
         ui.set_width(ui.available_width());
-        // The switch back to plain text, shown only once a date has been asked for: until then a
-        // text is all there is, and the date waits under «+ Añadir» like the blanks.
-        if matches!(edit.kind, Kind::Date { .. }) {
-            let kinds = [t.kind_text, t.kind_date];
-            if controls::segmented(ui, "kind", &kinds, Some(1)) == Some(0) {
-                switch_kind(edit, false);
-            }
-            ui.add_space(controls::GAP_WIDE);
-        }
-
-        match &mut edit.kind {
-            Kind::Text { replace } => {
-                // Out of the draft while it is drawn, so the field list below can reach the rest
-                // of the draft at the same time.
-                let mut text = std::mem::take(replace);
-                let to_date = text_with_blanks(ui, state, edit, &mut text, is_light);
-                if let Kind::Text { replace } = &mut edit.kind {
-                    *replace = text;
-                }
-                if to_date {
-                    switch_kind(edit, true);
-                }
-            }
-            Kind::Date {
-                preset,
-                custom_format,
-                custom_tz,
-                month_lang,
-            } => date_options(ui, t, preset, custom_format, custom_tz, month_lang),
-        }
+        // Out of the draft while it is drawn, so the bubbles can reach the rest of the draft at the
+        // same time.
+        let mut text = std::mem::take(&mut edit.replace);
+        text_with_blanks(ui, state, edit, &mut text, is_light);
+        edit.replace = text;
 
         // Here only when the window has no room for it beside the form.
         if inline_preview {
@@ -1218,18 +1165,18 @@ fn appears_here(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, inlin
 
 // --- Blanks: a text with fields to fill in ------------------------------------------------------
 //
-// A blank is written `[[name]]` and what was last copied `{{copiado}}`, because that is what the
-// file holds and what espanso reads. The box shows neither: each marker is drawn as a pill with
-// only its name in it, and an edit treats it as one character — it goes whole or not at all,
-// nothing typed lands inside it, and the caret steps over it. A blank is changed in the bubble a
-// click on its pill opens, never by typing into its brackets.
+// A blank is written `[[name]]`, what was last copied `{{copiado}}` and the date `{{fecha}}`,
+// because that is what the file holds and what espanso reads. The box shows none of that: each
+// marker is drawn as a pill with only its name in it, and an edit treats it as one character — it
+// goes whole or not at all, nothing typed lands inside it, and the caret steps over it. A blank, or
+// the date, is changed in the bubble a click on its pill opens, never by typing into its brackets.
 
 fn replace_id() -> egui::Id {
     egui::Id::new("editor-replace")
 }
 
-/// The blank whose bubble is open, by name, and the frame it was opened on: the click that opens
-/// it must not also count as a click outside it.
+/// The pill whose bubble is open, and the frame it was opened on: the click that opens it must not
+/// also count as a click outside it.
 fn bubble_key() -> egui::Id {
     egui::Id::new("editor-bubble")
 }
@@ -1254,63 +1201,64 @@ fn preview_answers_key() -> egui::Id {
 /// How wide the bubble is at least: room for a name and its starting value without wrapping.
 const BUBBLE_MIN_WIDTH: f32 = 280.0;
 
+/// What a pill stands for.
+#[derive(Debug, Clone, PartialEq)]
+enum Marker {
+    /// A blank, by name.
+    Blank(String),
+    Copied,
+    Date,
+}
+
 /// A marker in the text as the box shows it: one piece, as wide as its name.
 #[derive(Debug, Clone, PartialEq)]
 struct Pill {
     /// Where it sits, in chars.
     chars: std::ops::Range<usize>,
-    /// The blank's name; `None` for the marker of what was last copied.
-    blank: Option<String>,
+    what: Marker,
 }
 
 /// Every marker in the text, in order.
-fn pills(text: &str, copied: &str) -> Vec<Pill> {
+fn pills(text: &str, copied: &str, date: &str) -> Vec<Pill> {
     let mut at = 0;
     let mut found = Vec::new();
-    for piece in form::pieces(text, Some(copied)) {
-        let (part, blank) = match piece {
+    for piece in form::pieces(text, Some(copied), Some(date)) {
+        let (part, what) = match piece {
             form::Piece::Text(part) => {
                 at += part.chars().count();
                 continue;
             }
-            form::Piece::Blank(name, part) => (part, Some(name.to_string())),
-            form::Piece::Copied(part) => (part, None),
+            form::Piece::Blank(name, part) => (part, Marker::Blank(name.to_string())),
+            form::Piece::Copied(part) => (part, Marker::Copied),
+            form::Piece::Date(part) => (part, Marker::Date),
         };
         let n = part.chars().count();
-        found.push(Pill { chars: at..at + n, blank });
+        found.push(Pill { chars: at..at + n, what });
         at += n;
     }
     found
 }
 
-/// The text with every `[[name]]`, and the marker of what was last copied, in the accent, so what
-/// changes each time stands out from what is fixed. With `pills`, a marker's brackets are laid out
-/// but not seen: the pill drawn over them is its edge, and the caret still steps over them.
-fn highlighted(
-    ui: &egui::Ui,
-    text: &str,
-    copied: Option<&str>,
-    ink: egui::Color32,
-    wrap: f32,
-    pills: bool,
-) -> egui::text::LayoutJob {
+/// The text with every marker's name in the accent, so what changes each time stands out from what
+/// is fixed. A marker's brackets are laid out but not seen: the pill drawn over them is its edge,
+/// and the caret still steps over them.
+fn highlighted(ui: &egui::Ui, text: &str, copied: &str, date: &str, ink: egui::Color32, wrap: f32) -> egui::text::LayoutJob {
     let font = egui::TextStyle::Body.resolve(ui.style());
     let blank = crate::app::accent(ui.visuals());
     let mut job = egui::text::LayoutJob::default();
     job.wrap.max_width = wrap;
     let mut add = |part: &str, color| job.append(part, 0.0, egui::TextFormat::simple(font.clone(), color));
-    for piece in form::pieces(text, copied) {
+    for piece in form::pieces(text, Some(copied), Some(date)) {
         match piece {
             form::Piece::Text(part) => add(part, ink),
-            // Both markers open and close with two ASCII characters.
-            form::Piece::Blank(_, part) | form::Piece::Copied(part) if pills => {
+            // Every marker opens and closes with two ASCII characters.
+            form::Piece::Blank(_, part) | form::Piece::Copied(part) | form::Piece::Date(part) => {
                 let (open, rest) = part.split_at(2);
                 let (name, close) = rest.split_at(rest.len() - 2);
                 add(open, egui::Color32::TRANSPARENT);
                 add(name, blank);
                 add(close, egui::Color32::TRANSPARENT);
             }
-            form::Piece::Blank(_, part) | form::Piece::Copied(part) => add(part, blank),
         }
     }
     // An empty box still has a line, with the cursor the height of the text it is waiting for.
@@ -1509,37 +1457,32 @@ fn make_blank(ctx: &egui::Context, state: &AppState, edit: &mut EditState, text:
     // An empty selection is a caret: the blank goes in beside it, and takes nothing with it.
     let over = if picked.trim().is_empty() { chars.end..chars.end } else { chars };
     put(ctx, text, over, &marker);
-    open_bubble(ctx, &name);
+    open_bubble(ctx, Marker::Blank(name.clone()));
     ctx.data_mut(|d| d.insert_temp(naming_key(), name));
 }
 
-fn open_bubble(ctx: &egui::Context, name: &str) {
+fn open_bubble(ctx: &egui::Context, what: Marker) {
     let frame = ctx.cumulative_frame_nr();
-    ctx.data_mut(|d| d.insert_temp(bubble_key(), (name.to_string(), frame)));
+    ctx.data_mut(|d| d.insert_temp(bubble_key(), (what, frame)));
 }
 
-/// The text box with its pills, «+ Añadir» and «Pegar» under it, and the bubble of the blank being
-/// changed. Returns true on the frame the date is asked for.
-fn text_with_blanks(
-    ui: &mut egui::Ui,
-    state: &AppState,
-    edit: &mut EditState,
-    text: &mut String,
-    is_light: bool,
-) -> bool {
+/// The text box with its pills, «+ Añadir» and «Pegar» under it, and the bubble of the blank, or of
+/// the date, being changed.
+fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, text: &mut String, is_light: bool) {
     let ctx = ui.ctx().clone();
     // A floor, not a box: the field gets at least this much and grows past it as the text does,
     // with the page scrolling rather than the words being cut off.
     let height = ui.text_style_height(&egui::TextStyle::Body) * TEXT_AREA_ROWS + 16.0;
     let ink = ui.visuals().widgets.inactive.text_color();
     let copied = edit.copied.clone();
+    let date = edit.date.name.clone();
     let before = text.clone();
-    let before_pills = pills(&before, &copied);
+    let before_pills = pills(&before, &copied, &date);
     let from = egui::TextEdit::load_state(&ctx, replace_id())
         .and_then(|field| field.cursor.char_range())
         .map(|range| range.primary.index.0);
     let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, wrap: f32| {
-        ui.painter().layout_job(highlighted(ui, buffer.as_str(), Some(&copied), ink, wrap, true))
+        ui.painter().layout_job(highlighted(ui, buffer.as_str(), &copied, &date, ink, wrap))
     };
     let layout = egui::Layout::centered_and_justified(ui.layout().main_dir());
     let mut output = ui
@@ -1567,7 +1510,7 @@ fn text_with_blanks(
             fresh = false;
         }
     }
-    let now = pills(text, &copied);
+    let now = pills(text, &copied, &date);
     if let Some(range) = output.state.cursor.char_range() {
         let (primary, secondary) = (range.primary.index.0, range.secondary.index.0);
         let pointer = response.is_pointer_button_down_on() || response.clicked() || response.drag_stopped();
@@ -1583,7 +1526,7 @@ fn text_with_blanks(
         ctx.request_repaint();
     }
 
-    let mut open = ctx.data(|d| d.get_temp::<(String, u64)>(bubble_key()));
+    let mut open = ctx.data(|d| d.get_temp::<(Marker, u64)>(bubble_key()));
     let mut anchor = None;
     let mut convert = None;
     if fresh {
@@ -1593,14 +1536,14 @@ fn text_with_blanks(
         let mut on_pill = false;
         for pill in &now {
             let rects = pill_rects(&output.galley, output.galley_pos, &pill.chars);
-            let hovered = pill.blank.is_some() && hover.is_some_and(|p| rects.iter().any(|r| r.contains(p)));
+            let opens = pill.what != Marker::Copied;
+            let hovered = opens && hover.is_some_and(|p| rects.iter().any(|r| r.contains(p)));
             if hovered && response.clicked() {
-                let name = pill.blank.clone().unwrap_or_default();
-                let opened = (name, ctx.cumulative_frame_nr());
+                let opened = (pill.what.clone(), ctx.cumulative_frame_nr());
                 ctx.data_mut(|d| d.insert_temp(bubble_key(), opened.clone()));
                 open = Some(opened);
             }
-            let is_open = open.as_ref().is_some_and(|(name, _)| pill.blank.as_ref() == Some(name));
+            let is_open = open.as_ref().is_some_and(|(what, _)| *what == pill.what);
             if is_open && anchor.is_none() {
                 anchor = rects.first().copied();
             }
@@ -1654,8 +1597,8 @@ fn text_with_blanks(
     ui.add_space(controls::GAP);
     let mut add_blank = false;
     let mut add_copied = false;
+    let mut add_date = false;
     let mut paste = false;
-    let mut to_date = false;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = controls::GAP;
         let add = studio::text(state, "Añadir", "Add", "Magdagdag", "जोड़ें");
@@ -1713,16 +1656,14 @@ fn text_with_blanks(
                 if by_keyboard {
                     ui.memory_mut(|m| m.request_focus(first));
                 }
-                // Both of these go into the text; the date is a whole expansion of its own, so it
-                // comes last.
+                if controls::menu_item(ui, Some(Glyph::Calendar), date, None, Tone::Normal, true).clicked() {
+                    add_date = true;
+                }
                 if controls::menu_item(ui, Some(Glyph::Copy), copied, None, Tone::Normal, true)
                     .on_hover_text(copied_tip)
                     .clicked()
                 {
                     add_copied = true;
-                }
-                if controls::menu_item(ui, Some(Glyph::Calendar), date, None, Tone::Normal, true).clicked() {
-                    to_date = true;
                 }
             });
         let label = studio::text(state, "Pegar", "Paste", "I-paste", "चिपकाएँ");
@@ -1752,6 +1693,16 @@ fn text_with_blanks(
         let at = selection(&ctx, text).end;
         put(&ctx, text, at..at, &format!("{{{{{}}}}}", edit.copied));
     }
+    // The date goes in at the caret with its bubble open, so how it is written is chosen right
+    // there. One written in words starts out in the interface's language.
+    if add_date {
+        if !edit.date_in(text) && edit.date == DateChoice::default() {
+            edit.date.month_lang = state.settings.lang;
+        }
+        let at = selection(&ctx, text).end;
+        put(&ctx, text, at..at, &format!("{{{{{}}}}}", edit.date.name));
+        open_bubble(&ctx, Marker::Date);
+    }
     if paste {
         let pasted = crate::paste::copied_text();
         if !pasted.is_empty() {
@@ -1761,22 +1712,28 @@ fn text_with_blanks(
     }
 
     match (open, anchor) {
-        (Some((name, opened)), Some(anchor)) => {
+        (Some((what, opened)), Some(anchor)) => {
             let fresh_click = opened == ctx.cumulative_frame_nr();
-            match bubble(ui, state, edit, text, &name, anchor, fresh_click, is_light) {
-                Some(renamed) => ctx.data_mut(|d| {
-                    d.insert_temp(bubble_key(), (renamed, opened));
-                }),
-                None => ctx.data_mut(|d| d.remove::<(String, u64)>(bubble_key())),
-            }
+            let kept = match what {
+                Marker::Blank(name) => {
+                    bubble(ui, state, edit, text, &name, anchor, fresh_click, is_light).map(Marker::Blank)
+                }
+                Marker::Date => date_bubble(ui, state, edit, anchor, fresh_click).then_some(Marker::Date),
+                Marker::Copied => None,
+            };
+            ctx.data_mut(|d| match kept {
+                Some(what) => {
+                    d.insert_temp(bubble_key(), (what, opened));
+                }
+                None => d.remove::<(Marker, u64)>(bubble_key()),
+            });
         }
         // Its pill went from the text, or is waiting a frame for the new layout.
         (Some(_), None) if fresh => {
-            ctx.data_mut(|d| d.remove::<(String, u64)>(bubble_key()));
+            ctx.data_mut(|d| d.remove::<(Marker, u64)>(bubble_key()));
         }
         _ => {}
     }
-    to_date
 }
 
 /// The bubble under a blank's pill: its name, what kind it is, and what it starts with. Returns the
@@ -1973,6 +1930,30 @@ fn bubble(
     kept
 }
 
+/// The bubble under the date's pill: how the date is written. Every date pill in the text is the
+/// same date, so it holds for all of them. Returns whether it is still open.
+fn date_bubble(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, anchor: egui::Rect, fresh_click: bool) -> bool {
+    let ctx = ui.ctx().clone();
+    let date = &mut edit.date;
+    let Some(shown) = egui::Popup::new(egui::Id::new("editor-bubble-popup"), ctx.clone(), anchor, ui.layer_id())
+        .open(true)
+        .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+        .align(egui::RectAlign::BOTTOM_START)
+        .align_alternatives(&[egui::RectAlign::TOP_START])
+        .gap(controls::GAP_TIGHT)
+        .frame(egui::Frame::popup(&ctx.global_style()).inner_margin(egui::Margin::same(controls::GAP_WIDE as i8)))
+        .show(|ui| {
+            ui.set_min_width(BUBBLE_MIN_WIDTH);
+            date_options(ui, state.t(), &mut date.preset, &mut date.custom_format, &mut date.custom_tz, &mut date.month_lang);
+        })
+    else {
+        return false;
+    };
+    // Esc, or a click anywhere outside it — but not the click that opened it.
+    let outside = !fresh_click && shown.response.clicked_elsewhere();
+    !(shown.response.should_close() || outside)
+}
+
 /// The preview's answers for `spec`, each kept under its blank's name, and following the value the
 /// blank starts with until somebody types over it.
 fn preview_answers(ctx: &egui::Context, spec: &FormSpec) -> Vec<String> {
@@ -2129,29 +2110,12 @@ fn date_options(
 /// them, and what is typed into them shows in the box as it would be written.
 fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, max_height: f32, is_light: bool) {
     let trigger = edit.trigger();
-    let spec = match &edit.kind {
-        Kind::Text { replace } => edit.form(replace),
-        Kind::Date { .. } => None,
-    };
+    let shown = edit.as_spec(&edit.replace);
+    let spec = (!shown.fields.is_empty()).then(|| shown.clone());
     let mut answers = spec.as_ref().map(|spec| preview_answers(ui.ctx(), spec));
     // The blanks need the room more than the box does.
     let max_height = if spec.is_some() { max_height.min(PREVIEW_MAX_HEIGHT) } else { max_height };
-    let result = match &edit.kind {
-        Kind::Text { replace } => replace.clone(),
-        Kind::Date {
-            preset,
-            custom_format,
-            custom_tz,
-            month_lang,
-        } => match preset {
-            Some(p) => p.sample(*month_lang),
-            None => datefmt::sample(
-                custom_format,
-                (!custom_tz.trim().is_empty()).then(|| custom_tz.trim()),
-                *month_lang,
-            ),
-        },
-    };
+    let result = &edit.replace;
 
     ui.label(controls::small_muted(
         studio::text(state, "Vista previa", "Preview", "Preview", "पूर्वावलोकन"),
@@ -2192,24 +2156,25 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, max_heigh
                         ),
                         is_light,
                     ));
-                } else if let (Some(spec), Some(answers)) = (&spec, &answers) {
-                    let lang = state.settings.lang;
-                    let job = crate::ui::form_view::result_job(ui, spec, answers, None, lang, ui.available_width());
-                    ui.add(egui::Label::new(job).wrap().selectable(true));
-                } else if matches!(edit.kind, Kind::Text { .. }) {
-                    // What was last copied in the accent here too, so the preview reads like the box.
-                    let job = highlighted(ui, &result, Some(&edit.copied), ui.visuals().text_color(), ui.available_width(), false);
-                    ui.add(egui::Label::new(job).wrap().selectable(true));
                 } else {
-                    ui.add(egui::Label::new(&result).wrap().selectable(true));
+                    // The same job the form window draws, so the date reads as today's and what was
+                    // last copied sits in the accent, just as it will once typed.
+                    let lang = state.settings.lang;
+                    let none = Vec::new();
+                    let answers = answers.as_ref().unwrap_or(&none);
+                    let job = crate::ui::form_view::result_job(ui, &shown, answers, None, lang, ui.available_width());
+                    ui.add(egui::Label::new(job).wrap().selectable(true));
                 }
             });
     });
 
     ui.add_space(controls::GAP);
-    let footnote = match &edit.kind {
-        Kind::Text { .. } => {
-            let n = result.chars().count();
+    let only_date = edit.replace.trim() == format!("{{{{{}}}}}", edit.date.name);
+    let footnote = match only_date {
+        false => {
+            // What it writes for certain: the fixed words and the date, without the answers or
+            // what was copied, which change each time.
+            let n = shown.filled("", |_| String::new()).chars().count();
             let template = studio::plural(
                 n,
                 studio::text(state, "{n} carácter", "{n} character", "{n} karakter", "{n} अक्षर"),
@@ -2222,17 +2187,14 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, max_heigh
                 ),
             );
             let characters = fill(template, &[("n", &n.to_string())]);
-            match &edit.kind {
-                Kind::Text { replace } => match edit.form(replace) {
-                    Some(spec) => format!("{} · {characters}", studio::blanks_to_fill(state, spec.fields.len())),
-                    None => characters,
-                },
-                Kind::Date { .. } => characters,
+            match &spec {
+                Some(spec) => format!("{} · {characters}", studio::blanks_to_fill(state, spec.fields.len())),
+                None => characters,
             }
         }
         // Said out loud because the preview shows *today*, and a date expansion that wrote today's
         // date for ever would be a bug rather than a feature.
-        Kind::Date { .. } => studio::text(
+        true => studio::text(
             state,
             "La fecha se calcula cada vez que escribes el activador.",
             "The date is worked out each time you type the trigger.",
@@ -2498,10 +2460,7 @@ fn show_form(
 
     let third = studio::text(state, "¿Algo más?", "Anything else?", "May iba pa?", "और कुछ?");
     let optional = studio::text(state, "(opcional)", "(optional)", "(opsyonal)", "(वैकल्पिक)");
-    let something = match &edit.kind {
-        Kind::Text { replace } => !replace.trim().is_empty(),
-        Kind::Date { .. } => true,
-    };
+    let something = !edit.replace.trim().is_empty();
     // Open by default only on an expansion that already has one of the three, so what it has is
     // in sight; a new one starts with them folded away.
     let had_any = edit.editing_index.is_some() && (!edit.name.trim().is_empty() || edit.folder.is_some() || edit.favorite);
@@ -2651,6 +2610,33 @@ mod tests {
         }
     }
 
+    /// A date pill is espanso's own date variable when nothing needs filling in, the form's `date`
+    /// when something does, and either way reopens as the same text with the same format.
+    #[test]
+    fn a_date_pill_survives_the_editor_alone_and_in_a_form() {
+        for text in ["Hoy es {{fecha}}.", "{{fecha}} — Hola [[cliente]]", "{{fecha}}"] {
+            let mut edit = EditState::new_for_create(":");
+            edit.word = "hoy".into();
+            edit.date.preset = Some(DatePreset::DayMonthYear);
+            edit.date.month_lang = Lang::Es;
+            edit.replace = text.into();
+            let m = edit.build_match();
+            let is_form = text.contains("[[");
+            assert_eq!(m.as_form().is_some(), is_form);
+            if is_form {
+                assert_eq!(m.as_form().unwrap().date.unwrap().param_str("format"), Some("%-d %B %Y"));
+            } else {
+                assert_eq!(m.replace, text);
+                assert_eq!(m.as_date_var().map(|v| v.var_type.as_str()), Some("date"));
+            }
+            assert!(MatchEntry::Simple(m.clone()).is_safely_editable());
+            let back = EditState::new_for_edit(0, &m, None);
+            assert_eq!(back.replace, text);
+            assert_eq!(back.date.preset, Some(DatePreset::DayMonthYear));
+            assert_eq!(back.build_match(), m);
+        }
+    }
+
     /// What was last copied is espanso's clipboard variable on its own, Khipu's to fill in inside
     /// a form, and either way comes back from the file as the same text with the same marker.
     #[test]
@@ -2659,7 +2645,7 @@ mod tests {
             let mut edit = EditState::new_for_create(":");
             edit.word = "fw".into();
             edit.copied = "copiado".into();
-            edit.kind = Kind::Text { replace: text.into() };
+            edit.replace = text.into();
             let m = edit.build_match();
             let is_form = text.contains("[[");
             assert_eq!(m.as_form().is_some(), is_form);
@@ -2670,7 +2656,7 @@ mod tests {
             assert!(MatchEntry::Simple(m.clone()).is_safely_editable());
             let back = EditState::new_for_edit(0, &m, None);
             assert_eq!(back.copied, "copiado");
-            assert!(matches!(&back.kind, Kind::Text { replace } if replace == text));
+            assert_eq!(back.replace, text);
             assert_eq!(back.build_match(), m);
         }
         // Written by hand in espanso's way, with a parameter Khipu does not know: left alone.
@@ -2724,7 +2710,7 @@ mod tests {
     }
 
     fn edited(before: &str, after: &str, caret: usize) -> Option<(String, usize)> {
-        whole_markers(before, after, Some(caret), &pills(before, "copiado"))
+        whole_markers(before, after, Some(caret), &pills(before, "copiado", "fecha"))
     }
 
     #[test]
@@ -2753,7 +2739,7 @@ mod tests {
     #[test]
     fn the_caret_steps_over_a_pill() {
         let text = "ab [[nombre]] cd";
-        let p = pills(text, "");
+        let p = pills(text, "", "");
         assert_eq!(p[0].chars, 3..13);
         // Moving right into it carries on to its end; moving left, to its start.
         assert_eq!(snapped(4, 4, 3, false, &p), (13, 13));

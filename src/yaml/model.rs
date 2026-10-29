@@ -76,35 +76,55 @@ pub struct SimpleMatch {
 }
 
 impl SimpleMatch {
-    /// If this match is exactly a "insert current date/time" expansion created by one of our
-    /// presets (a single `date`-typed var, referenced verbatim as the whole replacement), returns
-    /// that var. Used so editing a previously-created date expansion re-opens the preset picker
-    /// instead of the raw-text editor.
-    pub fn as_date_var(&self) -> Option<&VarEntry> {
-        if self.vars.len() != 1 {
-            return None;
+    /// If this match is a text the editor shows as it is — with, at most, what was last copied and
+    /// the date in it, each one variable named in the text — returns those two variables. `None`
+    /// for anything else in `vars`.
+    ///
+    /// The copied one is a plain `clipboard` variable; the date a `date` one with only the
+    /// parameters the editor writes. Both stay espanso's to fill in, which is why a text with no
+    /// blanks is saved this way rather than as a form.
+    pub fn text_vars(&self) -> Option<(Option<&VarEntry>, Option<&VarEntry>)> {
+        let (mut copied, mut date) = (None, None);
+        for var in &self.vars {
+            let named = !super::form::copied_markers(&self.replace, &var.name).is_empty();
+            let slot = match var.var_type.as_str() {
+                "clipboard" if var.params.is_empty() => &mut copied,
+                "date" if var.param_str("format").is_some()
+                    && var.params.keys().all(|k| matches!(k.as_str(), Some("format" | "tz" | "locale"))) =>
+                {
+                    &mut date
+                }
+                _ => return None,
+            };
+            if !named || var.inject_vars.is_some() || slot.is_some() {
+                return None;
+            }
+            *slot = Some(var);
         }
-        let var = &self.vars[0];
-        if var.var_type != "date" || var.inject_vars.is_some() {
-            return None;
+        if let (Some(c), Some(d)) = (copied, date) {
+            if c.name == d.name {
+                return None;
+            }
         }
-        if self.replace.trim() == format!("{{{{{}}}}}", var.name) {
-            Some(var)
-        } else {
-            None
-        }
+        Some((copied, date))
     }
 
-    /// If this match is a text with what was last copied in it — one `clipboard` variable and
-    /// nothing else, named in the text — returns that variable's name. The editor shows such a text
-    /// as it is, with the `{{name}}` in the accent like a blank.
+    /// The date this text holds, if it holds one. See [`text_vars`](Self::text_vars).
+    pub fn as_date_var(&self) -> Option<&VarEntry> {
+        self.text_vars()?.1
+    }
+
+    /// The name of what was last copied, if this text holds it. See
+    /// [`text_vars`](Self::text_vars).
     pub fn as_copied(&self) -> Option<&str> {
-        let [var] = self.vars.as_slice() else {
-            return None;
-        };
-        let named = !super::form::copied_markers(&self.replace, &var.name).is_empty();
-        let plain = var.params.is_empty() && var.inject_vars.is_none();
-        (var.var_type == "clipboard" && plain && named).then_some(var.name.as_str())
+        self.text_vars()?.0.map(|var| var.name.as_str())
+    }
+
+    /// Whether the whole of this text is the date, the way date expansions were made before a date
+    /// could sit inside a text.
+    pub fn is_only_date(&self) -> bool {
+        self.as_date_var()
+            .is_some_and(|var| self.replace.trim() == format!("{{{{{}}}}}", var.name))
     }
 
     /// The text espanso would insert for this match, when it can be known for certain without
@@ -118,7 +138,9 @@ impl SimpleMatch {
             let plain = !self.replace.contains("{{") && !self.replace.contains("$|$");
             return plain.then(|| self.replace.clone());
         }
-        let var = self.as_date_var()?;
+        let (None, Some(var)) = self.text_vars()? else {
+            return None;
+        };
         let format = var.param_str("format")?;
         let tz = var.param_str("tz");
         let locale = var.param_str("locale");
@@ -136,7 +158,12 @@ impl SimpleMatch {
             return None;
         }
         let date = crate::datefmt::sample(format, tz, crate::datefmt::lang_from_locale_tag(locale));
-        Some(self.replace.replacen(&format!("{{{{{}}}}}", var.name), &date, 1))
+        let mut text = self.replace.clone();
+        for range in super::form::copied_markers(&self.replace, &var.name).into_iter().rev() {
+            text.replace_range(range, "\u{0}");
+        }
+        let plain = !text.contains("{{") && !text.contains("$|$");
+        plain.then(|| text.replace('\u{0}', &date))
     }
 }
 
@@ -180,20 +207,16 @@ impl MatchEntry {
     pub fn preview(&self, t: &'static Strings) -> String {
         match self {
             MatchEntry::Simple(m) => {
-                if let Some(var) = m.as_date_var() {
+                if let Some(var) = m.as_date_var().filter(|_| m.is_only_date()) {
                     // Shown as a worked example ("e.g. August 29, 2026") rather than as the
                     // strftime pattern that produced it: the pattern is an implementation detail
                     // that means nothing to the people this list is for.
-                    let example = crate::datefmt::sample(
-                        var.param_str("format").unwrap_or(""),
-                        var.param_str("tz"),
-                        super::presets::month_lang_of(var),
-                    );
+                    let example = super::presets::sample_of(var);
                     crate::i18n::fill(t.preview_date, &[("example", &example)])
                 } else if let Some(form) = m.as_form() {
                     // The text with its blanks showing, so a form reads as the message it writes.
                     form.template.chars().map(|c| if c == '\n' { ' ' } else { c }).collect()
-                } else if !m.vars.is_empty() && m.as_copied().is_none() {
+                } else if m.text_vars().is_none() {
                     t.preview_advanced_vars.to_string()
                 } else {
                     m.replace
@@ -213,7 +236,7 @@ impl MatchEntry {
     /// their preview.
     pub fn full_text(&self, t: &'static Strings) -> String {
         match self {
-            MatchEntry::Simple(m) if m.vars.is_empty() || m.as_copied().is_some() => m.replace.clone(),
+            MatchEntry::Simple(m) if m.text_vars().is_some() && !m.is_only_date() => m.replace.clone(),
             MatchEntry::Simple(m) => match m.as_form() {
                 Some(form) => form.template,
                 None => self.preview(t),
@@ -223,19 +246,13 @@ impl MatchEntry {
     }
 
     /// Whether the simple form can safely rewrite this match's `replace`/`vars` without losing
-    /// anything. A plain text match, one of our own date presets or one of our own forms (see
-    /// [`super::form`]) qualifies, and so does a text with what was last copied in it; a match with
-    /// other kinds of `vars` (shell commands, espanso's own forms, ...) round-trips fine when left
-    /// untouched, but our form doesn't model those, so it must not be allowed to silently drop
-    /// them on save.
+    /// anything. A text with, at most, the date and what was last copied in it qualifies, and so
+    /// does one of our own forms (see [`super::form`]); a match with other kinds of `vars` (shell
+    /// commands, espanso's own forms, ...) round-trips fine when left untouched, but our form
+    /// doesn't model those, so it must not be allowed to silently drop them on save.
     pub fn is_safely_editable(&self) -> bool {
         match self {
-            MatchEntry::Simple(m) => {
-                m.vars.is_empty()
-                    || m.as_date_var().is_some()
-                    || m.as_form().is_some()
-                    || m.as_copied().is_some()
-            }
+            MatchEntry::Simple(m) => m.text_vars().is_some() || m.as_form().is_some(),
             MatchEntry::Advanced(_) => false,
         }
     }

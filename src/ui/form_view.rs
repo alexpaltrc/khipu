@@ -38,7 +38,7 @@ use crate::i18n::Lang;
 use crate::settings::Settings;
 use crate::ui::controls;
 use crate::ui::studio::in_lang;
-use crate::yaml::form::{pieces, FieldKind, FormSpec, Piece};
+use crate::yaml::form::{FieldKind, FormSpec, Piece};
 use std::sync::{Arc, Mutex};
 
 /// The window's width in points. Wide enough for a sentence of label and a comfortable field;
@@ -189,7 +189,8 @@ fn choice(ui: &mut egui::Ui, salt: &str, index: usize, options: &[String], answe
 
 /// The text as it will be inserted: what is fixed in the ordinary ink, each answer in the accent,
 /// and a blank still empty shown by its name, faintly. What was last copied is in the accent too,
-/// or, when `copied` is `None` (the editor's preview), said in words, faintly.
+/// or, when `copied` is `None` (the editor's preview), said in words, faintly. The date is today's,
+/// in the accent like an answer.
 pub fn result_preview(
     ui: &mut egui::Ui,
     spec: &FormSpec,
@@ -226,7 +227,8 @@ pub fn result_job(
     let piece = |job: &mut egui::text::LayoutJob, text: &str, color: egui::Color32| {
         job.append(text, 0.0, egui::TextFormat::simple(font.clone(), color));
     };
-    for part in pieces(&spec.template, spec.copied.as_deref()) {
+    let date = spec.date_text();
+    for part in spec.pieces() {
         match part {
             Piece::Text(text) => piece(&mut job, text, ink),
             Piece::Blank(name, _) => match answer_of(spec, answers, name) {
@@ -237,6 +239,7 @@ pub fn result_job(
                 Some(text) => piece(&mut job, text, answer_ink),
                 None => piece(&mut job, copied_label(lang), faint),
             },
+            Piece::Date(_) => piece(&mut job, &date, answer_ink),
         }
     }
     job
@@ -617,6 +620,7 @@ mod tests {
                 },
             ],
             copied: None,
+            date: None,
         };
         let mut answers = initial_answers(&spec);
         assert_eq!(answers, ["", "Formal"]);

@@ -45,8 +45,9 @@
 //! the file stays legible to anyone who knows espanso.
 //!
 //! A form may also hold what was last copied, as `{{name}}` in its text with `copied: name` beside
-//! `template`. Outside a form that marker is espanso's own clipboard variable, which espanso fills
-//! in; inside one, espanso never sees the text, so the window fills it in.
+//! `template`, and the date, as `{{fecha}}` with `date: { name: fecha, format: … }` beside it.
+//! Outside a form those markers are espanso's own `clipboard` and `date` variables, which espanso
+//! fills in; inside one, espanso never sees the text, so the window fills them in.
 //!
 //! The invariant: **the hex argument always names the expansion's own trigger.** It is written
 //! from the trigger whenever the match is written ([`SimpleMatch::normalized`]), so a trigger
@@ -104,6 +105,9 @@ pub struct FormSpec {
     /// The name of the `{{name}}` in the text that stands for what was last copied, if it has one.
     /// Outside a form espanso fills that in itself; inside one, Khipu's window does.
     pub copied: Option<String>,
+    /// The date the text holds as `{{name}}`, if it has one: a `date` variable as espanso writes
+    /// one, which the window formats the way espanso would.
+    pub date: Option<VarEntry>,
 }
 
 /// One stretch of a text, as the editor and the window see it.
@@ -115,6 +119,8 @@ pub enum Piece<'a> {
     Blank(&'a str, &'a str),
     /// Where what was last copied goes: the marker as written.
     Copied(&'a str),
+    /// Where the date goes: the marker as written.
+    Date(&'a str),
 }
 
 /// Every `{{name}}` for `name` in the text, spaces inside the braces allowed the way espanso
@@ -137,10 +143,10 @@ pub fn copied_markers(text: &str, name: &str) -> Vec<std::ops::Range<usize>> {
     found
 }
 
-/// The text cut into what is fixed, its blanks, and where what was last copied goes (the
-/// `{{copied}}` markers, if a name is given). The text is cut before anything is put in, so brackets
-/// in what was copied, or in an answer, are never read as a blank.
-pub fn pieces<'a>(text: &'a str, copied: Option<&str>) -> Vec<Piece<'a>> {
+/// The text cut into what is fixed, its blanks, and where what was last copied and the date go
+/// (their `{{name}}` markers, for the names given). The text is cut before anything is put in, so
+/// brackets in what was copied, or in an answer, are never read as a blank.
+pub fn pieces<'a>(text: &'a str, copied: Option<&str>, date: Option<&str>) -> Vec<Piece<'a>> {
     fn segment<'a>(out: &mut Vec<Piece<'a>>, part: &'a str) {
         let mut last = 0;
         for (range, name) in markers(part) {
@@ -154,11 +160,17 @@ pub fn pieces<'a>(text: &'a str, copied: Option<&str>) -> Vec<Piece<'a>> {
             out.push(Piece::Text(&part[last..]));
         }
     }
+    let found = |name: Option<&str>, is_date: bool| {
+        name.map(|name| copied_markers(text, name)).unwrap_or_default().into_iter().map(move |r| (r, is_date))
+    };
+    let mut braces: Vec<_> = found(copied, false).chain(found(date, true)).collect();
+    braces.sort_by_key(|(range, _)| range.start);
     let mut out = Vec::new();
     let mut last = 0;
-    for range in copied.map(|name| copied_markers(text, name)).unwrap_or_default() {
+    for (range, is_date) in braces {
         segment(&mut out, &text[last..range.start]);
-        out.push(Piece::Copied(&text[range.clone()]));
+        let marker = &text[range.clone()];
+        out.push(if is_date { Piece::Date(marker) } else { Piece::Copied(marker) });
         last = range.end;
     }
     segment(&mut out, &text[last..]);
@@ -283,6 +295,12 @@ impl FormSpec {
         if let Some(copied) = &self.copied {
             params.insert(key("copied"), key(copied));
         }
+        if let Some(date) = &self.date {
+            let mut spec = Mapping::new();
+            spec.insert(key("name"), key(&date.name));
+            spec.extend(date.params.clone());
+            params.insert(key("date"), Value::Mapping(spec));
+        }
         VarEntry {
             name: VAR_NAME.to_string(),
             var_type: "script".to_string(),
@@ -314,7 +332,7 @@ impl FormSpec {
         }
         // Only the keys this module writes, so nothing someone added by hand is lost on a save.
         let known = var.params.keys().all(|k| {
-            matches!(k.as_str(), Some("args" | "trim" | "template" | "fields" | "copied"))
+            matches!(k.as_str(), Some("args" | "trim" | "template" | "fields" | "copied" | "date"))
         });
         if !known {
             return None;
@@ -323,6 +341,19 @@ impl FormSpec {
         let copied = match var.params.get("copied") {
             None => None,
             Some(name) => Some(name.as_str()?.to_string()),
+        };
+        let date = match var.params.get("date") {
+            None => None,
+            Some(Value::Mapping(spec)) => {
+                let mut params = spec.clone();
+                let name = params.remove("name")?.as_str()?.to_string();
+                let known = params.keys().all(|k| matches!(k.as_str(), Some("format" | "tz" | "locale")));
+                if !known || params.get("format").and_then(Value::as_str).is_none() {
+                    return None;
+                }
+                Some(VarEntry { name, var_type: "date".to_string(), params, inject_vars: None })
+            }
+            Some(_) => return None,
         };
         let declared = match var.params.get("fields") {
             Some(Value::Mapping(map)) => map.clone(),
@@ -352,18 +383,30 @@ impl FormSpec {
                 options,
             });
         }
-        Some(FormSpec { template, fields, copied })
+        Some(FormSpec { template, fields, copied, date })
     }
 
-    /// The text this form writes: each blank swapped for its answer, and what was last copied put
-    /// where it goes.
+    /// The pieces of this form's text. See [`pieces`].
+    pub fn pieces(&self) -> Vec<Piece<'_>> {
+        pieces(&self.template, self.copied.as_deref(), self.date.as_ref().map(|d| d.name.as_str()))
+    }
+
+    /// The date as it would be written right now; empty if the form has none.
+    pub fn date_text(&self) -> String {
+        self.date.as_ref().map(super::presets::sample_of).unwrap_or_default()
+    }
+
+    /// The text this form writes: each blank swapped for its answer, and what was last copied and
+    /// the date put where they go.
     pub fn filled(&self, copied_text: &str, answer: impl Fn(&str) -> String) -> String {
-        pieces(&self.template, self.copied.as_deref())
+        let date = self.date_text();
+        self.pieces()
             .into_iter()
             .map(|piece| match piece {
                 Piece::Text(text) => text.to_string(),
                 Piece::Blank(name, _) => answer(name),
                 Piece::Copied(_) => copied_text.to_string(),
+                Piece::Date(_) => date.clone(),
             })
             .collect()
     }
@@ -373,7 +416,9 @@ impl FormSpec {
     /// Whether the form writes anything in Devanagari: its text, or what its blanks offer.
     pub fn has_devanagari(&self) -> bool {
         use super::model::has_devanagari;
-        has_devanagari(&self.template) || self.fields.iter().any(FormField::has_devanagari)
+        has_devanagari(&self.template)
+            || has_devanagari(&self.date_text())
+            || self.fields.iter().any(FormField::has_devanagari)
     }
 }
 
@@ -478,6 +523,7 @@ mod tests {
                 },
             ],
             copied: None,
+            date: None,
         };
         SimpleMatch {
             trigger: trigger.to_string(),
@@ -559,6 +605,23 @@ mod tests {
         let out = back.filled("[[x]] 50%", |n| n.to_uppercase());
         assert_eq!(out, "Hola CLIENTE: [[x]] 50% y {{otro}}");
         assert_eq!(copied_markers("{{a}}{{ a }}{{ab}}{{a", "a"), [0..5, 5..12]);
+    }
+
+    /// The date rides along in the form, is read back as the same variable, and is written where
+    /// its marker is, beside what was copied.
+    #[test]
+    fn the_date_is_put_in_where_its_marker_is() {
+        let mut m = form_match(":c");
+        let mut spec = m.as_form().unwrap();
+        spec.template = "{{copiado}} [[cliente]], {{fecha}}".into();
+        spec.fields.truncate(1);
+        spec.copied = Some("copiado".into());
+        spec.date = Some(super::super::presets::DatePreset::IsoDateOnly.build_var("fecha", crate::i18n::Lang::Es));
+        m.vars = vec![spec.to_var(":c")];
+        let back = m.as_form().unwrap();
+        assert_eq!(back, spec);
+        let today = crate::datefmt::sample("%Y-%m-%d", None, crate::i18n::Lang::Es);
+        assert_eq!(back.filled("A", |n| n.to_uppercase()), format!("A CLIENTE, {today}"));
     }
 
     #[test]

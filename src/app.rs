@@ -729,10 +729,8 @@ impl AppState {
             return true;
         }
         if let View::Edit(edit) = &self.view {
-            let editing = match &edit.kind {
-                ui::edit_form::Kind::Text { replace } => crate::yaml::model::has_devanagari(replace),
-                ui::edit_form::Kind::Date { month_lang, .. } => *month_lang == Lang::Hi,
-            };
+            let editing = crate::yaml::model::has_devanagari(&edit.replace)
+                || (edit.date_in(&edit.replace) && edit.date.month_lang == Lang::Hi);
             if editing
                 || crate::yaml::model::has_devanagari(&edit.word)
                 || crate::yaml::model::has_devanagari(&edit.name)

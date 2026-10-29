@@ -28,6 +28,12 @@ was published.
   are gone: the preview column is now the form itself, so you fill it in there and see the result
   above it. A **Paste** button sits beside **+ Add**. A new field asks for its name, ready to type
   over.
+- **The date goes anywhere in the text.** «+ Add › The date or time right then» puts a date pill
+  where the cursor is, beside your words and fields, instead of the whole expansion being only a
+  date. Click the pill to pick its format. It works in a form too: the form window shows today's
+  date in the preview and inserts it with the rest. «+ Add» now lists Field, Date, What you last
+  copied. Your date expansions open as a text holding one date pill, and an expansion with no fields
+  is still saved with espanso's own date variable.
 
 ### Fixed
 
