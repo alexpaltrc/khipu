@@ -413,6 +413,9 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
         if apply {
             state.apply_prefix_to_existing();
         }
+        divider(ui);
+
+        excluded_apps(ui, state);
     });
 
     // Only while this app owns the shortcut. With espanso's own bar in charge there is nothing of
@@ -523,6 +526,104 @@ pub(crate) fn apply_title(state: &AppState) -> &'static str {
         "Gamitin sa mga mayroon ka na",
         "मौजूदा विस्तारों पर लगाएँ",
     )
+}
+
+fn open_apps_id() -> egui::Id {
+    egui::Id::new("settings_open_apps")
+}
+
+/// «No expandir en»: «Añadir», which offers the programs open right now, and under it the ones
+/// already chosen, each with its × to take it back off. See [`crate::exclusions`].
+fn excluded_apps(ui: &mut egui::Ui, state: &mut AppState) {
+    let is_light = !ui.visuals().dark_mode;
+    let add = studio::text(state, "Añadir", "Add", "Magdagdag", "जोड़ें");
+    let width = controls::subtle_button_width(ui, true, add, true);
+    let mut picked = None;
+    row(
+        ui,
+        studio::text(state, "No expandir en", "Don't expand in", "Huwag mag-expand sa", "इनमें विस्तार न करें"),
+        studio::text(
+            state,
+            "Programas donde tus expansiones no se activan. Un navegador cuenta entero, con todas sus páginas.",
+            "Programs where your expansions don't work. A browser counts whole, every page in it.",
+            "Mga program kung saan hindi gagana ang mga expansion mo. Buo ang browser, kasama ang lahat ng page nito.",
+            "वे प्रोग्राम जिनमें आपके विस्तार काम नहीं करते। ब्राउज़र पूरा गिना जाता है, उसके सभी पेज समेत।",
+        ),
+        width,
+        |ui| {
+            let menu = controls::subtle_button(ui, Some(Glyph::Add), add, Some(Glyph::ChevronDown));
+            // Asked once, as it opens: walking every window on every frame it stays open would be
+            // work for nothing.
+            if menu.clicked() {
+                let chosen = &state.settings.excluded_apps;
+                let open: Vec<_> = crate::exclusions::open_apps()
+                    .into_iter()
+                    .filter(|app| !chosen.iter().any(|c| c.exe.eq_ignore_ascii_case(&app.exe)))
+                    .collect();
+                ui.data_mut(|d| d.insert_temp(open_apps_id(), std::sync::Arc::new(open)));
+            }
+            let by_keyboard = menu.clicked() && menu.has_focus();
+            let open = ui
+                .data(|d| d.get_temp::<std::sync::Arc<Vec<crate::exclusions::ExcludedApp>>>(open_apps_id()))
+                .unwrap_or_default();
+            let none = studio::text(
+                state,
+                "No hay otros programas abiertos",
+                "No other programs are open",
+                "Walang ibang bukas na program",
+                "कोई अन्य प्रोग्राम खुला नहीं है",
+            );
+            egui::Popup::menu(&menu)
+                .align(egui::RectAlign::BOTTOM_END)
+                .gap(controls::GAP_TIGHT)
+                .width(240.0)
+                .show(|ui| {
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    if open.is_empty() {
+                        controls::menu_item(ui, None, none, None, Tone::Normal, false);
+                        return;
+                    }
+                    egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                        let first = ui.next_auto_id();
+                        for app in open.iter() {
+                            if controls::menu_item(ui, None, &app.name, Some(&app.exe), Tone::Normal, true).clicked() {
+                                picked = Some(app.clone());
+                            }
+                        }
+                        if by_keyboard {
+                            ui.memory_mut(|m| m.request_focus(first));
+                        }
+                    });
+                });
+        },
+    );
+    if let Some(app) = picked {
+        state.exclude_app(app);
+    }
+
+    if state.settings.excluded_apps.is_empty() {
+        return;
+    }
+    let remove = studio::text(state, "Quitar", "Remove", "Alisin", "हटाएँ");
+    let mut removed = None;
+    for app in &state.settings.excluded_apps {
+        ui.horizontal(|ui| {
+            ui.set_min_height(controls::FIELD_HEIGHT);
+            ui.spacing_mut().item_spacing.x = controls::GAP;
+            // One size for both, so the two words stand on one line.
+            ui.add(egui::Label::new(app.name.as_str()).truncate());
+            ui.add(egui::Label::new(controls::muted(app.exe.as_str(), is_light)).truncate());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if controls::icon_button(ui, Glyph::Close, remove, true).clicked() {
+                    removed = Some(app.exe.clone());
+                }
+            });
+        });
+    }
+    ui.add_space(CARD_PAD_Y);
+    if let Some(exe) = removed {
+        state.include_app(&exe);
+    }
 }
 
 /// Room a drop-down keeps beside its words for the arrow.

@@ -144,6 +144,7 @@ solo el índice para saber cuál abrir.
 |---|---|
 | `espanso_ctl.rs` | Todo lo que se le dice a `espansod`. Todo bloquea el hilo de la interfaz: nada sin plazo |
 | `config_patch.rs` | Retoques quirúrgicos al `default.yml` de espanso, que es archivo ajeno |
+| `exclusions.rs` | «No expandir en»: el único archivo propio en la carpeta `config` de espanso (`enable: false` por programa) y los programas abiertos para elegir |
 | `tray.rs` | Icono, menú y los dos hilos que siguen vivos cuando no hay ventana |
 | `icons.rs` | El pájaro de Khipu rasterizado desde el vector al tamaño de cada superficie, y sus tonos |
 | `paste.rs` | Pegar un texto en la ventana de enfrente como Win+V: portapapeles, Ctrl+V y devolverlo como estaba |

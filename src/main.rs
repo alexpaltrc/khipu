@@ -46,6 +46,7 @@ mod config_patch;
 mod datefmt;
 mod display;
 mod espanso_ctl;
+mod exclusions;
 mod fonts;
 mod folders;
 mod hotkey;

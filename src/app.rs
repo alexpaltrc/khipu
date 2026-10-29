@@ -364,6 +364,8 @@ pub struct AppState {
     pub match_file: MatchFile,
     pub match_file_path: PathBuf,
     pub backups_dir: PathBuf,
+    /// Espanso's `config` folder, where [`crate::exclusions`] keeps its one file.
+    pub config_dir: PathBuf,
     pub settings: Settings,
     pub settings_store: SettingsStore,
     pub ctl: EspansoCtl,
@@ -677,6 +679,70 @@ impl AppState {
                 "खोज की सेटिंग सहेजी नहीं जा सकी: {err}",
             ), &[("err", &e.to_string())]);
             self.set_error_banner(msg);
+        }
+    }
+
+    /// Turns espanso off in `app`. See [`crate::exclusions`].
+    pub fn exclude_app(&mut self, app: crate::exclusions::ExcludedApp) {
+        if self.settings.excluded_apps.iter().any(|a| a.exe.eq_ignore_ascii_case(&app.exe)) {
+            return;
+        }
+        let name = app.name.clone();
+        self.settings.excluded_apps.push(app);
+        self.settings.excluded_apps.sort_by_key(|a| a.name.to_lowercase());
+        let done = ui::studio::text(
+            self,
+            "Tus expansiones ya no se activan en {app}.",
+            "Your expansions no longer work in {app}.",
+            "Hindi na gagana ang mga expansion mo sa {app}.",
+            "आपके विस्तार अब {app} में काम नहीं करेंगे।",
+        );
+        self.write_exclusions(fill(done, &[("app", &name)]));
+    }
+
+    /// Turns espanso back on in the program run by `exe`.
+    pub fn include_app(&mut self, exe: &str) {
+        let Some(at) = self.settings.excluded_apps.iter().position(|a| a.exe == exe) else {
+            return;
+        };
+        let name = self.settings.excluded_apps.remove(at).name;
+        let done = ui::studio::text(
+            self,
+            "Tus expansiones vuelven a activarse en {app}.",
+            "Your expansions work in {app} again.",
+            "Gagana na ulit ang mga expansion mo sa {app}.",
+            "आपके विस्तार फिर से {app} में काम करेंगे।",
+        );
+        self.write_exclusions(fill(done, &[("app", &name)]));
+    }
+
+    /// Saves the list both where Khipu keeps it and where espanso reads it, and restarts espanso
+    /// when the second changed.
+    fn write_exclusions(&mut self, done: String) {
+        if let Err(e) = self.settings_store.save(&self.settings) {
+            let msg = fill(ui::studio::text(
+                self,
+                "No se pudo guardar la lista: {err}",
+                "Could not save the list: {err}",
+                "Hindi ma-save ang listahan: {err}",
+                "सूची सहेजी नहीं जा सकी: {err}",
+            ), &[("err", &e.to_string())]);
+            self.set_error_banner(msg);
+            return;
+        }
+        match crate::exclusions::write(&self.config_dir, &self.settings.excluded_apps) {
+            Ok(true) => self.announce_and_reload(done, None),
+            Ok(false) => {}
+            Err(e) => {
+                let msg = fill(ui::studio::text(
+                    self,
+                    "No se pudo avisar a espanso: {err}",
+                    "Could not tell espanso: {err}",
+                    "Hindi masabihan ang espanso: {err}",
+                    "espanso को बताया नहीं जा सका: {err}",
+                ), &[("err", &e.to_string())]);
+                self.set_error_banner(msg);
+            }
         }
     }
 
@@ -2767,6 +2833,7 @@ impl KhipuApp {
             match_file: ctx.match_file,
             match_file_path: ctx.match_file_path,
             backups_dir: ctx.backups_dir,
+            config_dir: ctx.config_path.parent().map(std::path::Path::to_path_buf).unwrap_or_default(),
             settings: ctx.settings,
             settings_store: ctx.settings_store,
             ctl: ctx.ctl,

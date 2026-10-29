@@ -122,6 +122,9 @@ pub struct Settings {
     /// The release whose «Novedades» card has been closed. Nothing, as in a file from before the
     /// card existed, means an update nobody has been told about yet.
     pub whats_new_seen: Option<String>,
+    /// The programs espanso stays off in, which [`crate::exclusions`] writes into espanso's own
+    /// configuration. Kept here as well so the list shows each one by the name it had when chosen.
+    pub excluded_apps: Vec<crate::exclusions::ExcludedApp>,
 }
 
 impl Default for Settings {
@@ -144,6 +147,7 @@ impl Default for Settings {
             favorites: BTreeSet::new(),
             favorites_first: true,
             whats_new_seen: None,
+            excluded_apps: Vec::new(),
         }
     }
 }

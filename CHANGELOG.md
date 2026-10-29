@@ -13,6 +13,11 @@ was published.
   expansion, that spot gets the text you copied last. It works in a form too: the form window
   shows it in the preview and inserts it with the rest. Expansions written by hand with espanso's
   own `clipboard` variable now open in the editor instead of being shown as advanced.
+- **Don't expand in…** Settings › While you type has a new row to switch your expansions off in
+  chosen programs. **Add** lists the programs open right now; each one chosen shows under it with
+  an × to take it back off. It works by program, so a browser counts whole, every page in it. Khipu
+  keeps this in one file of its own in espanso's config folder and never touches your own files
+  there; the global pause works as before.
 
 ### Changed
 
