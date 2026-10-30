@@ -171,6 +171,7 @@ solo el índice para saber cuál abrir.
 | `folder_view.rs` | Las opciones de una carpeta: renombrar, borrar |
 | `search_view.rs` · `controls.rs` | El launcher de expansiones; los controles compartidos |
 | `form_view.rs` | La ventana que abre un formulario (`Khipu.exe --form`): sus campos y el texto resultante |
+| `island.rs` | La píldora del pie: cada mensaje de Khipu, con Deshacer o con ✕; sale del «+» o sube desde el borde de Ajustes |
 | `whats_new_view.rs` | «Novedades»: la tarjeta que sale una vez tras actualizar; no es el changelog |
 | `studio.rs` · `glide.rs` | Piezas compartidas (iconos dibujados, filtro de carpetas); el resaltado que se desliza entre controles |
 | `keys.rs` · `glyphs.rs` | Todos los atajos de teclado en una tabla; los iconos Segoe Fluent |
@@ -181,7 +182,7 @@ solo el índice para saber cuál abrir.
   Dev se instala con su MSIX.
 - Limpio desde el principio: sin archivos sobrantes, carpetas vacías ni código muerto.
 - **Si un cambio hace algo más feo, no lo hagas.** La interfaz está terminada y aprobada.
-- Animaciones al nivel de la isla de «Deshacer» (`ui/list_view.rs`): coreografiadas, con
+- Animaciones al nivel de la isla de «Deshacer» (`ui/island.rs`): coreografiadas, con
   resortes, transformando en vez de reemplazar, revisadas cuadro a cuadro en claro y oscuro, e
   iteradas hasta que cada fotograma se vea bien (skill `alex-vibecode`, sección 2).
 - El texto cortado en el borde de la ventana quita elegancia, prestigio y belleza.

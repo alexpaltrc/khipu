@@ -5,6 +5,15 @@ was published.
 
 ## Unreleased
 
+### Changed
+
+- **Every message is now a pill at the foot, like Undo's.** What Khipu says after an action — a
+  prefix changed, an export done, a file that could not be saved — no longer sits at the top of
+  the window or, in **Settings**, below the cards where it had to be scrolled to. In the main
+  window the **+** turns into it; in **Settings** it rises from the bottom of the dialog, over
+  everything. A message that only informs writes itself in with a ✓ and leaves on its own after a
+  few seconds (the pointer on it holds it). An error says so with a red **!**, wraps onto more
+  lines if it needs them, and stays until its **✕** is clicked.
 ## 0.0.8 — 2026-10-29
 
 ### Added

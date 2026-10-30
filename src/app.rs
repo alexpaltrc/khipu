@@ -259,21 +259,27 @@ pub struct Undo {
     revision: u64,
 }
 
-/// An undo as the island shows it: what happened, the share of its time still to go, and which
-/// offer it is — a new one has a new key.
-pub struct UndoOffer<'a> {
+/// A message as the island shows it: what it says, whether it is an error and whether it can be
+/// taken back, the share of its time still to go (none for an error, which waits to be closed), and
+/// which message it is — a new one has a new key.
+pub struct Note<'a> {
     pub message: &'a str,
-    pub left: f32,
+    pub kind: BannerKind,
+    pub undo: bool,
+    pub left: Option<f32>,
     pub key: u64,
 }
 
 pub struct Banner {
     pub kind: BannerKind,
     pub message: String,
-    /// Set only on a message that announces a change, and then it is drawn as the island, not here.
+    /// Set only on a message that announces a change; it is always said by the island, which
+    /// offers to take the change back.
     pub undo: Option<Undo>,
     /// When it was posted: a plain message goes away by itself a few seconds after this.
     pub posted: Instant,
+    /// Which message this is, counted from the start: the island tells one from the next by it.
+    pub seq: u64,
 }
 
 /// How long the island offers to undo: time to see what happened and change one's mind, and
@@ -534,7 +540,9 @@ impl AppState {
 
     /// Where a message goes: the banner, or the dialog in front of it while Ajustes is open.
     fn post(&mut self, kind: BannerKind, message: String) {
-        let banner = Some(Banner { kind, message, undo: None, posted: Instant::now() });
+        static POSTED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let seq = POSTED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let banner = Some(Banner { kind, message, undo: None, posted: Instant::now(), seq });
         if self.settings_open {
             self.settings_note = banner;
         } else {
@@ -1825,28 +1833,55 @@ impl AppState {
         }
     }
 
-    /// What the island is showing, while its undo still applies.
-    pub fn undo_offer(&self) -> Option<UndoOffer<'_>> {
-        let banner = self.banner.as_ref()?;
-        let undo = banner.undo.as_ref().filter(|u| u.revision == self.list_revision)?;
-        let gone = banner.posted.elapsed().as_secs_f32() / UNDO_LIFE.as_secs_f32();
-        Some(UndoOffer {
+    /// Whether the banner's undo was offered on a list that has since changed.
+    fn undo_is_stale(&self) -> bool {
+        self.banner
+            .as_ref()
+            .and_then(|b| b.undo.as_ref())
+            .is_some_and(|u| u.revision != self.list_revision)
+    }
+
+    fn note_slot(&mut self, settings: bool) -> &mut Option<Banner> {
+        if settings {
+            &mut self.settings_note
+        } else {
+            &mut self.banner
+        }
+    }
+
+    /// What the island is saying: the window's message, or the one said inside Ajustes.
+    pub fn note(&self, settings: bool) -> Option<Note<'_>> {
+        let banner = if settings { self.settings_note.as_ref()? } else { self.banner.as_ref()? };
+        if !settings && self.undo_is_stale() {
+            return None;
+        }
+        let left = banner.lifetime().map(|life| {
+            (1.0 - banner.posted.elapsed().as_secs_f32() / life.as_secs_f32()).clamp(0.0, 1.0)
+        });
+        Some(Note {
             message: &banner.message,
-            left: (1.0 - gone).clamp(0.0, 1.0),
-            key: undo.revision,
+            kind: banner.kind,
+            undo: banner.undo.is_some(),
+            left,
+            key: banner.seq,
         })
     }
 
     /// Stops the island's time for `dt`: the pointer is on it.
-    pub fn hold_undo(&mut self, dt: Duration) {
-        if let Some(banner) = self.banner.as_mut().filter(|b| b.undo.is_some()) {
+    pub fn hold_note(&mut self, settings: bool, dt: Duration) {
+        if let Some(banner) = self.note_slot(settings) {
             banner.posted = (banner.posted + dt).min(Instant::now());
         }
     }
 
+    /// Lets go of what the island is saying: its cross was pressed.
+    pub fn close_note(&mut self, settings: bool) {
+        *self.note_slot(settings) = None;
+    }
+
     /// Lets go of an undo that no longer applies, so it does not sit unseen until it runs out.
     pub fn drop_stale_undo(&mut self) {
-        if self.banner.as_ref().is_some_and(|b| b.undo.is_some()) && self.undo_offer().is_none() {
+        if self.undo_is_stale() {
             self.banner = None;
         }
     }
@@ -1854,7 +1889,7 @@ impl AppState {
     /// Puts back whatever the island is offering to undo. Says nothing more: the list going
     /// back to how it was, and the island to «+», is the answer.
     pub fn undo_from_banner(&mut self) {
-        if self.undo_offer().is_none() {
+        if self.banner.as_ref().is_none_or(|b| b.undo.is_none()) || self.undo_is_stale() {
             return;
         }
         let Some(Undo { action, .. }) = self.banner.take().and_then(|b| b.undo) else {
@@ -3521,7 +3556,7 @@ impl KhipuApp {
 
 /// One message in Windows' InfoBar, the full width of `ui`. Returns whether it was closed.
 ///
-/// Drawn at the top of the window, and inside Ajustes for what is said while it is open.
+/// Drawn at the top of the window, on the screens that have no island (see `ui::island`).
 pub fn infobar(ui: &mut egui::Ui, banner: &Banner, t: &Strings) -> bool {
     let is_light = !ui.visuals().dark_mode;
     // Windows' InfoBar: a quiet tint of the severity, the one line colour around it, and the
@@ -3829,12 +3864,13 @@ impl eframe::App for KhipuApp {
         // overlaps the rest of the interface — it always pushes it, never covers it.
         //
         // A message that needs nothing from anyone leaves by itself once it has been read, unless
-        // the pointer is on it; one that went away is drawn as it was while it slides out. One that
-        // offers an undo is not drawn here at all: the list's «+» becomes it, and holds it itself
-        // while the pointer is there.
+        // the pointer is on it; one that went away is drawn as it was while it slides out. On the
+        // list nothing is drawn here at all, nor is one that offers an undo: the island says it
+        // (see `ui::island`), and holds it itself while the pointer is there.
         self.state.drop_stale_undo();
+        let on_list = matches!(self.state.view, View::List);
         if let Some(banner) = &self.state.banner {
-            let island = banner.undo.is_some();
+            let island = on_list || banner.undo.is_some();
             match banner.lifetime() {
                 Some(life) if island || !self.banner_hovered => {
                     let left = life.saturating_sub(banner.posted.elapsed());
@@ -3847,13 +3883,20 @@ impl eframe::App for KhipuApp {
                 _ => {}
             }
         }
-        let top = self.state.banner.as_ref().filter(|b| b.undo.is_none());
+        // What is said inside Ajustes runs out the same way; the island there holds it.
+        if let Some(note) = &self.state.settings_note {
+            if note.lifetime().is_some_and(|life| note.posted.elapsed() >= life) {
+                self.state.settings_note = None;
+            }
+        }
+        let top = self.state.banner.as_ref().filter(|b| !on_list && b.undo.is_none());
         if let Some(banner) = top {
             self.banner_leaving = Some(Banner {
                 kind: banner.kind,
                 message: banner.message.clone(),
                 undo: None,
                 posted: banner.posted,
+                seq: banner.seq,
             });
         }
         let mut live = top.is_some();
@@ -3880,7 +3923,7 @@ impl eframe::App for KhipuApp {
             )
             .show_collapsible(ui, &mut live, |ui| {
                 ui.set_opacity(fade);
-                if self.state.banner.as_ref().is_some_and(|b| b.undo.is_none()) {
+                if !on_list && self.state.banner.as_ref().is_some_and(|b| b.undo.is_none()) {
                     self.show_banner(ui);
                 } else if let Some(leaving) = &self.banner_leaving {
                     infobar(ui, leaving, self.state.t());

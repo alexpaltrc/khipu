@@ -26,6 +26,7 @@ pub mod date_blocks;
 pub mod edit_form;
 pub mod glide;
 pub mod glyphs;
+pub mod island;
 pub mod keys;
 pub mod folder_view;
 pub mod form_view;

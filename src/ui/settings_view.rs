@@ -29,7 +29,8 @@
 //!
 //! Everything on it is a call into `AppState`, which is what saves and reports; nothing is written
 //! from here. What `AppState` says while the dialog is open comes back as
-//! [`AppState::settings_note`] and is shown inside it, because the banner is under the backdrop.
+//! [`AppState::settings_note`] and the island says it over the dialog's foot, because the banner is
+//! under the backdrop.
 //!
 //! It closes with Esc (handled in `App::logic`, after the folder picker it opens), with the cross,
 //! or with a click on the dimmed window.
@@ -40,6 +41,7 @@ use crate::settings::PREFIX_SUGGESTIONS;
 use crate::theme::ThemeMode;
 use crate::ui::controls::{self, Tone};
 use crate::ui::glyphs::Glyph;
+use crate::ui::island;
 use crate::ui::keys;
 use crate::ui::studio;
 
@@ -60,6 +62,7 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
             d.remove::<bool>(prefix_other_id());
             d.insert_temp(fresh_id(), true);
         });
+        island::forget_settings(ctx);
         return;
     }
     // Opened at the top every time. egui keeps a scroll position across frames and across runs,
@@ -122,6 +125,12 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
             ctx.global_style_mut(|s| s.animation_time = make_way);
         });
         ctx.global_style_mut(|s| s.animation_time = normal);
+
+        // What the last action said — an export's count, an import's result, a refusal — rises
+        // over the foot of the dialog, wherever the page is scrolled to.
+        let page = ui.min_rect();
+        let foot = egui::pos2(page.center().x, page.bottom() - controls::GAP_WIDE);
+        island::show(ui, state, island::Source::Settings(foot), page.width() - 2.0 * controls::GAP_WIDE);
     });
 
     if close || modal.backdrop_response.clicked() {
@@ -490,16 +499,6 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
             state.import_expansions();
         }
     });
-
-    // What the last action said — an export's count, an import's result, a refusal — right under
-    // the card that caused it.
-    if let Some(note) = &state.settings_note {
-        ui.add_space(controls::GAP_WIDE);
-        let closed = crate::app::infobar(ui, note, t);
-        if closed {
-            state.settings_note = None;
-        }
-    }
 
     ui.add_space(GROUP_GAP);
     let quiet = text_tertiary(is_light);
