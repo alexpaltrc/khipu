@@ -180,6 +180,9 @@ solo el índice para saber cuál abrir.
   Dev se instala con su MSIX.
 - Limpio desde el principio: sin archivos sobrantes, carpetas vacías ni código muerto.
 - **Si un cambio hace algo más feo, no lo hagas.** La interfaz está terminada y aprobada.
+- Animaciones al nivel de la isla de «Deshacer» (`ui/list_view.rs`): coreografiadas, con
+  resortes, transformando en vez de reemplazar, revisadas cuadro a cuadro en claro y oscuro, e
+  iteradas hasta que cada fotograma se vea bien (skill `alex-vibecode`, sección 2).
 - El texto cortado en el borde de la ventana quita elegancia, prestigio y belleza.
 - **Nada de subagentes ni workflows.** Son lo más caro del plan. Verifica tú mismo.
 - Los hallazgos de la revisión se trabajan **uno por uno**, para llevar el control del

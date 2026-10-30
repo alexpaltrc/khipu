@@ -408,6 +408,19 @@ fn create_folder_key() -> egui::Id {
     egui::Id::new("library-create-folder")
 }
 
+/// The expansion being given a new trigger, and the trigger as typed so far.
+fn rename_key() -> egui::Id {
+    egui::Id::new("library-rename")
+}
+
+/// What a card's right-click menu was asked to do.
+enum RowMenu {
+    Edit,
+    Rename,
+    Move,
+    Delete,
+}
+
 /// Opens the "move to a folder" question for a set of expansions.
 fn ask_to_move(ctx: &egui::Context, triggers: Vec<String>) {
     if triggers.is_empty() {
@@ -1415,6 +1428,7 @@ fn keyboard(
     }
     if ctx.data(|d| d.get_temp::<Vec<String>>(move_targets_key()).is_some())
         || ctx.data(|d| d.get_temp::<String>(create_folder_key()).is_some())
+        || ctx.data(|d| d.get_temp::<(String, String)>(rename_key()).is_some())
     {
         return;
     }
@@ -3134,6 +3148,7 @@ fn show_row_inner(
 
     let mut edit_clicked = false;
     let mut clicked_with: Option<(bool, bool)> = None;
+    let mut menu: Option<RowMenu> = None;
 
     let framed = frame
         .corner_radius(controls::RADIUS_CONTROL)
@@ -3210,6 +3225,51 @@ fn show_row_inner(
                 } else if resp.clicked() || (resp.drag_stopped() && !drag_is_deliberate(ui)) {
                     clicked_with = Some(ui.input(|i| (i.modifiers.command, i.modifiers.shift)));
                 }
+                // A right click is the quick way to what the detail's buttons do, without
+                // choosing the card first. Not while picking several: there a click ticks.
+                if !pass.select_mode {
+                    let lang = state.settings.lang;
+                    egui::Popup::context_menu(resp).width(MENU_WIDTH).show(|ui| {
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        let open_keys = keys::text(keys::OPEN, lang);
+                        // The detail's button draws its pencil in the label; here the icon column does.
+                        let edit = t.edit_button.trim_start_matches('✏').trim_start();
+                        if controls::menu_item(ui, Some(Glyph::Edit), edit, Some(&open_keys), Tone::Normal, true)
+                            .clicked()
+                        {
+                            menu = Some(RowMenu::Edit);
+                        }
+                        let rename = studio::text(
+                            state,
+                            "Cambiar activador…",
+                            "Change trigger…",
+                            "Palitan ang trigger…",
+                            "ट्रिगर बदलें…",
+                        );
+                        if controls::menu_item(ui, Some(Glyph::Tag), rename, None, Tone::Normal, true).clicked() {
+                            menu = Some(RowMenu::Rename);
+                        }
+                        let move_label = studio::text(
+                            state,
+                            "Mover a carpeta…",
+                            "Move to folder…",
+                            "Ilipat sa folder…",
+                            "फ़ोल्डर में ले जाएँ…",
+                        );
+                        if controls::menu_item(ui, Some(Glyph::MoveToFolder), move_label, None, Tone::Normal, true)
+                            .clicked()
+                        {
+                            menu = Some(RowMenu::Move);
+                        }
+                        controls::menu_separator(ui);
+                        let delete_keys = keys::text(keys::DELETE, lang);
+                        if controls::menu_item(ui, Some(Glyph::Delete), t.delete, Some(&delete_keys), Tone::Danger, true)
+                            .clicked()
+                        {
+                            menu = Some(RowMenu::Delete);
+                        }
+                    });
+                }
             }
         });
 
@@ -3272,6 +3332,19 @@ fn show_row_inner(
     }
     if edit_clicked {
         open_edit_for(state, trigger);
+    }
+    match menu {
+        Some(RowMenu::Edit) => open_edit_for(state, trigger),
+        Some(RowMenu::Rename) => {
+            ui.ctx().data_mut(|d| d.insert_temp(rename_key(), (trigger.to_owned(), trigger.to_owned())));
+        }
+        Some(RowMenu::Move) => ask_to_move(ui.ctx(), vec![trigger.to_owned()]),
+        Some(RowMenu::Delete) => {
+            if let Some(index) = entry_index(state, trigger) {
+                state.request_delete(index);
+            }
+        }
+        None => {}
     }
 
     lit
@@ -4329,6 +4402,95 @@ pub fn show_create_folder_modal(ctx: &egui::Context, state: &mut AppState) {
         ctx.data_mut(|d| d.remove::<String>(create_folder_key()));
     } else {
         ctx.data_mut(|d| d.insert_temp(create_folder_key(), name));
+    }
+}
+
+/// A new trigger for one expansion, from its right-click menu: the trigger as it is, its word
+/// chosen so typing replaces it and the prefix stays.
+pub fn show_rename_modal(ctx: &egui::Context, state: &mut AppState) {
+    let Some((old, mut draft)) = ctx.data(|d| d.get_temp::<(String, String)>(rename_key())) else {
+        return;
+    };
+    let t = state.t();
+    let mut close = false;
+    let mut rename = false;
+
+    let new = draft.trim();
+    let taken = new != old && state.match_file.entries.iter().any(|e| e.trigger_str() == new);
+    let ready = !new.is_empty() && new != old && !taken;
+    let change_label = studio::text(state, "Cambiar", "Change", "Palitan", "बदलें");
+    let modal = controls::dialog(ctx, "library-rename").show(ctx, |ui| {
+        let is_light = !ui.visuals().dark_mode;
+        ui.set_width(controls::dialog_width(ctx, 380.0));
+        ui.label(controls::h3(studio::text(
+            state,
+            "Cambiar activador",
+            "Change trigger",
+            "Palitan ang trigger",
+            "ट्रिगर बदलें",
+        )));
+        ui.add_space(controls::GAP_STACK);
+
+        let id = egui::Id::new("library-rename-field");
+        let first = !ctx.memory(|m| m.has_focus(id)) && egui::TextEdit::load_state(ctx, id).is_none();
+        let field = ui.add(
+            controls::text_field(&mut draft)
+                .id(id)
+                .font(egui::TextStyle::Monospace)
+                .desired_width(ui.available_width()),
+        );
+        if first {
+            field.request_focus();
+            if let Some(mut edit) = egui::TextEdit::load_state(ctx, id) {
+                let (prefix, _) = crate::ui::edit_form::split_trigger(&old);
+                let start = prefix.chars().count();
+                let end = old.chars().count();
+                edit.cursor.set_char_range(Some(egui::text::CCursorRange::two(
+                    egui::text::CCursor::new(start),
+                    egui::text::CCursor::new(end),
+                )));
+                edit.store(ctx, id);
+            }
+        } else if !field.has_focus() && !field.lost_focus() {
+            field.request_focus();
+        }
+        let enter = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+        if taken {
+            ui.add_space(controls::GAP_TIGHT);
+            ui.add(egui::Label::new(controls::small_muted(
+                &fill(t.trigger_duplicate, &[("name", draft.trim())]),
+                is_light,
+            )).wrap());
+        }
+
+        ui.add_space(controls::GAP_STACK);
+        controls::dialog_buttons(ui, |ui| {
+            if controls::button(ui, t.cancel, Tone::Normal, true).clicked() {
+                close = true;
+            }
+            if controls::button(ui, change_label, Tone::Primary, ready).clicked() || (enter && ready) {
+                rename = true;
+            }
+        });
+    });
+
+    if modal.should_close() {
+        close = true;
+    }
+    if rename {
+        let new = draft.trim().to_owned();
+        if state.rename_expansion(&old, &new) {
+            if open_row(ctx).as_deref() == Some(old.as_str()) {
+                set_open_row(ctx, Some(&new));
+            }
+            close = true;
+        }
+    }
+    if close {
+        ctx.data_mut(|d| d.remove::<(String, String)>(rename_key()));
+        ctx.data_mut(|d| d.remove::<egui::text_edit::TextEditState>(egui::Id::new("library-rename-field")));
+    } else {
+        ctx.data_mut(|d| d.insert_temp(rename_key(), (old, draft)));
     }
 }
 

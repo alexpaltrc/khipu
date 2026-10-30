@@ -7,6 +7,11 @@ was published.
 
 ### Added
 
+- **Right-click an expansion.** A menu with **Edit**, **Change trigger…**, **Move to folder…** and
+  **Delete**, without opening the expansion first. **Change trigger…** opens a small window with
+  the trigger already written and its word selected, so typing replaces it and the `;` stays. It
+  says so if another expansion already uses the new one, Enter confirms, and **Undo** puts the old
+  trigger back.
 - **What you last copied, inside an expansion.** «+ Add» under the text has a new item, **What
   you last copied**. It puts `{{copied}}` (`{{copiado}}` in Spanish) where the cursor is, in your
   accent color, and the sentence at the top of the screen says what it will be. When you use the

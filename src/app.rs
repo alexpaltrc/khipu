@@ -1949,6 +1949,61 @@ impl AppState {
         }
     }
 
+    /// Gives one expansion a new trigger, the way the editor would, without opening it: its
+    /// folder, star, off mark and place in a selection go with it, and the island offers it back.
+    /// Returns whether it was written; a refusal raises its own banner.
+    pub fn rename_expansion(&mut self, old: &str, new: &str) -> bool {
+        let t = self.t();
+        let new = new.trim();
+        if new.is_empty() {
+            self.set_error_banner(t.trigger_empty);
+            return false;
+        }
+        if new == old {
+            return true;
+        }
+        // Advanced matches count too, as they do in `save_edit`.
+        if self.match_file.entries.iter().any(|e| e.trigger_str() == new) {
+            self.set_error_banner(fill(t.trigger_duplicate, &[("name", new)]));
+            return false;
+        }
+        let Some(index) = self
+            .match_file
+            .entries
+            .iter()
+            .position(|e| matches!(e, MatchEntry::Simple(m) if m.trigger == old))
+        else {
+            return false;
+        };
+
+        let previous_entries = self.match_file.entries.clone();
+        let previous_off = self.match_file.off.clone();
+        let previous_settings = self.settings.clone();
+        let before = Snapshot::of(&self.match_file, &self.settings);
+
+        if let MatchEntry::Simple(m) = &mut self.match_file.entries[index] {
+            m.trigger = new.to_owned();
+        }
+        self.match_file.rename_trigger(old, new);
+        self.settings.rename_trigger(old, new);
+        self.selection_rename(old, new);
+        let _ = self.settings_store.save(&self.settings);
+        self.touch_list();
+
+        if self.save_and_reload(t.trigger_changed) {
+            self.offer_undo(UndoAction::Restore(Box::new(before)));
+            true
+        } else {
+            self.match_file.entries = previous_entries;
+            self.match_file.off = previous_off;
+            self.settings = previous_settings;
+            let _ = self.settings_store.save(&self.settings);
+            self.selection_rename(new, old);
+            self.touch_list();
+            false
+        }
+    }
+
     /// Writes `base.yml`, says so, and has espanso restarted behind it. Returns whether the file was
     /// written — a restart that later fails does not undo that, because the change is on disk and
     /// will be picked up by the next espanso that starts.
@@ -3854,6 +3909,7 @@ impl eframe::App for KhipuApp {
 
         ui::list_view::show_move_modal(ui.ctx(), &mut self.state);
         ui::list_view::show_create_folder_modal(ui.ctx(), &mut self.state);
+        ui::list_view::show_rename_modal(ui.ctx(), &mut self.state);
         // Before the folder picker, which opens from it and has to be the one on top.
         ui::whats_new_view::show(ui.ctx(), &mut self.state);
         ui::settings_view::show(ui.ctx(), &mut self.state);
