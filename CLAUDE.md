@@ -20,9 +20,10 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
 
 ## Estado
 
-- **Última versión publicada: 0.0.7** (etiqueta `v0.0.7` en `011d500`, GitHub Releases el
-  2026-10-13; enviada a la Store el mismo día).
-- **En curso: `0.0.8-dev`** (abierta en `b6c174e`). Sin publicar hasta que Alex lo pida. El
+- **Última versión publicada: 0.0.8** (etiqueta `v0.0.8` en `b798ff2`, GitHub Releases el
+  2026-10-29; el paquete de la Store lo sube Alex). Su tarjeta de «Novedades» dentro de la app
+  siguió siendo la de la 0.0.7 (`RELEASE` en `ui/whats_new_view.rs`), así que no salió.
+- **En curso: `0.0.9-dev`** (abierta en `6114877`). Sin publicar hasta que Alex lo pida. El
   `-dev` se quita en el commit que publica, y ese commit lleva la etiqueta de la versión.
 - **Microsoft Store**: Store ID `9NXXV15RJ94T`, `https://apps.microsoft.com/detail/9NXXV15RJ94T`.
   Pública desde que se aprobó el envío 2 (0.0.6). Cada actualización es un envío nuevo con
@@ -101,7 +102,7 @@ Vibecode\Khipu\          este repo (solo código y documentos)
 - Fuera del repo, en `Documentos\Vibecode Archivos\Khipu Archivos\`: el material de marca
   (videos, campaña e imágenes de la Store, paleta). No es código; no traerlo de vuelta.
 - Nada personal entra a git: las expansiones de Alex viven en el LocalState de Khipu Dev.
-- Versiones publicadas: GitHub Releases, etiquetas `v0.0.1` a `v0.0.7`. Desde la 0.0.5 el ZIP se
+- Versiones publicadas: GitHub Releases, etiquetas `v0.0.1` a `v0.0.8`. Desde la 0.0.5 el ZIP se
   sube como `Khipu-Portable-<versión>.zip`, con guiones (GitHub cambia los espacios por puntos).
   Lleva una carpeta `Khipu <versión>/` con solo `Khipu.exe` y `Program Files/`.
 - `PRIVACY.md` en `main` es la política de privacidad de la Store: no moverlo.
