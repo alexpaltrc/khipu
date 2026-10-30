@@ -1238,6 +1238,13 @@ impl AppState {
         self.selection_anchor = None;
     }
 
+    /// What a box dragged across the list picked. The anchor goes: a Shift-click after it starts a
+    /// fresh range, there being no one row the box was started from.
+    pub fn set_selection(&mut self, selected: BTreeSet<String>) {
+        self.selected = selected;
+        self.selection_anchor = None;
+    }
+
     /// Whether the current selection contains at least one expansion that actually sits in a
     /// folder — the "Quitar de su carpeta" action is meaningless (and so stays hidden) otherwise.
     /// Cheap: at most one map lookup per selected item, and the selection is small by nature.

@@ -12,6 +12,14 @@ was published.
   the trigger already written and its word selected, so typing replaces it and the `;` stays. It
   says so if another expansion already uses the new one, Enter confirms, and **Undo** puts the old
   trigger back.
+- **Pick several with a box.** Press on empty space in the list and drag: every expansion the box
+  touches is picked, as in File Explorer, and outlined while the box is drawn. Let go and they are
+  ticked, with the bar to move, switch off or delete them. Ctrl adds to what was already picked.
+
+### Changed
+
+- **The expansion a right click is about stays marked** while its menu is open, and while the
+  window or question it led to (change trigger, move, delete) is on screen.
 - **What you last copied, inside an expansion.** «+ Add» under the text has a new item, **What
   you last copied**. It puts `{{copied}}` (`{{copiado}}` in Spanish) where the cursor is, in your
   accent color, and the sentence at the top of the screen says what it will be. When you use the

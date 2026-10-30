@@ -413,6 +413,30 @@ fn rename_key() -> egui::Id {
     egui::Id::new("library-rename")
 }
 
+/// Whether this card is what an open question is about: its right-click menu, or the rename,
+/// move or delete that menu went on to ask. A whole selection is already marked as selected.
+fn in_question(ctx: &egui::Context, state: &AppState, drag_id: egui::Id, trigger: &str) -> bool {
+    // The id `Popup::context_menu` gives the card's menu (`Popup::default_response_id`).
+    if egui::Popup::is_id_open(ctx, drag_id.with("popup")) {
+        return true;
+    }
+    if ctx.data(|d| d.get_temp::<(String, String)>(rename_key())).is_some_and(|(old, _)| old == trigger) {
+        return true;
+    }
+    if ctx
+        .data(|d| d.get_temp::<Vec<String>>(move_targets_key()))
+        .is_some_and(|targets| matches!(targets.as_slice(), [only] if only == trigger))
+    {
+        return true;
+    }
+    match &state.pending_confirm {
+        Some(crate::app::PendingConfirm { kind: crate::app::PendingConfirmKind::DeleteOne { index }, .. }) => {
+            state.match_file.entries.get(*index).is_some_and(|e| e.trigger_str() == trigger)
+        }
+        _ => false,
+    }
+}
+
 /// What a card's right-click menu was asked to do.
 enum RowMenu {
     Edit,
@@ -528,6 +552,150 @@ fn visible_order(list: &ListCache, visible: &[usize]) -> Vec<String> {
 }
 
 // ---------------------------------------------------------------------------------------------
+// The box drawn to pick several
+// ---------------------------------------------------------------------------------------------
+
+/// A box being dragged across the list from somewhere no expansion is, picking every one it
+/// touches, as in File Explorer. Its corner is kept in the list's own coordinates, so it stays on
+/// the expansions it started beside while the list scrolls under it.
+#[derive(Clone)]
+struct Marquee {
+    anchor: egui::Vec2,
+    /// What was already picked when the box began with Ctrl held, and stays picked whatever the
+    /// box does. Empty without Ctrl: the box alone says what is picked.
+    kept: std::collections::BTreeSet<String>,
+}
+
+fn marquee_key() -> egui::Id {
+    egui::Id::new("library-marquee")
+}
+
+/// This frame's box on screen, for each card to tell whether it is inside.
+fn marquee_rect_key() -> egui::Id {
+    egui::Id::new("library-marquee-rect")
+}
+
+/// The cards the box touched this frame, as they are drawn.
+fn marquee_hits_key() -> egui::Id {
+    egui::Id::new("library-marquee-hits")
+}
+
+/// The box as it was let go, in the list's coordinates, and when: it fades rather than vanishes.
+fn marquee_fade_key() -> egui::Id {
+    egui::Id::new("library-marquee-fade")
+}
+
+/// How long the box takes to fade once it is let go.
+const MARQUEE_FADE: f64 = 0.15;
+
+/// This frame's box, for a card deciding whether it may be left undrawn.
+fn marquee_rect(ctx: &egui::Context) -> Option<egui::Rect> {
+    ctx.data(|d| d.get_temp::<egui::Rect>(marquee_rect_key()))
+}
+
+/// Whether the band `top..top + height` of the list lies under the box: such a card is drawn
+/// even far off screen, since the box picks it only by drawing it.
+fn under_marquee(ctx: &egui::Context, top: f32, height: f32) -> bool {
+    marquee_rect(ctx).is_some_and(|r| r.y_range().intersects(egui::Rangef::new(top, top + height)))
+}
+
+/// Starts, follows and ends the box. Called inside the list's scroll area before any card, so
+/// every card is laid over the empty space it answers for and keeps its own presses and drags;
+/// `origin` is the top-left of the list's content. Returns the box on screen while there is one,
+/// and whether this is the frame it was let go.
+fn marquee_begin(ui: &egui::Ui, state: &AppState, origin: egui::Pos2) -> Option<(egui::Rect, bool)> {
+    let ctx = ui.ctx();
+    let resp = ui.interact(ui.clip_rect(), egui::Id::new("library-marquee-area"), egui::Sense::drag());
+    if resp.drag_started() {
+        if let Some(press) = ui.input(|i| i.pointer.press_origin()) {
+            let kept = if ui.input(|i| i.modifiers.command) { state.selected.clone() } else { Default::default() };
+            ctx.data_mut(|d| d.insert_temp(marquee_key(), Marquee { anchor: press - origin, kept }));
+        }
+    }
+    let ending = resp.drag_stopped();
+    let held = resp.dragged() || ending;
+    let pointer = ctx.pointer_latest_pos();
+    let marquee = ctx.data(|d| d.get_temp::<Marquee>(marquee_key()));
+    match (marquee, pointer, held) {
+        (Some(m), Some(pointer), true) => {
+            let rect = egui::Rect::from_two_pos(origin + m.anchor, pointer);
+            ctx.data_mut(|d| {
+                d.insert_temp(marquee_rect_key(), rect);
+                d.insert_temp(marquee_hits_key(), Vec::<String>::new());
+            });
+            Some((rect, ending))
+        }
+        (Some(_), ..) => {
+            // Lost without being let go (the window lost the pointer): drop it as it stands.
+            ctx.data_mut(|d| {
+                d.remove::<Marquee>(marquee_key());
+                d.remove::<egui::Rect>(marquee_rect_key());
+            });
+            None
+        }
+        _ => None,
+    }
+}
+
+/// After the cards: picks what the box touched, draws it over them, and on the frame it is let
+/// go hands the pick to the picking mode, as a Ctrl-click does.
+fn marquee_end(ui: &egui::Ui, state: &mut AppState, origin: egui::Pos2, boxed: Option<(egui::Rect, bool)>) {
+    let ctx = ui.ctx().clone();
+    let accent_color = accent(ui.visuals());
+    let paint = |rect: egui::Rect, amount: f32| {
+        // Explorer's box: square, the accent thinly round it and faintly through it.
+        ui.painter().rect(
+            rect,
+            0.0,
+            accent_color.gamma_multiply(0.18 * amount),
+            egui::Stroke::new(1.0, accent_color.gamma_multiply(amount)),
+            egui::StrokeKind::Inside,
+        );
+    };
+
+    if let Some((rect, ending)) = boxed {
+        let hits = ctx.data_mut(|d| d.remove_temp::<Vec<String>>(marquee_hits_key())).unwrap_or_default();
+        if let Some(m) = ctx.data(|d| d.get_temp::<Marquee>(marquee_key())) {
+            let mut picked = m.kept;
+            picked.extend(hits);
+            if picked != state.selected {
+                state.set_selection(picked);
+            }
+        }
+        paint(rect, 1.0);
+        if ending {
+            // Read before `data_mut`: both lock the context, and nesting them never returns.
+            let now = ctx.input(|i| i.time);
+            ctx.data_mut(|d| {
+                d.remove::<Marquee>(marquee_key());
+                d.remove::<egui::Rect>(marquee_rect_key());
+                d.insert_temp(marquee_fade_key(), (rect.translate(-origin.to_vec2()), now));
+            });
+            if !state.selected.is_empty() {
+                set_select_mode(&ctx, true);
+                set_open_row(&ctx, None);
+            }
+        }
+        ctx.request_repaint();
+        return;
+    }
+
+    if let Some((rect, since)) = ctx.data(|d| d.get_temp::<(egui::Rect, f64)>(marquee_fade_key())) {
+        let gone = if crate::theme::animations_enabled() {
+            ((ctx.input(|i| i.time) - since) / MARQUEE_FADE) as f32
+        } else {
+            1.0
+        };
+        if gone >= 1.0 {
+            ctx.data_mut(|d| d.remove::<(egui::Rect, f64)>(marquee_fade_key()));
+        } else {
+            paint(rect.translate(origin.to_vec2()), 1.0 - egui::emath::easing::cubic_out(gone));
+            ctx.request_repaint();
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
 // Drag auto-scroll
 // ---------------------------------------------------------------------------------------------
 
@@ -549,7 +717,8 @@ const AUTOSCROLL_MAX_SPEED: f32 = 900.0;
 /// scroll feels identical regardless of frame rate; and it only requests continuous repaints while
 /// it is actually scrolling, leaving the app's normal idle throttling untouched the rest of the time.
 fn drag_autoscroll(ui: &egui::Ui) {
-    if !egui::DragAndDrop::has_payload_of_type::<DragPayload>(ui.ctx()) {
+    let boxing = ui.ctx().data(|d| d.get_temp::<Marquee>(marquee_key())).is_some();
+    if !boxing && !egui::DragAndDrop::has_payload_of_type::<DragPayload>(ui.ctx()) {
         return;
     }
     let Some(pointer) = ui.ctx().pointer_latest_pos() else {
@@ -1980,10 +2149,13 @@ fn show_list(
 
             ui.set_width(ui.available_width());
             ui.spacing_mut().item_spacing.y = 0.0;
+            let content = ui.cursor().min;
+            let boxed = marquee_begin(ui, state, content);
             let mut travels = Travels::begin(ui, state);
             if pass.grid {
                 show_grid(ui, state, list, visible, pass, open.as_deref(), tab_stop.as_deref(), &mut travels);
                 travels.end(ui);
+                marquee_end(ui, state, content, boxed);
                 ui.add_space(NEW_BUTTON_ROOM);
                 return;
             }
@@ -1996,7 +2168,7 @@ fn show_list(
             // is the one Tab stops on, so whole runs of the rest can go at once — see [`skip_run`].
             let skippable = pass
                 .known_height
-                .filter(|_| pass.dragged_id.is_none() && pass.flash.is_none());
+                .filter(|_| pass.dragged_id.is_none() && pass.flash.is_none() && boxed.is_none());
             let mut previous_lit = true; // No rule above the first row.
             let mut next = 0;
             while next < visible.len() {
@@ -2018,6 +2190,7 @@ fn show_list(
             }
             glide(ui, slot, origin, is_light);
             travels.end(ui);
+            marquee_end(ui, state, content, boxed);
             // Room to scroll the last row clear of the round button, so nothing stays under it.
             ui.add_space(NEW_BUTTON_ROOM);
         });
@@ -2072,7 +2245,8 @@ fn show_grid(
                 let top = ui.cursor().top();
                 let view = ui.clip_rect();
                 let band = height * 2.0;
-                if top + height < view.top() - band || top > view.bottom() + band {
+                let far = top + height < view.top() - band || top > view.bottom() + band;
+                if far && !under_marquee(ui.ctx(), top, height) {
                     ui.add_space(height);
                     continue;
                 }
@@ -3018,7 +3192,8 @@ fn show_row(
             let top = ui.cursor().top();
             let view = ui.clip_rect();
             let band = height * 3.0;
-            if top + height < view.top() - band || top > view.bottom() + band {
+            let far = top + height < view.top() - band || top > view.bottom() + band;
+            if far && !under_marquee(ui.ctx(), top, height) {
                 ui.add_space(height);
                 return false;
             }
@@ -3062,6 +3237,12 @@ fn show_row_inner(
     let t = state.t();
     let trigger = row.trigger.as_str();
     let is_selected = state.selected.contains(trigger);
+    // Marked as chosen while its menu, or what the menu opened, is about it: otherwise nothing
+    // says which card a right click landed on.
+    // So is every card a box being drawn has picked: no tick boxes show until it is let go.
+    let marked = is_open
+        || in_question(ui.ctx(), state, drag_id, trigger)
+        || (is_selected && marquee_rect(ui.ctx()).is_some());
     let is_light = !ui.visuals().dark_mode;
     let accent_color = accent(ui.visuals());
     let hovered_row = pass.hovered == Some(drag_id);
@@ -3069,7 +3250,7 @@ fn show_row_inner(
         .flash
         .and_then(|(lit, amount)| (lit == drag_id).then_some(amount));
     // The hover is not the row's to paint: see [`Glide`].
-    let lit = is_selected || is_open || flash.is_some();
+    let lit = is_selected || marked || flash.is_some();
 
     // The rule between two rows, drawn rather than implied by a box around each. It stops at
     // anything tinted, so a highlighted row reads as one continuous shape.
@@ -3094,7 +3275,7 @@ fn show_row_inner(
         }
     };
 
-    let mut bg = if is_open || is_selected {
+    let mut bg = if marked || is_selected {
         if hovered_row {
             crate::app::selection_hover_tint(is_light)
         } else {
@@ -3273,9 +3454,17 @@ fn show_row_inner(
             }
         });
 
+    if marquee_rect(ui.ctx()).is_some_and(|r| r.intersects(framed.response.rect)) {
+        ui.ctx().data_mut(|d| d.get_temp_mut_or_default::<Vec<String>>(marquee_hits_key()).push(trigger.to_owned()));
+    }
+
     // Under the pointer: tell the wash where to go. Not while something is being dragged — the
     // wash following a drag across the list would compete with the drop targets.
-    if !pass.grid && pass.dragged_id.is_none() && ui.rect_contains_pointer(framed.response.rect) {
+    if !pass.grid
+        && pass.dragged_id.is_none()
+        && marquee_rect(ui.ctx()).is_none()
+        && ui.rect_contains_pointer(framed.response.rect)
+    {
         let rect = framed.response.rect;
         ui.ctx().data_mut(|d| d.insert_temp(glide_target_key(), rect));
     }
@@ -3287,7 +3476,7 @@ fn show_row_inner(
     let pace = if crate::theme::animations_enabled() { CHOSEN_GROW } else { 0.0 };
     let chosen = ui.ctx().animate_bool_with_time_and_easing(
         drag_id.with("chosen"),
-        is_open,
+        marked,
         pace,
         egui::emath::easing::cubic_out,
     );
