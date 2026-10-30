@@ -87,13 +87,13 @@ Source code: https://github.com/alexpaltrc/khipu
 
 Khipu includes espanso (https://espanso.org) by Federico Terzi, also under the GNU GPL v3; its source code is at https://github.com/espanso/espanso. The notices of every component are in THIRD-PARTY-NOTICES.txt, installed with the app.
 
-## Ano ang bago sa bersyong ito (0.0.7) · «Novedades de esta versión»
-Mga form: puwedeng mag-iwan ng mga blangko ang isang expansion. Kapag na-type mo ang trigger nito, isang maliit na window ng Khipu ang magtatanong sa mga ito at isusulat ang buong teksto.
-Paborito: lagyan ng bituin ang mga madalas mong gamitin at mauuna sila, sa listahan at sa paghahanap gamit ang Alt+Space.
-Grid view: ang mga expansion mo bilang mga card. Nandiyan pa rin ang Comfortable at Compact na listahan.
-Puwedeng magkaroon ng pangalan ang bawat expansion, at nahahanap ito ng paghahanap.
-Ang bagong expansion ay ginagawa sa tatlong tanong, na may pangungusap na nagsasabi kung ano ang gagawin nito.
-Temang Itim, purong itim para sa mga OLED screen.
-Mga setting sa iisang pahina.
-Gumagamit ng ; bilang prefix ang mga bagong install, para hindi buksan ng Outlook, Teams at WhatsApp ang kanilang emoji. Hindi nagbabago ang mga expansion mo.
-Lumalabas ang Hindi sa anumang wika ng interface, at marami pang ibang ayos.
+## Ano ang bago sa bersyong ito (0.0.8) · «Novedades de esta versión»
+I-undo: pagkatapos mag-save, magbura, maglipat o mag-import, nagiging pill ang + button na may I-undo.
+I-right-click ang isang expansion: I-edit, Palitan ang trigger, Ilipat sa folder at Burahin, nang hindi ito binubuksan.
+Pumili ng marami sa pag-drag ng kahon gamit ang mouse, gaya ng sa File Explorer.
+Mga field sa loob ng teksto: pumili ng ilang salita at gawin itong field. Nasa gilid ang preview at ito mismo ang form.
+Mailalagay kahit saan sa teksto ang petsa at ang huli mong kinopya.
+Huwag mag-expand sa: piliin ang mga program kung saan hindi gagana ang mga expansion mo.
+Gumagana sa Narrator at iba pang screen reader.
+Bumubukas ang mga form sa monitor kung saan ka nagta-type.
+Iba't ibang ayos sa mga form at folder.

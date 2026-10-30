@@ -3,7 +3,7 @@
 All notable changes to Khipu, called Espanso Manager until 0.0.5. Dates are the day the work was finished, not the day it
 was published.
 
-## Unreleased
+## 0.0.8 — 2026-10-29
 
 ### Added
 
@@ -15,11 +15,6 @@ was published.
 - **Pick several with a box.** Press on empty space in the list and drag: every expansion the box
   touches is picked, as in File Explorer, and outlined while the box is drawn. Let go and they are
   ticked, with the bar to move, switch off or delete them. Ctrl adds to what was already picked.
-
-### Changed
-
-- **The expansion a right click is about stays marked** while its menu is open, and while the
-  window or question it led to (change trigger, move, delete) is on screen.
 - **What you last copied, inside an expansion.** «+ Add» under the text has a new item, **What
   you last copied**. It puts `{{copied}}` (`{{copiado}}` in Spanish) where the cursor is, in your
   accent color, and the sentence at the top of the screen says what it will be. When you use the
@@ -62,6 +57,8 @@ was published.
   date in the preview and inserts it with the rest. «+ Add» now lists Field, Date, What you last
   copied. Your date expansions open as a text holding one date pill, and an expansion with no fields
   is still saved with espanso's own date variable.
+- **The expansion a right click is about stays marked** while its menu is open, and while the
+  window or question it led to (change trigger, move, delete) is on screen.
 
 ### Fixed
 

@@ -1,6 +1,6 @@
 # Khipu en la Microsoft Store
 
-*Actualizada el 2026-10-13 para la actualización a la 0.0.7. Las pantallas son las que se comprobaron el 2026-10-07 (skill `subir-a-microsoft-store`); si alguna no coincide, mándame la captura.*
+*Actualizada el 2026-10-29 para la actualización a la 0.0.8. Las pantallas son las que se comprobaron el 2026-10-07 (skill `subir-a-microsoft-store`); si alguna no coincide, mándame la captura.*
 
 *Las imágenes y capturas que esta guía y las fichas (`ficha-<idioma>.md`) mencionan no están en el
 repo: viven en `Documentos\Vibecode Archivos\Khipu Archivos\marca\store\`.*
@@ -9,7 +9,7 @@ Khipu está en la Store, **pública**, desde que se aprobó el envío 2 (0.0.6):
 `9NXXV15RJ94T`, `https://apps.microsoft.com/detail/9NXXV15RJ94T`. Todo lo que se hace en Partner
 Center lo haces tú; aquí va casilla por casilla.
 
-## Ahora: actualización a la 0.0.7
+## Ahora: actualización a la 0.0.8
 
 Un envío nuevo con el paquete nuevo y sus novedades. La ficha, las imágenes y el video se quedan
 como están.
@@ -21,17 +21,17 @@ como están.
 
 ### «Paquetes»
 
-- [ ] «Browse your files» (o arrastra el archivo) y sube `paquetes\Khipu 0.0.7.msix` (11 MB).
-- [ ] En la tabla debe salir «Khipu 0.0.7.msix · v0.0.7.0, X64» con «Windows 10/11 Desktop»
+- [ ] «Browse your files» (o arrastra el archivo) y sube `Documentos\Vibecode Archivos\Khipu Archivos\paquetes\Khipu 0.0.8.msix` (11 MB).
+- [ ] En la tabla debe salir «Khipu 0.0.8.msix · v0.0.8.0, X64» con «Windows 10/11 Desktop»
       marcado.
-- [ ] Partner Center tacha «Khipu 0.0.6.msix» y avisa de que lo quitará al guardar. Así tiene que
-      ser: no pulses «Don’t remove this package». Quien tiene la 0.0.6 recibe la 0.0.7.
+- [ ] Partner Center tacha «Khipu 0.0.7.msix» y avisa de que lo quitará al guardar. Así tiene que
+      ser: no pulses «Don’t remove this package». Quien tiene la 0.0.7 recibe la 0.0.8.
 - [ ] «Roll out update gradually…» y «Make this update mandatory»: sin marcar.
 - [ ] «Guardar».
 
 ### «Descripciones de Store», en cada uno de los cuatro idiomas
 
-- [ ] «Novedades de esta versión»: copia la sección **«Novedades de esta versión (0.0.7)»** del
+- [ ] «Novedades de esta versión»: copia la sección **«Novedades de esta versión (0.0.8)»** del
       final de la `ficha.md` de ese idioma (`es-MX`, `en-US`, `fil-PH`, `hi-IN`). Todas miden
       menos de 1500 caracteres.
 - [ ] Lo demás (descripción, capturas, características): **déjalo como viene**.
@@ -51,10 +51,10 @@ como están.
 
 ### Enviar
 
-- [ ] «Enviar para certificación». Mientras se revisa, la 0.0.6 sigue publicada. Tarda hasta 3
+- [ ] «Enviar para certificación». Mientras se revisa, la 0.0.7 sigue publicada. Tarda hasta 3
       días hábiles.
 - [ ] Al publicarse, en `https://apps.microsoft.com/detail/9NXXV15RJ94T` debe salir la versión
-      0.0.7 y sus novedades. Quien ya la tiene instalada la recibe solo.
+      0.0.8 y sus novedades. Quien ya la tiene instalada la recibe solo.
 
 ## El envío 2 (0.0.6, lanzamiento público)
 

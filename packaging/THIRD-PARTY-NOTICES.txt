@@ -28,9 +28,12 @@ shipped with espanso's portable edition and distributed under the Visual Studio 
 terms for redistributable code.
 
 ==============================================================================
-Rust libraries linked into Khipu.exe (116)
+Rust libraries linked into Khipu.exe (120)
 ==============================================================================
   accesskit 0.24.1  -  MIT OR Apache-2.0
+  accesskit_consumer 0.35.0  -  MIT OR Apache-2.0
+  accesskit_windows 0.32.1  -  MIT OR Apache-2.0
+  accesskit_winit 0.32.2  -  Apache-2.0
   adler2 2.0.1  -  0BSD OR MIT OR Apache-2.0
   ahash 0.8.12  -  MIT OR Apache-2.0
   arboard 3.6.1  -  MIT OR Apache-2.0
@@ -70,6 +73,7 @@ Rust libraries linked into Khipu.exe (116)
   glutin-winit 0.5.0  -  MIT
   guillotiere 0.7.0  -  MIT/Apache-2.0
   harfrust 0.12.0  -  MIT
+  hashbrown 0.16.1  -  MIT OR Apache-2.0
   hashbrown 0.17.1  -  MIT OR Apache-2.0
   image 0.25.10  -  MIT OR Apache-2.0
   indexmap 2.14.0  -  Apache-2.0 OR MIT
@@ -402,7 +406,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ==============================================================================
-Used by: ahash 0.8.12, arrayvec 0.7.8, bitflags 2.13.1, cfg-if 1.0.4, crossbeam-channel 0.5.16, crossbeam-utils 0.8.22, either 1.18.0, equivalent 1.0.2, euclid 0.22.14, flate2 1.1.10, glow 0.17.0, hashbrown 0.17.1, indexmap 2.14.0, itertools 0.15.0, keyboard-types 0.7.0, lock_api 0.4.14, log 0.4.34, muda 0.19.3, num-traits 0.2.19, once_cell 1.21.4, parking_lot 0.12.5, parking_lot_core 0.9.12, png 0.18.1, ron 0.12.2, scopeguard 1.2.0, smallvec 1.15.2, smol_str 0.2.2, tray-icon 0.24.2, unicode-segmentation 1.13.3, uuid 1.26.0
+Used by: ahash 0.8.12, arrayvec 0.7.8, bitflags 2.13.1, cfg-if 1.0.4, crossbeam-channel 0.5.16, crossbeam-utils 0.8.22, either 1.18.0, equivalent 1.0.2, euclid 0.22.14, flate2 1.1.10, glow 0.17.0, hashbrown 0.16.1, hashbrown 0.17.1, indexmap 2.14.0, itertools 0.15.0, keyboard-types 0.7.0, lock_api 0.4.14, log 0.4.34, muda 0.19.3, num-traits 0.2.19, once_cell 1.21.4, parking_lot 0.12.5, parking_lot_core 0.9.12, png 0.18.1, ron 0.12.2, scopeguard 1.2.0, smallvec 1.15.2, smol_str 0.2.2, tray-icon 0.24.2, unicode-segmentation 1.13.3, uuid 1.26.0
 ==============================================================================
 
 Apache License
@@ -3150,7 +3154,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ==============================================================================
-Used by: hashbrown 0.17.1
+Used by: hashbrown 0.16.1, hashbrown 0.17.1
 ==============================================================================
 
 Copyright (c) 2016 Amanieu d'Antras
@@ -5560,6 +5564,12 @@ These crates declare their licence in Cargo.toml but publish no licence text. Th
 copyright belongs to the authors named, and the standard text of each licence follows.
 
   accesskit 0.24.1  -  MIT OR Apache-2.0
+    Copyright (c) The AccessKit contributors
+  accesskit_consumer 0.35.0  -  MIT OR Apache-2.0
+    Copyright (c) The AccessKit contributors
+  accesskit_windows 0.32.1  -  MIT OR Apache-2.0
+    Copyright (c) The AccessKit contributors
+  accesskit_winit 0.32.2  -  Apache-2.0
     Copyright (c) The AccessKit contributors
   clipboard-win 5.4.1  -  BSL-1.0
     Copyright (c) Douman <douman@gmx.se>

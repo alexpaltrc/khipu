@@ -83,13 +83,13 @@ Source code: https://github.com/alexpaltrc/khipu
 
 Khipu includes espanso (https://espanso.org) by Federico Terzi, also under the GNU GPL v3; its source code is at https://github.com/espanso/espanso. The notices of every component are in THIRD-PARTY-NOTICES.txt, installed with the app.
 
-## What's new in this version (0.0.7) · «Novedades de esta versión»
-Forms: an expansion can leave blanks. When you type its trigger, a small Khipu window asks for them and writes the finished text.
-Favorites: star the ones you use most and they come first, in the list and in the Alt+Space search.
-Grid view: your expansions as cards. Comfortable and Compact lists are still there.
-Every expansion can have a name, and search finds it.
-A new expansion is made in three questions, with a sentence that says what it will do.
-Ultra dark theme, on pure black for OLED screens.
-Settings in a single page.
-New installs use ; as the prefix, so Outlook, Teams and WhatsApp do not open their emoji picker. Your expansions stay as they are.
-Hindi shows in any interface language, and many other fixes.
+## What's new in this version (0.0.8) · «Novedades de esta versión»
+Undo: after you save, delete, move or import, the + button turns into a pill with Undo.
+Right-click an expansion: Edit, Change trigger, Move to folder and Delete, without opening it.
+Pick several by dragging a box with the mouse, as in File Explorer.
+Fields inside the text: select some words and make them a field. The preview sits to one side and is the form itself.
+The date and what you last copied go anywhere in the text.
+Don't expand in: choose the programs where your expansions stay quiet.
+Works with Narrator and other screen readers.
+Forms open on the monitor you are typing on.
+Several fixes to forms and folders.

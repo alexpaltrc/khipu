@@ -83,13 +83,13 @@ Código fuente: https://github.com/alexpaltrc/khipu
 
 Khipu incluye espanso (https://espanso.org), de Federico Terzi, también bajo la GPL de GNU v3; su código fuente está en https://github.com/espanso/espanso. Los avisos de cada componente están en THIRD-PARTY-NOTICES.txt, que se instala con la aplicación.
 
-## Novedades de esta versión (0.0.7) · «Novedades de esta versión»
-Formularios: una expansión puede dejar espacios en blanco. Al escribir su disparador, una pequeña ventana de Khipu te los pide y escribe el texto terminado.
-Favoritas: marca con una estrella las que más usas y saldrán primero, en la lista y en la búsqueda con Alt+Espacio.
-Vista en cuadrícula: tus expansiones como tarjetas. También puedes elegir la lista cómoda o la compacta.
-Cada expansión puede llevar un nombre, y la búsqueda lo encuentra.
-Una expansión nueva se crea en tres preguntas, con una frase que dice lo que hará.
-Tema Ultra oscuro, en negro puro para pantallas OLED.
-Ajustes en una sola página.
-Las instalaciones nuevas usan ; como prefijo, para que Outlook, Teams y WhatsApp no abran sus emojis. Tus expansiones no cambian.
-El hindi se ve en cualquier idioma, y muchas otras correcciones.
+## Novedades de esta versión (0.0.8) · «Novedades de esta versión»
+Deshacer: después de guardar, borrar, mover o importar, el botón + se vuelve una pastilla con «Deshacer».
+Clic derecho en una expansión: Editar, Cambiar activador, Mover a carpeta y Eliminar, sin abrirla.
+Selecciona varias arrastrando un recuadro con el mouse, como en el Explorador de archivos.
+Campos dentro del texto: selecciona unas palabras y conviértelas en un campo. La vista previa queda a un lado y es el propio formulario.
+La fecha y lo último que copiaste se ponen en cualquier parte del texto.
+No expandir en: elige los programas donde tus expansiones no se activan.
+Funciona con Narrador y otros lectores de pantalla.
+Los formularios se abren en el monitor donde estás escribiendo.
+Varias correcciones en formularios y carpetas.

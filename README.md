@@ -11,7 +11,7 @@
 ![Windows](https://img.shields.io/badge/Windows-0078D4?logo=windows&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-1.98-CE422B?logo=rust&logoColor=white)
 ![egui](https://img.shields.io/badge/egui-0.36-7B68EE)
-![Version](https://img.shields.io/badge/version-0.0.7-blue)
+![Version](https://img.shields.io/badge/version-0.0.8-blue)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 ![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-or%20portable-0078D4)
 ![Free](https://img.shields.io/badge/free-forever-2EA043)
@@ -25,7 +25,7 @@
 
 **or**
 
-### [⬇️ Download the portable ZIP](https://github.com/alexpaltrc/khipu/releases/download/v0.0.7/Khipu-Portable-0.0.7.zip)
+### [⬇️ Download the portable ZIP](https://github.com/alexpaltrc/khipu/releases/download/v0.0.8/Khipu-Portable-0.0.8.zip)
 
 <sub>10 MB · nothing gets installed · unzip and open `Khipu.exe`</sub>
 
