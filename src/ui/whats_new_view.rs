@@ -406,3 +406,17 @@ pub fn studio_wants_it() -> bool {
         .and_then(|exe| Some(exe.parent()?.join("preview-whats-new")))
         .is_some_and(|flag| flag.exists())
 }
+
+#[cfg(test)]
+mod tests {
+    /// A release goes out with its own card. The commit that drops `-dev` from the version fails
+    /// here until [`super::RELEASE`] — and the items under it — are this release's: a card left
+    /// on the last one tells everyone who updates that nobody looked.
+    #[test]
+    fn a_release_carries_its_own_card() {
+        let version = env!("CARGO_PKG_VERSION");
+        if !version.contains('-') {
+            assert_eq!(super::RELEASE, version, "renew «Novedades» for {version} before releasing it");
+        }
+    }
+}

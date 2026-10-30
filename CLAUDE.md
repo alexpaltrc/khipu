@@ -22,7 +22,8 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
 
 - **Última versión publicada: 0.0.8** (etiqueta `v0.0.8` en `b798ff2`, GitHub Releases el
   2026-10-29; el paquete de la Store lo sube Alex). Su tarjeta de «Novedades» dentro de la app
-  siguió siendo la de la 0.0.7 (`RELEASE` en `ui/whats_new_view.rs`), así que no salió.
+  siguió siendo la de la 0.0.7 (`RELEASE` en `ui/whats_new_view.rs`), así que no salió. No
+  vuelve a pasar: ver «Reglas permanentes».
 - **En curso: `0.0.9-dev`** (abierta en `6114877`). Sin publicar hasta que Alex lo pida. El
   `-dev` se quita en el commit que publica, y ese commit lleva la etiqueta de la versión.
 - **Microsoft Store**: Store ID `9NXXV15RJ94T`, `https://apps.microsoft.com/detail/9NXXV15RJ94T`.
@@ -193,6 +194,12 @@ solo el índice para saber cuál abrir.
   se dice que no se pudo medir.
 - Cada conversación termina subiendo su trabajo («Bajar y subir cambios»). Publicar una versión
   (etiqueta, GitHub Releases, Store) solo cuando Alex lo decide.
+- **Ninguna versión sale sin su tarjeta de «Novedades» renovada** (decisión de Alex, 2026-10-29).
+  Una tarjeta vieja dice a quien actualiza que no cuidamos los detalles ni usamos nuestra propia
+  app. El commit que publica pone `RELEASE` (`ui/whats_new_view.rs`) en la versión nueva y
+  cambia sus elementos por lo nuevo que vale la pena probar, revisados con capturas en claro y
+  oscuro y en los cuatro idiomas. La prueba `a_release_carries_its_own_card` falla si la versión
+  deja de ser `-dev` y `RELEASE` no coincide; nunca se apaga ni se esquiva.
 
 ## Flujo por cada cambio
 
