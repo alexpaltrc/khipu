@@ -2367,12 +2367,11 @@ impl Spring {
     }
 }
 
-/// One line of the island: what it says, the trigger after it, whether «Deshacer» follows, when
-/// it began to arrive and, once it is on its way out, when it began to leave.
+/// One line of the island: what it says, whether «Deshacer» follows, when it began to arrive
+/// and, once it is on its way out, when it began to leave.
 #[derive(Clone)]
 struct Words {
     text: String,
-    subject: Option<String>,
     action: bool,
     at: f64,
     out: Option<f64>,
@@ -2492,8 +2491,6 @@ fn letter(now: f64, words: &Words, at: f64, i: usize, n: usize, ahead: bool) -> 
 /// long message ends in «…» before it would push the island past the page's margins.
 struct Laid {
     line: std::sync::Arc<egui::Galley>,
-    /// How many of its glyphs are the message (and the space after it); the rest are the trigger.
-    split: usize,
     action: Option<std::sync::Arc<egui::Galley>>,
     width: f32,
 }
@@ -2511,18 +2508,12 @@ struct Ink {
     text: egui::Color32,
     accent: egui::Color32,
     body: egui::FontId,
-    mono: egui::FontId,
     strong: egui::FontId,
 }
 
 fn lay(painter: &egui::Painter, words: &Words, undo: &str, room: f32, ink: &Ink) -> Laid {
     let mut job = egui::text::LayoutJob::default();
-    let plain = egui::TextFormat::simple(ink.body.clone(), ink.text);
-    job.append(&words.text, 0.0, plain.clone());
-    if let Some(subject) = &words.subject {
-        job.append(" ", 0.0, plain);
-        job.append(subject, 0.0, egui::TextFormat::simple(ink.mono.clone(), ink.accent));
-    }
+    job.append(&words.text, 0.0, egui::TextFormat::simple(ink.body.clone(), ink.text));
     let action = words.action.then(|| painter.layout_no_wrap(undo.to_owned(), ink.strong.clone(), ink.accent));
     let fixed = ISLAND_ICON
         + ISLAND_AFTER_ICON
@@ -2533,21 +2524,19 @@ fn lay(painter: &egui::Painter, words: &Words, undo: &str, room: f32, ink: &Ink)
     let line = painter.layout_job(job);
     Laid {
         width: fixed + line.size().x,
-        split: words.text.chars().count() + 1,
         line,
         action,
     }
 }
 
-/// Paints a laid-out line a letter at a time, each as far along as `step` says. Every letter sits
-/// on the first one's baseline: a line lines up its fonts by their feet, which would lift the
-/// trigger's monospace above the words.
+/// Paints a laid-out line a letter at a time, each as far along as `step` says, every letter on
+/// the line's own baseline.
 fn paint_letters(
     painter: &egui::Painter,
     galley: &std::sync::Arc<egui::Galley>,
     top_left: egui::Pos2,
-    font_of: impl Fn(usize) -> egui::FontId,
-    ink_of: impl Fn(usize) -> egui::Color32,
+    font: &egui::FontId,
+    ink: egui::Color32,
     step: impl Fn(usize) -> (f32, f32),
 ) {
     let mut i = 0;
@@ -2556,13 +2545,11 @@ fn paint_letters(
         let baseline = top_left.y + row.pos.y + first.pos.y;
         for glyph in &row.row.glyphs {
             let (shown, rise) = step(i);
-            let font = font_of(i);
-            let ink = ink_of(i);
             i += 1;
             if shown <= 0.003 || glyph.chr.is_whitespace() {
                 continue;
             }
-            let one = painter.layout_no_wrap(glyph.chr.to_string(), font, ink);
+            let one = painter.layout_no_wrap(glyph.chr.to_string(), font.clone(), ink);
             let Some(own) = one.rows.first().and_then(|r| r.row.glyphs.first().map(|g| r.pos.y + g.pos.y)) else {
                 continue;
             };
@@ -2589,10 +2576,10 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
     // Where the island is going follows from what there is to undo.
     let offer = state
         .undo_offer()
-        .map(|o| (island_words(o.message), o.subject.map(str::to_owned), o.left, o.key));
+        .map(|o| (island_words(o.message), o.left, o.key));
     let mut island: Option<Island> = ctx.data(|d| d.get_temp(id));
-    if let Some((text, subject, left, key)) = offer {
-        let words = |at| Words { text, subject, action: true, at, out: None };
+    if let Some((text, left, key)) = offer {
+        let words = |at| Words { text, action: true, at, out: None };
         match island.as_mut() {
             None => island = Some(Island::new(now, key, words(later(WORDS_DELAY)))),
             Some(isl) if isl.key != key || isl.phase == Phase::Closing => {
@@ -2633,7 +2620,6 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
         text: ui.visuals().strong_text_color(),
         accent: accent(ui.visuals()),
         strong: egui::FontId::new(body.size, crate::fonts::semibold_family()),
-        mono: egui::TextStyle::Monospace.resolve(ui.style()),
         body,
     };
     let room = area.width() - 2.0 * f32::from(controls::page_margin(area.width()));
@@ -2700,7 +2686,9 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
     );
     let radius = size.y * 0.5;
     let middle = rect.center().y;
-    let left_x = center_x + isl.anchor.x;
+    // The words never stand outside the pill: when it narrows faster than they move, its end
+    // carries them.
+    let left_x = (center_x + isl.anchor.x).max(rect.left());
     let text_x = left_x + ISLAND_ICON + ISLAND_AFTER_ICON;
     let rule_x = text_x + laid.line.size().x + ISLAND_BEFORE_RULE;
     let chip = laid.action.as_ref().map(|a| {
@@ -2712,12 +2700,8 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
 
     // Being pointed at and pressed.
     let live = isl.phase == Phase::Open && isl.morph.x > 0.5;
-    let said = match &isl.words.subject {
-        Some(subject) => format!("{} {subject}", isl.words.text),
-        None => isl.words.text.clone(),
-    };
     let held = ui.interact(rect, id.with("body"), egui::Sense::hover());
-    held.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &said));
+    held.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &isl.words.text));
     let undo = chip.map(|chip| {
         let sense = if live { egui::Sense::click() } else { egui::Sense::hover() };
         let undo = ui.interact(chip.intersect(rect), id.with("action"), sense);
@@ -2775,13 +2759,12 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
     let line_of = |laid: &Laid, words: &Words, x: f32, ahead: bool| {
         let top = egui::pos2(x, middle - laid.line.size().y * 0.5);
         let (_, total) = laid.counts();
-        let split = laid.split;
         paint_letters(
             &inside,
             &laid.line,
             top,
-            |i| if i < split { ink.body.clone() } else { ink.mono.clone() },
-            |i| if i < split { ink.text } else { ink.accent },
+            &ink.body,
+            ink.text,
             |i| letter(now, words, words.at + i as f64 * LETTER_STAGGER, i, total, ahead),
         );
     };
@@ -2805,8 +2788,8 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
             &inside,
             action,
             top,
-            |_| ink.strong.clone(),
-            |_| ink.accent,
+            &ink.strong,
+            ink.accent,
             |j| letter(now, &isl.words, action_at + j as f64 * LETTER_STAGGER, n + 1 + j, total, false),
         );
     }
@@ -2818,17 +2801,16 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
     // shortens into the short one, so neither shrinks to a dot on the way; the ink
     // turning from the accent's to the green of done. Lands with a beat and a ring. It never trails
     // past the round end as the pill closes on it: the end carries it home.
-    let icon = egui::pos2(
-        (center_x + isl.icon.x).clamp(rect.left() + radius, (rect.right() - radius).max(rect.left() + radius)),
-        middle,
-    );
+    let own = center_x + isl.icon.x;
+    let own = if open { own.max(left_x + ISLAND_ICON) } else { own };
+    let icon = egui::pos2(own.clamp(rect.left() + radius, (rect.right() - radius).max(rect.left() + radius)), middle);
     let m = isl.morph.x.clamp(-0.15, 1.15);
     let landed = isl.landed.map_or(0.0, |at| (now - at) / POP);
     let beat = 1.0 + POP_SIZE * (std::f32::consts::PI * landed.clamp(0.0, 1.0) as f32).sin();
     if let Some(at) = isl.landed {
         let ring = ease_out((now - at) / RIPPLE);
         if ring < 1.0 {
-            inside.circle_stroke(icon, 8.0 + 12.0 * ring, egui::Stroke::new(1.5, good.gamma_multiply(0.45 * (1.0 - ring))));
+            inside.circle_stroke(icon, 8.0 + 7.0 * ring,egui::Stroke::new(1.5, good.gamma_multiply(0.45 * (1.0 - ring))));
         }
     }
     let arm = PLUS_ARM * 0.5 - PLUS_STROKE * 0.5;
@@ -2838,7 +2820,10 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
     ];
     let turn = egui::emath::Rot2::from_angle(isl.spin.x);
     let width = PLUS_STROKE + (1.8 - PLUS_STROKE) * m.clamp(0.0, 1.0);
-    let color = plus_ink.lerp_to_gamma(good, m.clamp(0.0, 1.0));
+    // The ink changes over where the fill crosses from the accent's darkness to the surface's, so
+    // it never sits dim on a ground of its own weight.
+    let swap = ((tone - 0.4) / 0.4).clamp(0.0, 1.0);
+    let color = plus_ink.lerp_to_gamma(good, swap * swap * (3.0 - 2.0 * swap));
     for (plus, check) in bars {
         let at = |k: usize| {
             let p = egui::vec2(plus[k] + (check[k] - plus[k]) * m, plus[k + 1] + (check[k + 1] - plus[k + 1]) * m);
@@ -2874,8 +2859,7 @@ fn island(ui: &mut egui::Ui, state: &mut AppState, circle: egui::Rect, area: egu
     // Deshacer: the list goes back, the words say so, and the check turns once backwards.
     if live && undo.as_ref().is_some_and(|u| u.clicked()) {
         state.undo_from_banner();
-        let subject = isl.words.subject.clone();
-        isl.say(later(0.0), Words { text: t.undone.to_owned(), subject, action: false, at: later(SWAP_DELAY), out: None });
+        isl.say(later(0.0), Words { text: t.undone.to_owned(), action: false, at: later(SWAP_DELAY), out: None });
         isl.phase = Phase::Undone;
         isl.since = now;
         isl.bar_out = Some(later(0.0));

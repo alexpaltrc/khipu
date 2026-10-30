@@ -23,11 +23,11 @@ was published.
   form window's fields by the name of the blank. Nothing changes on screen. The app grows by
   about 160 KB.
 - **Undo.** After you save, delete, import or move expansions, the «+» button stretches into a
-  pill: its plus folds into a green check, and the message arrives a letter at a time, with the
-  trigger it was about and **Undo** at its right end. A thin line along its foot shows the time
-  left; it stays while the pointer is on it, then turns back into «+». Undo puts everything
-  back as it was, folders and favorites included, and the pill says «Undone» for a moment. The delete confirmation no longer warns that
-  it can't be undone.
+  pill: its plus folds into a green check, and the message arrives a letter at a time, with
+  **Undo** at its right end. A thin line along its foot shows the time left; it stays while the
+  pointer is on it, then turns back into «+». Undo puts everything back as it was, folders and
+  favorites included, and the pill says «Undone» for a moment. The delete confirmation no longer
+  warns that it can't be undone.
 
 ### Changed
 
