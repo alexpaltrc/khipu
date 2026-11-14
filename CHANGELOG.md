@@ -14,6 +14,9 @@ was published.
   everything. A message that only informs writes itself in with a ✓ and leaves on its own after a
   few seconds (the pointer on it holds it). An error says so with a red **!**, wraps onto more
   lines if it needs them, and stays until its **✕** is clicked.
+- **About 11 MB less memory.** The letters on screen are kept in one picture, which egui made as
+  wide as the graphics card allows: 16 384 pixels on an NVIDIA card, nearly all of it empty. Now it
+  is 2048 wide, egui's own default. Measured on the same screen: 76 MB private before, 65 after.
 
 ### Fixed
 

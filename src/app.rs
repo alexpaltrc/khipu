@@ -3737,6 +3737,12 @@ impl eframe::App for KhipuApp {
     /// until the window was hidden and opened again. See [`crate::display::has_keyboard_focus`].
     /// The launcher's viewport keeps winit's answer: it is a window of its own, with its own focus.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        // The glyph atlas is as wide as the largest texture the graphics card accepts, up to
+        // 16 384 pixels, and only its height grows to fit. On an NVIDIA card that is a strip
+        // 16 384 wide, four bytes a pixel, kept once by egui and again by the driver — most of it
+        // empty, for the few sizes of one typeface this window uses. 2048, egui's own portable
+        // default, holds them all. Set for every window, before the first frame builds the atlas.
+        raw_input.max_texture_side = Some(raw_input.max_texture_side.map_or(2048, |side| side.min(2048)));
         if raw_input.viewport_id != egui::ViewportId::ROOT {
             return;
         }
