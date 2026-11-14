@@ -42,10 +42,11 @@
 //!
 //! Three numbered questions: **¿Qué vas a escribir?**, **¿Qué quieres que aparezca?** and **¿Algo
 //! más?**. A step whose previous one is still empty is drawn faint, never locked: the order is a
-//! suggestion, and anybody may fill them in any order. The date and the blanks wait under «+ Añadir»
-//! until somebody asks for them; the name, the folder and the star wait folded inside the third
-//! step, which is optional and says so. What the expansion will do is shown once, in the preview,
-//! and nothing on the form repeats it.
+//! suggestion, and anybody may fill them in any order. A question, the date and what was
+//! last copied are a button each under the text, whose right-click menu cuts, copies and pastes.
+//! The name, the folder and the star wait folded inside the third step, which is optional and
+//! says so. What the expansion will do is shown once, in the preview, and nothing on the form
+//! repeats it.
 //!
 //! ## Leaving is asked about only when there is something to lose
 //!
@@ -1183,6 +1184,53 @@ fn replace_id() -> egui::Id {
     egui::Id::new("editor-replace")
 }
 
+/// How long a new pill takes to pop into place, and to fade in as it starts.
+const POP_FOR: f32 = 0.45;
+const POP_FADE: f32 = 0.08;
+
+/// The markers in the text last frame, with that frame's number, and the pills still popping in
+/// with the moment each appeared.
+fn pills_seen_key() -> egui::Id {
+    egui::Id::new("editor-pills-seen")
+}
+
+fn pill_pops_key() -> egui::Id {
+    egui::Id::new("editor-pill-pops")
+}
+
+/// The pills popping in this frame. A pill pops when the text gains one: put in by a button,
+/// pasted, made from a selection, or brought back by undo. Not when one is renamed or moved, where
+/// the count stays the same, nor when the editor opens on a text that already has them.
+fn pill_pops(ctx: &egui::Context, now: &[Pill]) -> Vec<(Marker, f64)> {
+    let time = ctx.input(|i| i.time);
+    let frame = ctx.cumulative_frame_nr();
+    let current: Vec<Marker> = now.iter().map(|p| p.what.clone()).collect();
+    let seen = ctx
+        .data(|d| d.get_temp::<(Vec<Marker>, u64)>(pills_seen_key()))
+        .filter(|(_, at)| at + 1 >= frame)
+        .map(|(seen, _)| seen);
+    let mut pops: Vec<(Marker, f64)> = ctx.data(|d| d.get_temp(pill_pops_key())).unwrap_or_default();
+    if let Some(seen) = seen.filter(|seen| current.len() > seen.len()) {
+        pops.extend(current.iter().filter(|m| !seen.contains(m)).map(|m| (m.clone(), time)));
+    }
+    pops.retain(|(what, at)| time - at < f64::from(POP_FOR) && current.contains(what));
+    ctx.data_mut(|d| {
+        d.insert_temp(pills_seen_key(), (current, frame));
+        d.insert_temp(pill_pops_key(), pops.clone());
+    });
+    pops
+}
+
+/// How big a popping pill is `t` seconds in: from seven tenths of its size, past it by a few
+/// percent, and back, the way a spring lets go.
+fn pop_scale(t: f32) -> f32 {
+    const OMEGA: f32 = 22.0;
+    const DAMPING: f32 = 0.45;
+    const FROM: f32 = 0.7;
+    let damped = OMEGA * (1.0 - DAMPING * DAMPING).sqrt();
+    1.0 - (1.0 - FROM) * (-DAMPING * OMEGA * t).exp() * (damped * t).cos()
+}
+
 /// The pill whose bubble is open, and the frame it was opened on: the click that opens it must not
 /// also count as a click outside it.
 fn bubble_key() -> egui::Id {
@@ -1411,16 +1459,156 @@ fn selection(ctx: &egui::Context, text: &str) -> std::ops::Range<usize> {
         })
 }
 
+/// The question a selection most likely answers, when it plainly says: a weekday asks «¿Qué
+/// día?», an hour «¿A qué hora?», an address «¿Qué correo?». Every option of a list has to agree.
+/// `None` when it does not plainly say, and the selection names the question itself, as before.
+fn guessed_question(picked: &[&str], lang: Lang) -> Option<&'static str> {
+    let kinds: Vec<Option<Guess>> = picked.iter().map(|p| guess_of(p)).collect();
+    let first = kinds.first().copied().flatten()?;
+    if !kinds.iter().all(|k| *k == Some(first)) {
+        return None;
+    }
+    let ask = |es, en, fil, hi| studio::in_lang(lang, es, en, fil, hi);
+    Some(match first {
+        Guess::Day => ask("¿Qué día?", "Which day?", "Anong araw?", "कौन-सा दिन?"),
+        Guess::Month => ask("¿Qué mes?", "Which month?", "Anong buwan?", "कौन-सा महीना?"),
+        Guess::Date => ask("¿Qué fecha?", "Which date?", "Anong petsa?", "कौन-सी तारीख?"),
+        Guess::Time => ask("¿A qué hora?", "What time?", "Anong oras?", "किस समय?"),
+        Guess::Email => ask("¿Qué correo?", "Which email?", "Anong email?", "कौन-सा ईमेल?"),
+        Guess::Link => ask("¿Qué enlace?", "Which link?", "Anong link?", "कौन-सा लिंक?"),
+        Guess::Phone => ask("¿Qué teléfono?", "Which phone number?", "Anong numero ng telepono?", "कौन-सा फ़ोन नंबर?"),
+        Guess::Money => ask("¿Cuánto?", "How much?", "Magkano?", "कितना?"),
+        Guess::Count => ask("¿Cuántos?", "How many?", "Ilan?", "कितने?"),
+        Guess::Greeting => ask("¿Qué saludo?", "Which greeting?", "Anong pagbati?", "कौन-सा अभिवादन?"),
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Guess {
+    Day,
+    Month,
+    Date,
+    Time,
+    Email,
+    Link,
+    Phone,
+    Money,
+    Count,
+    Greeting,
+}
+
+/// What kind of thing one piece of text is, in any of the four languages, if it is plainly one.
+fn guess_of(text: &str) -> Option<Guess> {
+    const DAYS: &[&str] = &[
+        "lunes", "martes", "miércoles", "miercoles", "jueves", "viernes", "sábado", "sabado", "domingo",
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+        "lunes", "martes", "miyerkules", "huwebes", "biyernes", "sabado", "linggo",
+        "सोमवार", "मंगलवार", "बुधवार", "गुरुवार", "शुक्रवार", "शनिवार", "रविवार",
+        "hoy", "mañana", "manana", "today", "tomorrow", "ngayon", "bukas", "आज", "कल",
+    ];
+    const MONTHS: &[&str] = &[
+        "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
+        "setiembre", "octubre", "noviembre", "diciembre", "january", "february", "march", "april",
+        "may", "june", "july", "august", "september", "october", "november", "december", "enero",
+        "pebrero", "marso", "abril", "mayo", "hunyo", "hulyo", "agosto", "setyembre", "oktubre",
+        "nobyembre", "disyembre", "जनवरी", "फ़रवरी", "फरवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई",
+        "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर",
+    ];
+    const GREETINGS: &[&str] = &[
+        "buenos días", "buenos dias", "buenas tardes", "buenas noches", "hola", "good morning",
+        "good afternoon", "good evening", "hello", "hi", "magandang umaga", "magandang hapon",
+        "magandang gabi", "नमस्ते", "सुप्रभात", "शुभ संध्या",
+    ];
+    let t = text.trim().trim_end_matches(['.', ',', '!', '¡', ';', ':']).trim_start_matches('¡').trim();
+    let lower = t.to_lowercase();
+    if lower.is_empty() || lower.contains('\n') {
+        return None;
+    }
+    if DAYS.contains(&lower.as_str()) {
+        return Some(Guess::Day);
+    }
+    if MONTHS.contains(&lower.as_str()) {
+        return Some(Guess::Month);
+    }
+    if GREETINGS.contains(&lower.as_str()) {
+        return Some(Guess::Greeting);
+    }
+    if lower.contains(char::is_whitespace) {
+        return None;
+    }
+    if lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("www.") {
+        return Some(Guess::Link);
+    }
+    if let Some((user, host)) = lower.split_once('@') {
+        return (!user.is_empty() && host.contains('.') && !host.starts_with('.')).then_some(Guess::Email);
+    }
+    let digits = lower.chars().filter(char::is_ascii_digit).count();
+    if digits == 0 {
+        return None;
+    }
+    let only = |allowed: &str| lower.chars().all(|c| c.is_ascii_digit() || allowed.contains(c));
+    let parts = |sep: char| lower.split(sep).count();
+    if only(":") && parts(':') == 2 || only(":apm.") && lower.contains(':') && (lower.ends_with("am") || lower.ends_with("pm")) {
+        return Some(Guess::Time);
+    }
+    if (only("/") && parts('/') == 3) || (only("-") && parts('-') == 3 && digits <= 8) {
+        return Some(Guess::Date);
+    }
+    if lower.starts_with(['$', '€', '£', '₱', '₹']) && only("$€£₱₹.,") {
+        return Some(Guess::Money);
+    }
+    if only("+-().") && digits >= 7 {
+        return Some(Guess::Phone);
+    }
+    if only("") && digits <= 4 {
+        return Some(Guess::Count);
+    }
+    None
+}
+
+/// Fills an empty box with a short text that asks two questions, one typed and one picked from
+/// options, in the interface's language: the quickest way to see what a question is.
+fn write_example(ctx: &egui::Context, state: &AppState, edit: &mut EditState, text: &mut String) {
+    let lang = state.settings.lang;
+    let ask = |es, en, fil, hi| studio::in_lang(lang, es, en, fil, hi);
+    let who = ask("¿A quién?", "Who to?", "Para kanino?", "किसे?").to_string();
+    let day = ask("¿Qué día?", "Which day?", "Anong araw?", "कौन-सा दिन?").to_string();
+    let days: Vec<String> = ask(
+        "lunes / martes / miércoles / jueves / viernes",
+        "Monday / Tuesday / Wednesday / Thursday / Friday",
+        "Lunes / Martes / Miyerkules / Huwebes / Biyernes",
+        "सोमवार / मंगलवार / बुधवार / गुरुवार / शुक्रवार",
+    )
+    .split(" / ")
+    .map(String::from)
+    .collect();
+    let template = ask(
+        "Hola {who}, te confirmo nuestra reunión del {day}. ¡Saludos!",
+        "Hi {who}, confirming our meeting on {day}. Best!",
+        "Hi {who}, kinukumpirma ko ang meeting natin sa {day}. Salamat!",
+        "नमस्ते {who}, {day} की हमारी मीटिंग पक्की है। धन्यवाद!",
+    );
+    let who_marker = edit.new_blank(who.clone());
+    let day_marker = edit.new_blank(day.clone());
+    *edit.field_mut(&who) = FormField { name: who.clone(), ..Default::default() };
+    *edit.field_mut(&day) = FormField { name: day.clone(), kind: FieldKind::Choice, default: days[0].clone(), options: days };
+    let written = template.replace("{who}", &who_marker).replace("{day}", &day_marker);
+    put(ctx, text, 0..text.chars().count(), &written);
+}
+
 /// What a selection turned into a blank is called, and what kind of blank it makes.
 ///
-/// The name is the selection's first line, so the pill still reads like the text it replaced
-/// until it is renamed. Several lines make a long text; options split by « / » make a list, the
+/// The name is the question the selection plainly answers ([`guessed_question`]), or else its first
+/// line, so the pill still reads like the text it replaced until it is renamed. Several lines make a long text; options split by « / » make a list, the
 /// first one chosen; anything else is a short text that starts as what was selected. A list is
-/// not named after its options, which would read as one more of them: it gets «Pregunta 1».
+/// not named after its options, which would read as one more of them: it gets «Pregunta 1» unless
+/// they all say what they answer.
 fn blank_from(state: &AppState, taken: &[String], picked: &str) -> FormField {
     let options: Vec<String> = picked.split(" / ").map(|o| o.trim().to_string()).collect();
     let is_list = !picked.contains('\n') && options.len() > 1 && options.iter().all(|o| !o.is_empty());
     let first = if is_list { "" } else { picked.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("") };
+    let asked: Vec<&str> = if is_list { options.iter().map(String::as_str).collect() } else { vec![picked] };
+    let first = guessed_question(&asked, state.settings.lang).unwrap_or(first);
     let cleaned: String = first.chars().filter(|c| !matches!(c, '[' | ']')).take(form::NAME_MAX).collect();
     let base = cleaned.trim();
     let name = if base.is_empty() {
@@ -1467,8 +1655,8 @@ fn open_bubble(ctx: &egui::Context, what: Marker) {
     ctx.data_mut(|d| d.insert_temp(bubble_key(), (what, frame)));
 }
 
-/// The text box with its pills, «+ Añadir» and «Pegar» under it, and the bubble of the blank, or of
-/// the date, being changed.
+/// The text box with its pills and its right-click menu, the buttons that put a marker in it, and
+/// the bubble of the blank, or of the date, being changed.
 fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, text: &mut String, is_light: bool) {
     let ctx = ui.ctx().clone();
     // A floor, not a box: the field gets at least this much and grows past it as the text does,
@@ -1479,9 +1667,8 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
     let date = edit.date.name.clone();
     let before = text.clone();
     let before_pills = pills(&before, &copied, &date);
-    let from = egui::TextEdit::load_state(&ctx, replace_id())
-        .and_then(|field| field.cursor.char_range())
-        .map(|range| range.primary.index.0);
+    let last = egui::TextEdit::load_state(&ctx, replace_id()).and_then(|field| field.cursor.char_range());
+    let from = last.map(|range| range.primary.index.0);
     let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, wrap: f32| {
         ui.painter().layout_job(highlighted(ui, buffer.as_str(), &copied, &date, ink, wrap))
     };
@@ -1494,6 +1681,18 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
         .inner;
     let response = output.response.response.clone();
     controls::say_as(&response, studio::text(state, "Texto", "Text", "Teksto", "टेक्स्ट"));
+
+    // A right click inside the selection keeps it, as in every Windows text box, so the menu it
+    // opens acts on it; the box itself would have dropped it for a caret under the pointer.
+    let right_press = response.hovered() && ctx.input(|i| i.pointer.secondary_pressed());
+    if let (true, Some(last), Some(at)) = (right_press, last, ctx.input(|i| i.pointer.interact_pos())) {
+        let (a, b) = (last.primary.index.0, last.secondary.index.0);
+        let under = output.galley.cursor_from_pos(at - output.galley_pos).index.0;
+        if a != b && (a.min(b)..=a.max(b)).contains(&under) {
+            output.state.cursor.set_char_range(Some(last));
+            output.state.clone().store(&ctx, replace_id());
+        }
+    }
 
     // The galley is this frame's only while nothing below has to change the text it was laid out
     // from; when something does, the pills wait a frame for the new one.
@@ -1537,6 +1736,8 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
         let hover = response.hover_pos();
         let accent = crate::app::accent(ui.visuals());
         let mut on_pill = false;
+        let pops = pill_pops(&ctx, &now);
+        let time = ctx.input(|i| i.time);
         for pill in &now {
             let rects = controls::pill_rects(&output.galley, output.galley_pos, &pill.chars);
             let opens = pill.what != Marker::Copied;
@@ -1557,10 +1758,19 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
                 (true, true) => 0.24,
                 (true, false) => 0.36,
             };
+            let popped = pops.iter().find(|(what, _)| *what == pill.what).map(|(_, at)| (time - at) as f32);
             for rect in rects {
-                let rect = rect.shrink2(egui::vec2(0.0, 1.0));
-                painter.rect_filled(rect, rect.height() * 0.5, accent.gamma_multiply(strength));
+                let mut rect = rect.shrink2(egui::vec2(0.0, 1.0));
+                let mut fill = accent.gamma_multiply(strength);
+                if let Some(t) = popped {
+                    rect = egui::Rect::from_center_size(rect.center(), rect.size() * pop_scale(t));
+                    fill = fill.gamma_multiply((t / POP_FADE).min(1.0));
+                }
+                painter.rect_filled(rect, rect.height() * 0.5, fill);
             }
+        }
+        if !pops.is_empty() {
+            ctx.request_repaint();
         }
         if on_pill && !carrying {
             ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -1619,7 +1829,7 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
         // while the text has the focus, and survives the press that takes the focus away.
         let hovered_before = ctx.data(|d| d.get_temp::<bool>(convert_hover_key())).unwrap_or(false);
         let mut hovered_now = false;
-        if let Some(range) = output.state.cursor.char_range().filter(|_| response.has_focus() || hovered_before) {
+        if let Some(range) = output.state.cursor.char_range().filter(|_| (response.has_focus() || hovered_before) && !response.context_menu_opened()) {
             let (a, b) = (range.primary.index.0, range.secondary.index.0);
             let chars = a.min(b)..a.max(b);
             let whole = !now.iter().any(|p| p.chars.start < chars.end && chars.start < p.chars.end);
@@ -1646,23 +1856,44 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
         ctx.data_mut(|d| d.insert_temp(convert_hover_key(), hovered_now));
     }
 
-    ui.add_space(controls::GAP);
     let mut add_blank = false;
     let mut add_copied = false;
     let mut add_date = false;
+    // The right-click menu: the box's own commands, and a selection made a question right there.
+    let mut cut = false;
+    let mut copy = false;
     let mut paste = false;
+    let mut example = false;
+    let lang = state.settings.lang;
+    let picked = selection(&ctx, text);
+    let picked_whole = !now.iter().any(|p| p.chars.start < picked.end && picked.start < p.chars.end);
+    // As wide as the list's own flyouts.
+    egui::Popup::context_menu(&response).width(240.0).show(|ui| {
+        ui.spacing_mut().item_spacing.y = 0.0;
+        let some = !picked.is_empty();
+        let label = studio::text(state, "Cortar", "Cut", "I-cut", "काटें");
+        let keys_text = keys::text(keys::CUT, lang);
+        cut = controls::menu_item(ui, Some(Glyph::Cut), label, Some(&keys_text), Tone::Normal, some).clicked();
+        let label = studio::text(state, "Copiar", "Copy", "Kopyahin", "कॉपी करें");
+        let keys_text = keys::text(keys::COPY, lang);
+        copy = controls::menu_item(ui, Some(Glyph::Copy), label, Some(&keys_text), Tone::Normal, some).clicked();
+        let label = studio::text(state, "Pegar", "Paste", "I-paste", "चिपकाएँ");
+        let keys_text = keys::text(keys::PASTE, lang);
+        paste = controls::menu_item(ui, Some(Glyph::Paste), label, Some(&keys_text), Tone::Normal, true).clicked();
+        if some && picked_whole {
+            controls::menu_separator(ui);
+            let label = studio::text(state, "Preguntar esto", "Ask for this", "Itanong ito", "यह पूछें");
+            if controls::menu_item(ui, Some(Glyph::Rename), label, None, Tone::Normal, true).clicked() {
+                convert = Some(picked.clone());
+            }
+        }
+    });
+
+    // What can go into the text, each one button away.
+    ui.add_space(controls::GAP);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = controls::GAP;
-        let add = studio::text(state, "Añadir", "Add", "Magdagdag", "जोड़ें");
-        let menu = controls::subtle_button(ui, Some(Glyph::Add), add, Some(Glyph::ChevronDown));
-        let by_keyboard = menu.clicked() && menu.has_focus();
-        let blank = studio::text(
-            state,
-            "Una pregunta",
-            "A question",
-            "Isang tanong",
-            "एक सवाल",
-        );
+        let blank = studio::text(state, "Pregunta", "Question", "Tanong", "सवाल");
         let blank_tip = studio::text(
             state,
             "Khipu te la hace cada vez que usas la expansión, y tu respuesta se escribe aquí. Si hay texto seleccionado, se convierte en la pregunta.",
@@ -1670,20 +1901,17 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
             "Itatanong ito ng Khipu tuwing gagamitin mo ang expansion, at dito isusulat ang sagot mo. Ang napiling teksto ang magiging tanong.",
             "हर बार विस्तार उपयोग करने पर Khipu यह पूछता है, और आपका जवाब यहाँ लिखा जाता है। चुना हुआ टेक्स्ट सवाल बन जाता है।",
         );
-        let date = studio::text(
+        add_blank = controls::subtle_button(ui, Some(Glyph::Add), blank, None).on_hover_text(blank_tip).clicked();
+        let date = studio::text(state, "Fecha", "Date", "Petsa", "दिनांक");
+        let date_tip = studio::text(
             state,
-            "La fecha o la hora de ese momento",
-            "The date or time at that moment",
-            "Ang petsa o oras sa sandaling iyon",
-            "उस समय की दिनांक या समय",
+            "La fecha o la hora del momento en que uses la expansión",
+            "The date or time at the moment you use the expansion",
+            "Ang petsa o oras sa sandaling gamitin mo ang expansion",
+            "विस्तार उपयोग करते समय की दिनांक या समय",
         );
-        let copied = studio::text(
-            state,
-            "Lo último que copiaste",
-            "What you last copied",
-            "Ang huli mong kinopya",
-            "जो आपने आखिरी बार कॉपी किया",
-        );
+        add_date = controls::subtle_button(ui, Some(Glyph::Calendar), date, None).on_hover_text(date_tip).clicked();
+        let copied = studio::text(state, "Lo copiado", "Copied text", "Kinopya", "कॉपी किया");
         let copied_tip = studio::text(
             state,
             "Al usar la expansión, aquí va lo último que hayas copiado",
@@ -1691,49 +1919,22 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
             "Kapag ginamit mo ito, dito mapupunta ang huling tekstong kinopya mo",
             "उपयोग करने पर, यहाँ वह टेक्स्ट आएगा जो आपने आखिरी बार कॉपी किया",
         );
-        // As wide as the list's own flyouts.
-        egui::Popup::menu(&menu)
-            .align(egui::RectAlign::BOTTOM_START)
-            .gap(controls::GAP_TIGHT)
-            .width(240.0)
-            .show(|ui| {
-                ui.spacing_mut().item_spacing.y = 0.0;
-                let first = ui.next_auto_id();
-                if controls::menu_item(ui, Some(Glyph::Rename), blank, None, Tone::Normal, true)
-                    .on_hover_text(blank_tip)
-                    .clicked()
-                {
-                    add_blank = true;
-                }
-                if by_keyboard {
-                    ui.memory_mut(|m| m.request_focus(first));
-                }
-                if controls::menu_item(ui, Some(Glyph::Calendar), date, None, Tone::Normal, true).clicked() {
-                    add_date = true;
-                }
-                if controls::menu_item(ui, Some(Glyph::Copy), copied, None, Tone::Normal, true)
-                    .on_hover_text(copied_tip)
-                    .clicked()
-                {
-                    add_copied = true;
-                }
+        add_copied = controls::subtle_button(ui, Some(Glyph::Copy), copied, None).on_hover_text(copied_tip).clicked();
+        // With nothing written yet, a whole example shows what the buttons are for.
+        if text.trim().is_empty() {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let label = studio::text(state, "Ver un ejemplo", "See an example", "Tingnan ang halimbawa", "उदाहरण देखें");
+                example = controls::subtle_button(ui, None, label, None).clicked();
             });
-        let label = studio::text(state, "Pegar", "Paste", "I-paste", "चिपकाएँ");
-        let tip = studio::text(
-            state,
-            "Pega aquí lo que tengas copiado",
-            "Pastes what you have copied here",
-            "I-paste dito ang nakopya mo",
-            "जो कॉपी किया है उसे यहाँ चिपकाएँ",
-        );
-        paste = controls::subtle_button(ui, Some(Glyph::Paste), label, None).on_hover_text(tip).clicked();
+        }
     });
-    // «Una pregunta» does what «Preguntar esto» does to a selection, and makes an
+    if example {
+        write_example(&ctx, state, edit, text);
+    }
+    // «Pregunta» does what «Preguntar esto» does to a selection, and makes an
     // empty blank at the caret when there is none.
     if add_blank {
-        let chars = selection(&ctx, text);
-        let whole = !now.iter().any(|p| p.chars.start < chars.end && chars.start < p.chars.end);
-        convert = Some(if whole { chars } else { chars.end..chars.end });
+        convert = Some(if picked_whole { picked.clone() } else { picked.end..picked.end });
     }
     if let Some(chars) = convert {
         make_blank(&ctx, state, edit, text, chars);
@@ -1755,11 +1956,16 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
         put(&ctx, text, at..at, &format!("{{{{{}}}}}", edit.date.name));
         open_bubble(&ctx, Marker::Date);
     }
+    if cut || copy {
+        ctx.copy_text(text[byte_at(text, picked.start)..byte_at(text, picked.end)].to_string());
+        if cut {
+            put(&ctx, text, picked.clone(), "");
+        }
+    }
     if paste {
         let pasted = crate::paste::copied_text();
         if !pasted.is_empty() {
-            let chars = selection(&ctx, text);
-            put(&ctx, text, chars, &pasted);
+            put(&ctx, text, picked.clone(), &pasted);
         }
     }
 
@@ -2206,15 +2412,13 @@ fn date_options(
 /// from [`crate::datefmt`], which is the code that runs when the expansion is used, so what is on
 /// screen is what espanso will write.
 ///
-/// A text with questions can be tried out at the foot of the card: the answers typed there show in
-/// the text as they would be written, and are said not to be kept.
+/// A text with questions can be tried out right in it: each answer is clicked, an option to the next
+/// one and a typed answer to a box where another is typed. None of it is kept.
 fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, max_height: f32, is_light: bool) {
     let trigger = edit.trigger();
     let shown = edit.as_spec(&edit.replace);
     let spec = (!shown.fields.is_empty()).then(|| shown.clone());
     let mut answers = spec.as_ref().map(|spec| preview_answers(ui.ctx(), spec));
-    // The answers need the room more than the box does.
-    let max_height = if spec.is_some() { max_height.min(PREVIEW_MAX_HEIGHT) } else { max_height };
     let result = &edit.replace;
     let quiet = crate::app::secondary_text(is_light);
 
@@ -2279,10 +2483,9 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, max_heigh
                         // The same job the form window draws, so the date reads as today's and what
                         // was last copied sits in the accent, just as it will once typed.
                         let lang = state.settings.lang;
-                        let none = Vec::new();
-                        let answers = answers.as_ref().unwrap_or(&none);
-                        let job = crate::ui::form_view::result_job(ui, &shown, answers, None, lang, ui.available_width());
-                        ui.add(egui::Label::new(job).wrap().selectable(true));
+                        let mut none = Vec::new();
+                        let answers = answers.as_mut().unwrap_or(&mut none);
+                        try_answers(ui, &shown, answers, lang, is_light);
                     }
                 });
         });
@@ -2303,28 +2506,133 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, max_heigh
             ));
         }
 
-        if let (Some(spec), Some(answers)) = (&spec, &mut answers) {
-            ui.add_space(controls::GAP_SECTION);
+        if let (Some(spec), Some(answers)) = (&spec, &answers) {
+            ui.add_space(controls::GAP);
             ui.label(controls::small_muted(
                 studio::text(
                     state,
-                    "Prueba otras respuestas · no se guardan",
-                    "Try other answers · they aren't saved",
-                    "Subukan ang ibang sagot · hindi ito sine-save",
-                    "दूसरे जवाब आज़माएँ · ये सहेजे नहीं जाते",
+                    "Haz clic en una respuesta para probar otra",
+                    "Click an answer to try another",
+                    "I-click ang isang sagot para sumubok ng iba",
+                    "दूसरा आज़माने के लिए किसी जवाब पर क्लिक करें",
                 ),
                 is_light,
             ));
-            ui.add_space(controls::GAP_TIGHT);
-            let was = answers.clone();
-            crate::ui::form_view::fields(ui, "editor-preview", spec, answers, false);
-            // The box above was drawn before this keystroke reached the answers.
-            if *answers != was {
-                ui.ctx().request_repaint();
-            }
             keep_preview_answers(ui.ctx(), spec, answers);
         }
     });
+}
+
+fn preview_typing_key() -> egui::Id {
+    egui::Id::new("editor-preview-typing")
+}
+
+/// The preview's text with each answer in the accent and ready to be clicked: an option gives way
+/// to the next one, a typed answer opens a box beside it to type another. The answer under the
+/// pointer, or being typed, wears the same pill as the markers in the text box.
+fn try_answers(ui: &mut egui::Ui, spec: &FormSpec, answers: &mut [String], lang: Lang, is_light: bool) {
+    let ctx = ui.ctx().clone();
+    let (job, spans) = crate::ui::form_view::result_job_with_answers(ui, spec, answers, None, lang, ui.available_width());
+    let galley = ui.painter().layout_job(job);
+    let (rect, response) = ui.allocate_exact_size(galley.size(), egui::Sense::click());
+    let typing = ctx
+        .data(|d| d.get_temp::<(String, u64)>(preview_typing_key()))
+        .and_then(|(name, opened)| spec.fields.iter().position(|f| f.name == name).map(|i| (i, opened)));
+    let hover = response.hover_pos();
+    let fill = controls::pill_fill(ui.visuals(), is_light);
+    // An answer has no brackets to lend its pill an edge, so the pill reaches a little past it.
+    let edge = egui::vec2(3.0, 0.0);
+    let mut over = None;
+    let mut typing_at = None;
+    for (chars, index) in &spans {
+        let rects: Vec<egui::Rect> = controls::pill_rects(&galley, rect.min, chars).iter().map(|r| r.expand2(edge)).collect();
+        let hovered = hover.is_some_and(|p| rects.iter().any(|r| r.contains(p)));
+        let is_typed = typing.is_some_and(|(i, _)| i == *index);
+        if hovered || is_typed {
+            for r in &rects {
+                let r = r.shrink2(egui::vec2(0.0, 1.0));
+                ui.painter().rect_filled(r, r.height() * 0.5, fill);
+            }
+        }
+        if hovered && over.is_none() {
+            over = Some(*index);
+        }
+        if is_typed && typing_at.is_none() {
+            typing_at = rects.first().copied();
+        }
+    }
+    ui.painter().galley(rect.min, galley, ui.visuals().text_color());
+    if over.is_some() {
+        ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+
+    let frame = ctx.cumulative_frame_nr();
+    let mut open = typing;
+    if let Some(index) = over.filter(|_| response.clicked()) {
+        let field = &spec.fields[index];
+        if field.kind == FieldKind::Choice && !field.options.is_empty() {
+            let now = field.options.iter().position(|o| *o == answers[index]);
+            let next = now.map_or(0, |i| (i + 1) % field.options.len());
+            answers[index] = field.options[next].clone();
+            open = None;
+        } else if typing.is_some_and(|(i, _)| i == index) {
+            open = None;
+        } else {
+            open = Some((index, frame));
+            typing_at = None;
+        }
+        ctx.request_repaint();
+    }
+
+    // The box for a typed answer, under it, for as long as nothing is clicked away from it.
+    if let (Some((index, opened)), Some(anchor)) = (open, typing_at) {
+        let id = egui::Id::new("editor-preview-answer");
+        let shown = egui::Popup::new(id.with("popup"), ctx.clone(), anchor, ui.layer_id())
+            .open(true)
+            .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+            .align(egui::RectAlign::BOTTOM_START)
+            .align_alternatives(&[egui::RectAlign::TOP_START])
+            .gap(controls::GAP_TIGHT)
+            .frame(egui::Frame::popup(&ctx.global_style()).inner_margin(egui::Margin::same(controls::GAP_WIDE as i8)))
+            .show(|ui| {
+                ui.set_width(BUBBLE_MIN_WIDTH);
+                let field = &spec.fields[index];
+                let answer = &mut answers[index];
+                let box_ = if field.kind == FieldKind::Long {
+                    controls::multiline_field(answer).desired_rows(2)
+                } else {
+                    controls::text_field(answer)
+                };
+                let typed = ui.add(box_.id(id).desired_width(f32::INFINITY));
+                if opened == frame {
+                    ctx.memory_mut(|m| m.request_focus(id));
+                }
+                if typed.changed() {
+                    ctx.request_repaint();
+                }
+                let done = field.kind != FieldKind::Long && typed.lost_focus() && ctx.input(|i| i.key_pressed(egui::Key::Enter));
+                done
+            });
+        let away = frame > opened
+            && ctx.input(|i| i.pointer.any_click())
+            && shown.as_ref().is_some_and(|s| !s.response.contains_pointer());
+        let done = shown.as_ref().is_some_and(|s| s.inner);
+        let name = spec.fields[index].name.clone();
+        ctx.data_mut(|d| {
+            if away || done {
+                d.remove::<(String, u64)>(preview_typing_key());
+            } else {
+                d.insert_temp(preview_typing_key(), (name, opened));
+            }
+        });
+    } else if open.is_none() {
+        ctx.data_mut(|d| d.remove::<(String, u64)>(preview_typing_key()));
+    } else if let Some((index, opened)) = open {
+        // Opened this frame: its anchor is found on the next one.
+        let name = spec.fields[index].name.clone();
+        ctx.data_mut(|d| d.insert_temp(preview_typing_key(), (name, opened)));
+        ctx.request_repaint();
+    }
 }
 
 /// What it is called, if the trigger alone does not say. Laid out like the folder below it: both
@@ -2618,6 +2926,29 @@ fn show_form(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_selection_that_plainly_answers_a_question_is_named_after_it() {
+        let es = |p: &[&str]| guessed_question(p, Lang::Es);
+        assert_eq!(es(&["lunes"]), Some("¿Qué día?"));
+        assert_eq!(es(&["Friday."]), Some("¿Qué día?"));
+        assert_eq!(es(&["lunes", "martes", "viernes"]), Some("¿Qué día?"));
+        assert_eq!(es(&["Marzo"]), Some("¿Qué mes?"));
+        assert_eq!(es(&["10:30"]), Some("¿A qué hora?"));
+        assert_eq!(es(&["14/11/2026"]), Some("¿Qué fecha?"));
+        assert_eq!(es(&["ana@correo.com"]), Some("¿Qué correo?"));
+        assert_eq!(es(&["https://khipu.app"]), Some("¿Qué enlace?"));
+        assert_eq!(es(&["+52-55-1234-5678"]), Some("¿Qué teléfono?"));
+        assert_eq!(es(&["$250.00"]), Some("¿Cuánto?"));
+        assert_eq!(es(&["3"]), Some("¿Cuántos?"));
+        assert_eq!(es(&["Buenos días", "Buenas tardes"]), Some("¿Qué saludo?"));
+        assert_eq!(guessed_question(&["lunes"], Lang::En), Some("Which day?"));
+        // Not plainly anything: the selection keeps naming itself.
+        assert_eq!(es(&["Juan"]), None);
+        assert_eq!(es(&["la reunión del lunes"]), None);
+        assert_eq!(es(&["lunes", "Juan"]), None);
+        assert_eq!(es(&["12345"]), None);
+    }
     use crate::yaml::model::{MatchEntry, SimpleMatch};
 
     fn stored(triggers: &[&str]) -> Vec<MatchEntry> {

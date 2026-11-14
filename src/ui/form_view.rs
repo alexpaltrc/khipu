@@ -206,7 +206,7 @@ pub fn result_preview(
     });
 }
 
-/// The text of [`result_preview`] without its box, `wrap` wide, for the editor's own preview.
+/// The text of [`result_preview`] without its box, `wrap` wide.
 pub fn result_job(
     ui: &egui::Ui,
     spec: &FormSpec,
@@ -215,6 +215,19 @@ pub fn result_job(
     lang: Lang,
     wrap: f32,
 ) -> egui::text::LayoutJob {
+    result_job_with_answers(ui, spec, answers, copied, lang, wrap).0
+}
+
+/// The same text, and where each question's answer sits in it (chars) with the index of its field,
+/// so the editor's preview can let each one be clicked to try another.
+pub fn result_job_with_answers(
+    ui: &egui::Ui,
+    spec: &FormSpec,
+    answers: &[String],
+    copied: Option<&str>,
+    lang: Lang,
+    wrap: f32,
+) -> (egui::text::LayoutJob, Vec<(std::ops::Range<usize>, usize)>) {
     let is_light = !ui.visuals().dark_mode;
     let font = egui::TextStyle::Body.resolve(ui.style());
     let ink = ui.visuals().text_color();
@@ -222,25 +235,41 @@ pub fn result_job(
     let faint = secondary_text(is_light);
     let mut job = egui::text::LayoutJob::default();
     job.wrap.max_width = wrap;
-    let piece = |job: &mut egui::text::LayoutJob, text: &str, color: egui::Color32| {
+    let mut at = 0;
+    let mut piece = |job: &mut egui::text::LayoutJob, text: &str, color: egui::Color32| {
         job.append(text, 0.0, egui::TextFormat::simple(font.clone(), color));
+        let start = at;
+        at += text.chars().count();
+        start..at
     };
     let date = spec.date_text();
+    let mut spans = Vec::new();
     for part in spec.pieces() {
         match part {
-            Piece::Text(text) => piece(&mut job, text, ink),
-            Piece::Blank(name, _) => match answer_of(spec, answers, name) {
-                "" => piece(&mut job, &label(name), faint),
-                answer => piece(&mut job, answer, answer_ink),
-            },
-            Piece::Copied(_) => match copied {
-                Some(text) => piece(&mut job, text, answer_ink),
-                None => piece(&mut job, copied_label(lang), faint),
-            },
-            Piece::Date(_) => piece(&mut job, &date, answer_ink),
+            Piece::Text(text) => {
+                piece(&mut job, text, ink);
+            }
+            Piece::Blank(name, _) => {
+                let chars = match answer_of(spec, answers, name) {
+                    "" => piece(&mut job, &label(name), faint),
+                    answer => piece(&mut job, answer, answer_ink),
+                };
+                if let Some(index) = spec.fields.iter().position(|f| f.name == name) {
+                    spans.push((chars, index));
+                }
+            }
+            Piece::Copied(_) => {
+                match copied {
+                    Some(text) => piece(&mut job, text, answer_ink),
+                    None => piece(&mut job, copied_label(lang), faint),
+                };
+            }
+            Piece::Date(_) => {
+                piece(&mut job, &date, answer_ink);
+            }
         }
     }
-    job
+    (job, spans)
 }
 
 /// The words of the window, which has no [`crate::app::AppState`] to ask.

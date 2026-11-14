@@ -70,6 +70,10 @@ pub const DOWN: Shortcut = bare(egui::Key::ArrowDown);
 /// In the grid, to the card beside; Up and Down there go a whole line of cards at a time.
 pub const LEFT: Shortcut = bare(egui::Key::ArrowLeft);
 pub const RIGHT: Shortcut = bare(egui::Key::ArrowRight);
+/// A text box's own keys, never bound here: only printed beside the commands of its right-click menu.
+pub const CUT: Shortcut = ctrl(egui::Key::X);
+pub const COPY: Shortcut = ctrl(egui::Key::C);
+pub const PASTE: Shortcut = ctrl(egui::Key::V);
 
 /// Whether a text field has the keyboard. While it does, only shortcuts with Ctrl are read.
 pub fn typing(ctx: &egui::Context) -> bool {

@@ -16,6 +16,11 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
   medir se dice que no se pudo medir. Al cerrar un cambio, decir exactamente qué probar.
 - Prioridades, en orden: ultraminimalista, ultra simple, moderno, nativo de Windows 11,
   rendimiento medido, elegancia. Ante la duda, la opción más simple.
+- Cada pantalla se sigue empujando a ser **más agradable a la vista, más satisfactoria de usar y
+  más fácil de entender de un vistazo**; proponer ideas por iniciativa propia, y arreglar un
+  detalle en todos los sitios que muestran lo mismo, sin esperar a que Alex lo note.
+- Mica (transparencia) se descartó por ahora (2026-11-14): cuesta optimización y se ve peor con
+  fondos llamativos. No proponerlo de nuevo salvo que Alex lo pida.
 - Código, comentarios y commits en inglés; documentación en español; la app en cuatro idiomas.
 
 ## Estado
