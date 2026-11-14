@@ -409,6 +409,12 @@ fn create_folder_key() -> egui::Id {
     egui::Id::new("library-create-folder")
 }
 
+/// What the folder being made is for, when it was asked for from «Mover a una carpeta»: those
+/// expansions go into it the moment it exists.
+fn create_folder_for_key() -> egui::Id {
+    egui::Id::new("library-create-folder-for")
+}
+
 /// The expansion being given a new trigger, and the trigger as typed so far.
 fn rename_key() -> egui::Id {
     egui::Id::new("library-rename")
@@ -3904,8 +3910,11 @@ pub fn show_move_modal(ctx: &egui::Context, state: &mut AppState) {
         controls::menu_separator(ui);
         ui.spacing_mut().item_spacing.y = 0.0;
         if controls::menu_item(ui, Some(Glyph::Add), &new_folder, None, Tone::Normal, true).clicked() {
-            ui.ctx()
-                .data_mut(|d| d.insert_temp(create_folder_key(), String::new()));
+            // The new folder is where these were being sent: they go into it as it is made.
+            ui.ctx().data_mut(|d| {
+                d.insert_temp(create_folder_key(), String::new());
+                d.insert_temp(create_folder_for_key(), targets.clone());
+            });
             close = true;
         }
 
@@ -3994,12 +4003,18 @@ pub fn show_create_folder_modal(ctx: &egui::Context, state: &mut AppState) {
     if create {
         let trimmed = name.trim().to_owned();
         if state.create_folder(&trimmed) {
+            if let Some(targets) = ctx.data(|d| d.get_temp::<Vec<String>>(create_folder_for_key())) {
+                state.assign_folder_to_triggers(&targets, Some(trimmed.clone()));
+            }
             studio::set_filter(ctx, state, Some(&trimmed));
             close = true;
         }
     }
     if close {
-        ctx.data_mut(|d| d.remove::<String>(create_folder_key()));
+        ctx.data_mut(|d| {
+            d.remove::<String>(create_folder_key());
+            d.remove::<Vec<String>>(create_folder_for_key());
+        });
     } else {
         ctx.data_mut(|d| d.insert_temp(create_folder_key(), name));
     }

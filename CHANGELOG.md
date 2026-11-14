@@ -14,6 +14,12 @@ was published.
   everything. A message that only informs writes itself in with a ✓ and leaves on its own after a
   few seconds (the pointer on it holds it). An error says so with a red **!**, wraps onto more
   lines if it needs them, and stays until its **✕** is clicked.
+
+### Fixed
+
+- **New folder…** in **Move to a folder** now moves the expansions into the folder it makes. It
+  used to make the folder and leave them where they were.
+
 ## 0.0.8 — 2026-10-29
 
 ### Added
