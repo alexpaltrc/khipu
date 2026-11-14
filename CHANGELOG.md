@@ -7,6 +7,17 @@ was published.
 
 ### Changed
 
+- **Fields are questions now.** **Añadir → Una pregunta** (or **Preguntar esto** over selected
+  text) puts a question in the text, and its bubble asks just that: what to ask, whether the
+  answer is **typed** or picked from **options**, and the answer it starts with. Options are one
+  box each, with a ✕ to take one out and **Añadir opción** (or Enter) to add the next, instead of
+  one per line in a single box. Short and long text are one kind: in the form, the box grows with
+  what is written, Enter moves on and Shift+Enter starts another line.
+- **A question can be dragged to another place in the text.** Press it and drag: a line shows
+  where it will land.
+- **A new question never takes the name of one deleted a moment ago,** which made it show the old
+  one's answer in the preview.
+- **Multi-line boxes line up with single-line ones.** Their text sat 2 pixels further left.
 - **Every message is now a pill at the foot, like Undo's.** What Khipu says after an action — a
   prefix changed, an export done, a file that could not be saved — no longer sits at the top of
   the window or, in **Settings**, below the cards where it had to be scrolled to. In the main

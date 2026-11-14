@@ -789,10 +789,11 @@ pub fn text_field(text: &mut String) -> egui::TextEdit<'_> {
         .vertical_align(egui::Align::Center)
 }
 
-/// A multi-line field with the same horizontal padding. The text starts at the top here, which is
+/// A multi-line field with the same padding, so its first line sits where a single-line field's
+/// text does and a one-row one is just as tall. The text starts at the top here, which is
 /// correct — a paragraph is read from its first line, not from its middle.
 pub fn multiline_field(text: &mut String) -> egui::TextEdit<'_> {
-    egui::TextEdit::multiline(text).margin(egui::Margin::symmetric(10, 8))
+    egui::TextEdit::multiline(text).margin(egui::Margin::symmetric(12, 9))
 }
 
 /// The one filled button on a screen: the thing you came to that screen to do.

@@ -1189,12 +1189,17 @@ fn bubble_key() -> egui::Id {
     egui::Id::new("editor-bubble")
 }
 
+/// The pill being dragged to somewhere else in the text, by the chars it covers.
+fn drag_key() -> egui::Id {
+    egui::Id::new("editor-drag")
+}
+
 /// A blank just made, until its bubble is drawn and its name box takes the caret.
 fn naming_key() -> egui::Id {
     egui::Id::new("editor-naming")
 }
 
-/// Whether «Convertir en campo» was under the pointer on the last frame. Pressing it takes the
+/// Whether «Preguntar esto» was under the pointer on the last frame. Pressing it takes the
 /// focus from the text, and the button has to outlive that press to be clicked.
 fn convert_hover_key() -> egui::Id {
     egui::Id::new("editor-convert-hover")
@@ -1375,10 +1380,12 @@ fn snapped(primary: usize, secondary: usize, from: usize, pointer: bool, pills: 
     (primary, away(secondary, secondary > primary))
 }
 
-/// What a new blank is called before it is renamed: «campo 1», «campo 2»…
-fn new_blank_name(state: &AppState, text: &str) -> String {
-    let word = studio::text(state, "campo", "field", "field", "फ़ील्ड");
-    let taken = form::names(text);
+/// What a new question is called before it is renamed: «Pregunta 1», «Pregunta 2»… Never a name in
+/// `taken`, which is every name this editor has seen: one freed by a deleted question still has
+/// its answer in the preview and its draft in the name box, and a new question under it read as
+/// the old one come back.
+fn new_blank_name(state: &AppState, taken: &[String]) -> String {
+    let word = studio::text(state, "Pregunta", "Question", "Tanong", "सवाल");
     (1..)
         .map(|n| format!("{word} {n}"))
         .find(|name| !taken.contains(name))
@@ -1394,6 +1401,17 @@ fn copied_word(state: &AppState) -> &'static str {
 /// The byte where char `at` begins, or the end of the text.
 fn byte_at(text: &str, at: usize) -> usize {
     text.char_indices().nth(at).map_or(text.len(), |(b, _)| b)
+}
+
+/// The text with the pill over `held` taken out and put in at char `at` of the text as it was, and
+/// where the caret goes: right after the pill.
+fn moved(text: &str, held: std::ops::Range<usize>, at: usize) -> (String, usize) {
+    let chars: Vec<char> = text.chars().collect();
+    let pill = &chars[held.clone()];
+    let mut rest: Vec<char> = chars[..held.start].iter().chain(&chars[held.end..]).copied().collect();
+    let at = if at > held.end { at - pill.len() } else { at };
+    rest.splice(at..at, pill.iter().copied());
+    (rest.into_iter().collect(), at + pill.len())
 }
 
 /// Puts `what` over `chars` in the text, leaves the caret after it and the focus in the box.
@@ -1424,14 +1442,13 @@ fn selection(ctx: &egui::Context, text: &str) -> std::ops::Range<usize> {
 /// The name is the selection's first line, so the pill still reads like the text it replaced
 /// until it is renamed. Several lines make a long text; options split by « / » make a list, the
 /// first one chosen; anything else is a short text that starts as what was selected. A list is
-/// not named after its options, which would read as one more of them: it gets «campo 1».
-fn blank_from(state: &AppState, text: &str, picked: &str) -> FormField {
+/// not named after its options, which would read as one more of them: it gets «Pregunta 1».
+fn blank_from(state: &AppState, taken: &[String], picked: &str) -> FormField {
     let options: Vec<String> = picked.split(" / ").map(|o| o.trim().to_string()).collect();
     let is_list = !picked.contains('\n') && options.len() > 1 && options.iter().all(|o| !o.is_empty());
     let first = if is_list { "" } else { picked.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("") };
     let cleaned: String = first.chars().filter(|c| !matches!(c, '[' | ']')).take(form::NAME_MAX).collect();
     let base = cleaned.trim();
-    let taken = form::names(text);
     let name = if base.is_empty() {
         None
     } else if !taken.iter().any(|n| n == base) {
@@ -1441,7 +1458,7 @@ fn blank_from(state: &AppState, text: &str, picked: &str) -> FormField {
             .map(|n| format!("{base} {n}"))
             .find(|n| n.chars().count() <= form::NAME_MAX && !taken.contains(n))
     };
-    let name = name.unwrap_or_else(|| new_blank_name(state, text));
+    let name = name.unwrap_or_else(|| new_blank_name(state, taken));
     if picked.contains('\n') {
         FormField { name, kind: FieldKind::Long, default: picked.to_string(), options: Vec::new() }
     } else if is_list {
@@ -1454,10 +1471,12 @@ fn blank_from(state: &AppState, text: &str, picked: &str) -> FormField {
 /// Turns the chars in `chars` into a blank and opens its bubble with the name ready to type over.
 fn make_blank(ctx: &egui::Context, state: &AppState, edit: &mut EditState, text: &mut String, chars: std::ops::Range<usize>) {
     let picked = text[byte_at(text, chars.start)..byte_at(text, chars.end)].to_string();
+    let mut taken = form::names(text);
+    taken.extend(edit.fields.iter().map(|f| f.name.clone()));
     let field = if picked.trim().is_empty() {
-        FormField { name: new_blank_name(state, text), ..Default::default() }
+        FormField { name: new_blank_name(state, &taken), ..Default::default() }
     } else {
-        blank_from(state, text, &picked)
+        blank_from(state, &taken, &picked)
     };
     let marker = edit.new_blank(field.name.clone());
     let name = field.name.clone();
@@ -1492,10 +1511,11 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
     let mut layouter = |ui: &egui::Ui, buffer: &dyn egui::TextBuffer, wrap: f32| {
         ui.painter().layout_job(highlighted(ui, buffer.as_str(), &copied, &date, ink, wrap))
     };
+    let carrying = ctx.data(|d| d.get_temp::<std::ops::Range<usize>>(drag_key())).is_some();
     let layout = egui::Layout::centered_and_justified(ui.layout().main_dir());
     let mut output = ui
         .allocate_ui_with_layout(egui::vec2(ui.available_width(), height), layout, |ui| {
-            controls::multiline_field(text).id(replace_id()).layouter(&mut layouter).show(ui)
+            controls::multiline_field(text).id(replace_id()).layouter(&mut layouter).interactive(!carrying).show(ui)
         })
         .inner;
     let response = output.response.response.clone();
@@ -1568,8 +1588,57 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
                 painter.rect_filled(rect, rect.height() * 0.5, accent.gamma_multiply(strength));
             }
         }
-        if on_pill {
+        if on_pill && !carrying {
             ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+
+        // A pill can be picked up and put somewhere else: dragged, it leaves a caret where it
+        // would land, and goes there when let go. Meanwhile the box stops answering the pointer,
+        // so the drag does not also paint a selection across the text.
+        let mut held = ctx.data(|d| d.get_temp::<std::ops::Range<usize>>(drag_key()));
+        if response.drag_started() {
+            let origin = ctx.input(|i| i.pointer.press_origin());
+            held = origin.and_then(|origin| {
+                now.iter()
+                    .find(|p| pill_rects(&output.galley, output.galley_pos, &p.chars).iter().any(|r| r.contains(origin)))
+                    .map(|p| p.chars.clone())
+            });
+            if held.is_some() {
+                ctx.data_mut(|d| d.remove::<(Marker, u64)>(bubble_key()));
+                open = None;
+            }
+        }
+        if let Some(chars) = held.filter(|c| c.end <= text.chars().count()) {
+            ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
+            let drop = ctx.input(|i| i.pointer.latest_pos()).map(|p| {
+                let at = output.galley.cursor_from_pos(p - output.galley_pos).index.0;
+                match now.iter().find(|q| q.chars.start < at && at < q.chars.end) {
+                    Some(q) if at - q.chars.start < q.chars.end - at => q.chars.start,
+                    Some(q) => q.chars.end,
+                    None => at,
+                }
+            });
+            let drop = drop.filter(|at| *at < chars.start || *at > chars.end);
+            if let Some(at) = drop {
+                let caret = output.galley.pos_from_cursor(egui::text::CCursor::new(at));
+                let caret = caret.translate(output.galley_pos.to_vec2());
+                painter.vline(caret.left(), caret.y_range(), egui::Stroke::new(2.0, accent));
+            }
+            if ctx.input(|i| i.pointer.any_down()) {
+                ctx.data_mut(|d| d.insert_temp(drag_key(), chars));
+                ctx.request_repaint();
+            } else {
+                ctx.data_mut(|d| d.remove::<std::ops::Range<usize>>(drag_key()));
+                let (moved_text, caret) = match drop {
+                    Some(at) => moved(text, chars, at),
+                    None => (text.clone(), chars.end),
+                };
+                *text = moved_text;
+                output.state.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(caret))));
+                output.state.clone().store(&ctx, replace_id());
+                ctx.memory_mut(|m| m.request_focus(replace_id()));
+                ctx.request_repaint();
+            }
         }
 
         // A selection can become a blank where it stands. The button floats over its first line
@@ -1583,7 +1652,7 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
             if !chars.is_empty() && whole {
                 let first = output.galley.pos_from_cursor(egui::text::CCursor::new(chars.start));
                 let at = output.galley_pos + first.left_top().to_vec2() - egui::vec2(0.0, controls::GAP_TIGHT);
-                let label = studio::text(state, "Convertir en campo", "Make it a field", "Gawing field", "फ़ील्ड बनाएँ");
+                let label = studio::text(state, "Preguntar esto", "Ask for this", "Itanong ito", "यह पूछें");
                 let button = egui::Area::new(egui::Id::new("editor-convert"))
                     .order(egui::Order::Foreground)
                     .pivot(egui::Align2::LEFT_BOTTOM)
@@ -1615,17 +1684,17 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
         let by_keyboard = menu.clicked() && menu.has_focus();
         let blank = studio::text(
             state,
-            "Un campo para rellenar",
-            "A field to fill in",
-            "Isang field na pupunan",
-            "भरने के लिए एक फ़ील्ड",
+            "Una pregunta",
+            "A question",
+            "Isang tanong",
+            "एक सवाल",
         );
         let blank_tip = studio::text(
             state,
-            "Un hueco que rellenas al usar la expansión. Si hay texto seleccionado, se convierte en el campo.",
-            "A blank you fill in each time you use it. Selected text becomes the field.",
-            "Isang patlang na pupunan mo tuwing gagamitin ito. Ang napiling teksto ang magiging field.",
-            "एक खाली जगह जिसे हर बार उपयोग पर भरते हैं। चुना हुआ टेक्स्ट फ़ील्ड बन जाता है।",
+            "Khipu te la hace cada vez que usas la expansión, y tu respuesta se escribe aquí. Si hay texto seleccionado, se convierte en la pregunta.",
+            "Khipu asks it each time you use the expansion, and your answer is written here. Selected text becomes the question.",
+            "Itatanong ito ng Khipu tuwing gagamitin mo ang expansion, at dito isusulat ang sagot mo. Ang napiling teksto ang magiging tanong.",
+            "हर बार विस्तार उपयोग करने पर Khipu यह पूछता है, और आपका जवाब यहाँ लिखा जाता है। चुना हुआ टेक्स्ट सवाल बन जाता है।",
         );
         let date = studio::text(
             state,
@@ -1685,7 +1754,7 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
         );
         paste = controls::subtle_button(ui, Some(Glyph::Paste), label, None).on_hover_text(tip).clicked();
     });
-    // «Un campo para rellenar» does what «Convertir en campo» does to a selection, and makes an
+    // «Una pregunta» does what «Preguntar esto» does to a selection, and makes an
     // empty blank at the caret when there is none.
     if add_blank {
         let chars = selection(&ctx, text);
@@ -1745,8 +1814,9 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
     }
 }
 
-/// The bubble under a blank's pill: its name, what kind it is, and what it starts with. Returns the
-/// name the blank goes by now, or `None` once the bubble is closed.
+/// The bubble under a question's pill: what is asked, whether the answer is typed or picked from
+/// options, and what it starts as. Returns the name the question goes by now, or `None` once the
+/// bubble is closed.
 #[allow(clippy::too_many_arguments)]
 fn bubble(
     ui: &mut egui::Ui,
@@ -1760,10 +1830,10 @@ fn bubble(
 ) -> Option<String> {
     let ctx = ui.ctx().clone();
     let field = edit.form(text)?.fields.into_iter().find(|f| f.name == name)?;
+    // A short and a long answer are one kind now: the box in the form grows with what is typed.
     let kinds = [
-        studio::text(state, "Texto corto", "Short text", "Maikling teksto", "छोटा टेक्स्ट"),
-        studio::text(state, "Texto largo", "Long text", "Mahabang teksto", "लंबा टेक्स्ट"),
-        studio::text(state, "Lista", "List", "Listahan", "सूची"),
+        studio::text(state, "Respuesta escrita", "Typed answer", "Isusulat na sagot", "लिखा हुआ जवाब"),
+        studio::text(state, "Opciones", "Options", "Mga pagpipilian", "विकल्प"),
     ];
     let width = controls::segmented_natural_width(ui, &kinds).max(BUBBLE_MIN_WIDTH);
     let mut kept = Some(name.to_string());
@@ -1777,16 +1847,12 @@ fn bubble(
         .frame(egui::Frame::popup(&ctx.global_style()).inner_margin(egui::Margin::same(controls::GAP_WIDE as i8)))
         .show(|ui| {
             ui.set_width(width);
-            let selected = match field.kind {
-                FieldKind::Short => 0,
-                FieldKind::Long => 1,
-                FieldKind::Choice => 2,
-            };
+            let is_choice = field.kind == FieldKind::Choice;
 
-            // The name is typed into a copy and written back only while it is a name the text can
-            // hold: not empty, not another blank's, nothing that would end the marker early. The
-            // copy is kept with the name it was typed over, and dropped as soon as the box lets go
-            // of the focus.
+            // The question is typed into a copy and written back only while it is a name the text
+            // can hold: not empty, not another question's, nothing that would end the marker
+            // early. The copy is kept with the name it was typed over, and dropped as soon as the
+            // box lets go of the focus.
             let name_id = egui::Id::new("editor-blank-name");
             let draft_id = name_id.with("draft");
             let mut draft = if ctx.memory(|m| m.has_focus(name_id)) {
@@ -1797,14 +1863,19 @@ fn bubble(
                 ctx.data_mut(|d| d.remove::<(String, String)>(draft_id));
                 field.name.clone()
             };
-            // A blank just made goes straight to its name, chosen whole, so the first thing typed
-            // names it: «campo 1», or the words it was made from, are a starting point.
+            // A question just made goes straight to its words, chosen whole, so the first thing
+            // typed is the question: «Pregunta 1», or the words it was made from, are a starting
+            // point. The box starts over, too: its undo must not bring back an earlier question.
             // Not on the bubble's first, unseen pass: what is drawn there cannot take the focus.
             let naming = !ui.is_sizing_pass()
                 && ctx.data(|d| d.get_temp::<String>(naming_key())).is_some_and(|n| n == field.name);
             if naming {
-                ctx.data_mut(|d| d.remove::<String>(naming_key()));
-                let mut name_box = egui::TextEdit::load_state(&ctx, name_id).unwrap_or_default();
+                ctx.data_mut(|d| {
+                    d.remove::<String>(naming_key());
+                    d.remove::<(String, String)>(draft_id);
+                });
+                draft = field.name.clone();
+                let mut name_box = egui::text_edit::TextEditState::default();
                 let all = egui::text::CCursorRange::two(
                     egui::text::CCursor::new(0),
                     egui::text::CCursor::new(draft.chars().count()),
@@ -1813,13 +1884,14 @@ fn bubble(
                 name_box.store(&ctx, name_id);
                 ctx.memory_mut(|m| m.request_focus(name_id));
             }
-            // Both boxes often start out saying the same words, so each says what it holds.
-            let hint = studio::text(state, "Nombre del campo", "Field name", "Pangalan ng field", "फ़ील्ड का नाम");
+            let hint = studio::text(state, "Qué preguntar", "What to ask", "Ano ang itatanong", "क्या पूछना है");
             ui.label(controls::small_muted(hint, is_light));
             ui.add_space(controls::GAP_TIGHT);
+            let example = studio::text(state, "¿Qué día?", "Which day?", "Anong araw?", "कौन-सा दिन?");
             let named = ui.add(
                 controls::text_field(&mut draft)
                     .id(name_id)
+                    .hint_text(example)
                     .desired_width(f32::INFINITY),
             );
             if named.changed() {
@@ -1847,65 +1919,39 @@ fn bubble(
             let current = kept.clone().unwrap_or_else(|| field.name.clone());
 
             ui.add_space(controls::GAP);
-            if let Some(picked) = controls::segmented(ui, "editor-blank-kind", &kinds, Some(selected)) {
-                edit.field_mut(&current).kind = match picked {
-                    0 => FieldKind::Short,
-                    1 => FieldKind::Long,
-                    _ => FieldKind::Choice,
-                };
+            if let Some(picked) = controls::segmented(ui, "editor-blank-kind", &kinds, Some(usize::from(is_choice))) {
+                let f = edit.field_mut(&current);
+                if picked == 1 && f.kind != FieldKind::Choice {
+                    f.kind = FieldKind::Choice;
+                    // Options start from the answer it already had, or from one empty row that
+                    // takes the caret, so there is never a blank list to wonder about.
+                    if f.options.iter().all(|o| o.trim().is_empty()) {
+                        f.options = vec![std::mem::take(&mut f.default)];
+                        let row = egui::Id::new(("editor-option", 0usize));
+                        ctx.memory_mut(|m| m.request_focus(row));
+                    }
+                } else if picked == 0 && f.kind == FieldKind::Choice {
+                    f.kind = FieldKind::Short;
+                }
             }
 
             ui.add_space(controls::GAP);
-            match field.kind {
-                FieldKind::Short | FieldKind::Long => {
-                    let mut value = field.default.clone();
-                    let hint = studio::text(
-                        state,
-                        "Valor inicial (opcional)",
-                        "Starting value (optional)",
-                        "Panimulang halaga (opsyonal)",
-                        "शुरुआती मान (वैकल्पिक)",
-                    );
-                    ui.label(controls::small_muted(hint, is_light));
-                    ui.add_space(controls::GAP_TIGHT);
-                    let input = if field.kind == FieldKind::Short {
-                        controls::text_field(&mut value)
-                    } else {
-                        controls::multiline_field(&mut value).desired_rows(2)
-                    };
-                    if ui.add(input.desired_width(f32::INFINITY)).changed() {
-                        edit.field_mut(&current).default = value;
-                    }
-                }
-                FieldKind::Choice => {
-                    let mut options = field.options.join("\n");
-                    let hint = studio::text(
-                        state,
-                        "Una opción por línea. La primera aparece elegida.",
-                        "One option per line. The first one starts selected.",
-                        "Isang pagpipilian bawat linya. Ang una ang nakapili sa simula.",
-                        "हर पंक्ति में एक विकल्प। पहला पहले से चुना रहता है।",
-                    );
-                    let response = ui.add(
-                        controls::multiline_field(&mut options)
-                            .desired_rows(3)
-                            .desired_width(f32::INFINITY)
-                            .hint_text(hint),
-                    );
-                    if response.changed() {
-                        edit.field_mut(&current).options = options.split('\n').map(str::to_string).collect();
-                    }
-                    if field.options.iter().all(|o| o.trim().is_empty()) {
-                        ui.add_space(controls::GAP_TIGHT);
-                        let missing = studio::text(
-                            state,
-                            "Añade al menos una opción para poder guardar.",
-                            "Add at least one option to be able to save.",
-                            "Magdagdag ng kahit isang pagpipilian para makapag-save.",
-                            "सहेजने के लिए कम से कम एक विकल्प जोड़ें।",
-                        );
-                        ui.label(egui::RichText::new(missing).color(crate::app::caution(is_light)));
-                    }
+            if is_choice {
+                options(ui, state, edit, &current, &field.options, is_light);
+            } else {
+                let mut value = field.default.clone();
+                let hint = studio::text(
+                    state,
+                    "Respuesta inicial (opcional)",
+                    "Starting answer (optional)",
+                    "Panimulang sagot (opsyonal)",
+                    "शुरुआती जवाब (वैकल्पिक)",
+                );
+                ui.label(controls::small_muted(hint, is_light));
+                ui.add_space(controls::GAP_TIGHT);
+                let input = controls::multiline_field(&mut value).desired_rows(1).desired_width(f32::INFINITY);
+                if ui.add(input).changed() {
+                    edit.field_mut(&current).default = value;
                 }
             }
 
@@ -1937,6 +1983,76 @@ fn bubble(
         kept = None;
     }
     kept
+}
+
+/// A list's options, one box each with a way to take it out, and a way to add one more. Enter in a
+/// box adds the next one below it, so a list can be typed straight through.
+fn options(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, name: &str, current: &[String], is_light: bool) {
+    let ctx = ui.ctx().clone();
+    let row_id = |i: usize| egui::Id::new(("editor-option", i));
+    let hint = studio::text(
+        state,
+        "La primera sale elegida",
+        "The first one starts selected",
+        "Nakapili na ang una",
+        "पहला पहले से चुना रहता है",
+    );
+    ui.label(controls::small_muted(hint, is_light));
+    ui.add_space(controls::GAP_TIGHT);
+    let remove_tip = studio::text(state, "Quitar opción", "Remove option", "Alisin ang pagpipilian", "विकल्प हटाएँ");
+    let mut list = current.to_vec();
+    if list.is_empty() {
+        list.push(String::new());
+    }
+    let mut changed = false;
+    let mut remove = None;
+    let mut insert_after = None;
+    for i in 0..list.len() {
+        if i > 0 {
+            ui.add_space(controls::GAP_TIGHT);
+        }
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
+            let room = ui.available_width() - controls::FIELD_HEIGHT - controls::GAP_TIGHT;
+            let row = ui.add(controls::text_field(&mut list[i]).id(row_id(i)).desired_width(room));
+            changed |= row.changed();
+            if row.lost_focus() && ui.input(|inp| inp.key_pressed(egui::Key::Enter)) && !list[i].trim().is_empty() {
+                insert_after = Some(i);
+            }
+            // The last box cannot go: a list always has a row to type into.
+            if controls::icon_button(ui, Glyph::Close, remove_tip, list.len() > 1).clicked() {
+                remove = Some(i);
+            }
+        });
+    }
+    ui.add_space(controls::GAP_TIGHT);
+    let add = studio::text(state, "Añadir opción", "Add option", "Magdagdag ng pagpipilian", "विकल्प जोड़ें");
+    if controls::subtle_button(ui, Some(Glyph::Add), add, None).clicked() {
+        insert_after = Some(list.len() - 1);
+    }
+    if let Some(i) = remove {
+        list.remove(i);
+        changed = true;
+    }
+    if let Some(i) = insert_after {
+        list.insert(i + 1, String::new());
+        ctx.memory_mut(|m| m.request_focus(row_id(i + 1)));
+        changed = true;
+    }
+    if changed {
+        edit.field_mut(name).options = list;
+    }
+    if current.iter().all(|o| o.trim().is_empty()) {
+        ui.add_space(controls::GAP_TIGHT);
+        let missing = studio::text(
+            state,
+            "Escribe al menos una opción para poder guardar.",
+            "Write at least one option to be able to save.",
+            "Sumulat ng kahit isang pagpipilian para makapag-save.",
+            "सहेजने के लिए कम से कम एक विकल्प लिखें।",
+        );
+        ui.label(egui::RichText::new(missing).color(crate::app::caution(is_light)));
+    }
 }
 
 /// The bubble under the date's pill: how the date is written. Every date pill in the text is the
@@ -2765,5 +2881,13 @@ mod tests {
         assert_eq!(snapped(12, 1, 13, false, &p), (3, 1));
         // Outside every pill, nothing moves.
         assert_eq!(snapped(1, 15, 1, true, &p), (1, 15));
+    }
+    /// A pill dragged somewhere else: taken out, put in where it was dropped, the caret after it.
+    #[test]
+    fn a_pill_moves_where_it_is_dropped() {
+        // Forward: the drop point counts in the text as it was.
+        assert_eq!(moved("[[a]] uno dos", 0..5, 9), (" uno[[a]] dos".to_string(), 9));
+        // Backward.
+        assert_eq!(moved("uno [[a]]", 4..9, 0), ("[[a]]uno ".to_string(), 5));
     }
 }

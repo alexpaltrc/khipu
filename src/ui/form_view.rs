@@ -44,8 +44,6 @@ use std::sync::{Arc, Mutex};
 /// The window's width in points. Wide enough for a sentence of label and a comfortable field;
 /// the height follows the fields.
 const WIDTH: f32 = 480.0;
-/// Rows a long text field opens with.
-const LONG_ROWS: usize = 3;
 /// The tallest the preview grows before it scrolls.
 const PREVIEW_MAX: f32 = 140.0;
 
@@ -91,7 +89,7 @@ fn field_id(salt: &str, index: usize) -> egui::Id {
     egui::Id::new((salt, "form-field", index))
 }
 
-/// One label and one control per field. Enter in a one-line field goes to the next text field, and
+/// One label and one control per field. Enter in a typed answer goes to the next one, and
 /// from the last one asks to insert; Ctrl+Enter asks to insert from anywhere. Returns whether
 /// the user asked to insert.
 pub fn fields(
@@ -129,14 +127,20 @@ pub fn fields(
         ui.add_space(controls::GAP_TIGHT);
         let answer = &mut answers[i];
         match field.kind {
-            FieldKind::Short => {
+            // One box for every typed answer, a line tall and growing with what is written: Enter
+            // moves on, as in any form, and Shift+Enter starts another line.
+            FieldKind::Short | FieldKind::Long => {
+                let newline = egui::KeyboardShortcut::new(egui::Modifiers::SHIFT, egui::Key::Enter);
                 let response = ui.add(
-                    controls::text_field(answer)
+                    controls::multiline_field(answer)
                         .id(field_id(salt, i))
+                        .desired_rows(1)
+                        .return_key(newline)
                         .desired_width(f32::INFINITY),
                 );
                 controls::say_as(&response, &label(&field.name));
-                if response.lost_focus() && ui.input(|inp| inp.key_pressed(egui::Key::Enter)) {
+                let enter = ui.input(|inp| inp.key_pressed(egui::Key::Enter) && !inp.modifiers.shift);
+                if response.has_focus() && enter {
                     match typed.iter().find(|&&next| next > i) {
                         Some(&next) => {
                             ui.data_mut(|d| d.insert_temp(pending, next));
@@ -145,15 +149,6 @@ pub fn fields(
                         None => submit = true,
                     }
                 }
-            }
-            FieldKind::Long => {
-                let response = ui.add(
-                    controls::multiline_field(answer)
-                        .id(field_id(salt, i))
-                        .desired_rows(LONG_ROWS)
-                        .desired_width(f32::INFINITY),
-                );
-                controls::say_as(&response, &label(&field.name));
             }
             FieldKind::Choice => choice(ui, salt, i, &label(&field.name), &field.options, answer),
         }
@@ -395,10 +390,10 @@ impl eframe::App for FormApp {
                     ui.label(controls::muted(
                         in_lang(
                             self.lang,
-                            "Completa los campos y pulsa Insertar.",
-                            "Fill in the fields and press Insert.",
-                            "Punan ang mga field at pindutin ang Ilagay.",
-                            "फ़ील्ड भरें और डालें दबाएँ।",
+                            "Responde y pulsa Insertar. Mayús+Intro añade otra línea.",
+                            "Answer and press Insert. Shift+Enter adds another line.",
+                            "Sumagot at pindutin ang Ilagay. Shift+Enter para sa bagong linya.",
+                            "जवाब दें और डालें दबाएँ। नई पंक्ति के लिए Shift+Enter।",
                         ),
                         self.is_light,
                     ));

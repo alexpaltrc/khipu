@@ -130,13 +130,13 @@ pub(super) fn set_filter(ctx: &egui::Context, state: &mut AppState, folder: Opti
     ctx.request_repaint();
 }
 
-/// «3 campos por completar»: how a form is described wherever its blanks are counted — the
+/// «3 preguntas por responder»: how a form is described wherever its blanks are counted — the
 /// editor's footnote and the launcher.
 pub fn blanks_to_fill(state: &AppState, n: usize) -> String {
     let template = plural(
         n,
-        text(state, "{n} campo por completar", "{n} field to fill in", "{n} field na pupunan", "{n} फ़ील्ड भरना है"),
-        text(state, "{n} campos por completar", "{n} fields to fill in", "{n} field na pupunan", "{n} फ़ील्ड भरने हैं"),
+        text(state, "{n} pregunta por responder", "{n} question to answer", "{n} tanong na sasagutin", "{n} सवाल का जवाब देना है"),
+        text(state, "{n} preguntas por responder", "{n} questions to answer", "{n} tanong na sasagutin", "{n} सवालों के जवाब देने हैं"),
     );
     crate::i18n::fill(template, &[("n", &n.to_string())])
 }
