@@ -92,8 +92,8 @@ enum InstanceGuard {
     /// Another copy holds it. The user has been shown where that copy is; this one should go.
     AlreadyRunning,
     /// Windows would not hand it over at all, so whether another copy is running is unknowable.
-    /// Carries the reason, to be shown once there is a window to show it in.
-    Unavailable(String),
+    /// The usual cause is a copy opened as administrator, which is what the warning says.
+    Unavailable,
 }
 
 /// Prevents two copies running at once (e.g. the autostart entry firing while the user also
@@ -106,7 +106,7 @@ fn acquire_single_instance_guard(t: &'static i18n::Strings) -> InstanceGuard {
     // `.ok_or_else(Error::from_thread)`, so ERROR_ALREADY_EXISTS is still there to be read.
     let handle = match unsafe { CreateMutexW(None, false, PCWSTR(name.as_ptr())) } {
         Ok(handle) => handle,
-        Err(e) => return InstanceGuard::Unavailable(e.message()),
+        Err(_) => return InstanceGuard::Unavailable,
     };
     if unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
         rfd::MessageDialog::new()
@@ -189,7 +189,7 @@ fn main() {
             startup_warnings.push(t.settings_damaged_lost.to_string());
         }
         Some(settings::SettingsIssue::Unreadable(err)) => {
-            startup_warnings.push(i18n::fill(t.settings_unreadable, &[("err", &err)]));
+            startup_warnings.push(i18n::fill(t.settings_unreadable, &[("err", &i18n::explain_io(t, &err))]));
         }
         None => {}
     }
@@ -197,12 +197,12 @@ fn main() {
     let _instance_guard = match acquire_single_instance_guard(t) {
         InstanceGuard::Held(handle) => handle,
         InstanceGuard::AlreadyRunning => return,
-        InstanceGuard::Unavailable(err) => {
+        InstanceGuard::Unavailable => {
             // Starting without the guard means a second copy could appear alongside a first. That
             // is a nuisance, and a visible, self-explanatory one — two icons in the tray. Refusing
             // to start, with nothing on screen to say why, is the worse of the two by a distance.
             // `HANDLE` is a bare pointer with no destructor, so a null one costs nothing to hold.
-            startup_warnings.push(i18n::fill(t.instance_guard_warning, &[("err", &err)]));
+            startup_warnings.push(t.instance_guard_warning.to_string());
             windows::Win32::Foundation::HANDLE::default()
         }
     };
@@ -294,12 +294,12 @@ fn main() {
             // the whole disaster the block above exists to prevent: no tray icon from us, and now
             // no way to give espanso its own back either. It goes in the same dialog rather than a
             // second one, because there is only one thing to say and one moment left to say it.
-            let mut message = i18n::fill(t.tray_error, &[("err", &e)]);
+            let mut message = i18n::fill(t.tray_error, &[("err", &i18n::without_code(&e))]);
             if let Err(err) = &restored {
                 message.push_str("\n\n");
                 message.push_str(&i18n::fill(
                     t.config_patch_warning,
-                    &[("err", &err.to_string())],
+                    &[("err", &i18n::explain_io(t, err))],
                 ));
             }
             rfd::MessageDialog::new()
@@ -330,7 +330,7 @@ fn main() {
         // Not fatal — the app runs fine, espanso just keeps an icon and a set of toasts we meant
         // to turn off. But it has to be said, because from the outside it is indistinguishable
         // from us having decided to leave them on.
-        Err(e) => config_warning = Some(i18n::fill(t.config_patch_warning, &[("err", &e.to_string())])),
+        Err(e) => config_warning = Some(i18n::fill(t.config_patch_warning, &[("err", &i18n::explain_io(t, &e))])),
     }
 
     let icon = icons::window_fallback();

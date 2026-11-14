@@ -191,10 +191,7 @@ fn ctl_result_to_message(
             t.err_espanso_action,
             &[("verb", verb), ("detail", &r.detail())],
         )),
-        Err(e) => Err(fill(
-            t.err_espanso_comm,
-            &[("verb", verb), ("err", &e.to_string())],
-        )),
+        Err(_) => Err(fill(t.err_espanso_comm, &[("verb", verb)])),
     }
 }
 

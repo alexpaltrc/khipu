@@ -609,7 +609,7 @@ impl AppState {
         if self.settings.launcher_shortcut != stored {
             self.settings.launcher_shortcut = stored;
             if let Err(e) = self.settings_store.save(&self.settings) {
-                let msg = fill(self.t().launcher_shortcut_save_error, &[("err", &e.to_string())]);
+                let msg = fill(self.t().launcher_shortcut_save_error, &[("err", &crate::i18n::explain_io(self.t(), &e))]);
                 self.set_error_banner(msg);
             }
         }
@@ -710,11 +710,11 @@ impl AppState {
         if let Err(e) = self.settings_store.save(&self.settings) {
             let msg = fill(ui::studio::text(
                 self,
-                "No se pudo guardar el favorito: {err}",
-                "Could not save the favorite: {err}",
-                "Hindi ma-save ang paborito: {err}",
-                "पसंदीदा सहेजा नहीं जा सका: {err}",
-            ), &[("err", &e.to_string())]);
+                "No se pudo guardar el favorito. {err}",
+                "Could not save the favorite. {err}",
+                "Hindi ma-save ang paborito. {err}",
+                "पसंदीदा सहेजा नहीं जा सका। {err}",
+            ), &[("err", &crate::i18n::explain_io(self.t(), &e))]);
             self.set_error_banner(msg);
         }
     }
@@ -727,11 +727,11 @@ impl AppState {
         if let Err(e) = self.settings_store.save(&self.settings) {
             let msg = fill(ui::studio::text(
                 self,
-                "No se pudo guardar el ajuste del buscador: {err}",
-                "Could not save the search setting: {err}",
-                "Hindi ma-save ang setting ng paghahanap: {err}",
-                "खोज की सेटिंग सहेजी नहीं जा सकी: {err}",
-            ), &[("err", &e.to_string())]);
+                "No se pudo guardar el ajuste del buscador. {err}",
+                "Could not save the search setting. {err}",
+                "Hindi ma-save ang setting ng paghahanap. {err}",
+                "खोज की सेटिंग सहेजी नहीं जा सकी। {err}",
+            ), &[("err", &crate::i18n::explain_io(self.t(), &e))]);
             self.set_error_banner(msg);
         }
     }
@@ -776,11 +776,11 @@ impl AppState {
         if let Err(e) = self.settings_store.save(&self.settings) {
             let msg = fill(ui::studio::text(
                 self,
-                "No se pudo guardar la lista: {err}",
-                "Could not save the list: {err}",
-                "Hindi ma-save ang listahan: {err}",
-                "सूची सहेजी नहीं जा सकी: {err}",
-            ), &[("err", &e.to_string())]);
+                "No se pudo guardar la lista. {err}",
+                "Could not save the list. {err}",
+                "Hindi ma-save ang listahan. {err}",
+                "सूची सहेजी नहीं जा सकी। {err}",
+            ), &[("err", &crate::i18n::explain_io(self.t(), &e))]);
             self.set_error_banner(msg);
             return;
         }
@@ -790,11 +790,11 @@ impl AppState {
             Err(e) => {
                 let msg = fill(ui::studio::text(
                     self,
-                    "No se pudo avisar a espanso: {err}",
-                    "Could not tell espanso: {err}",
-                    "Hindi masabihan ang espanso: {err}",
-                    "espanso को बताया नहीं जा सका: {err}",
-                ), &[("err", &e.to_string())]);
+                    "No se pudo aplicar el cambio a las expansiones. {err}",
+                    "Could not apply the change to the expansions. {err}",
+                    "Hindi mailapat ang pagbabago sa mga expansion. {err}",
+                    "बदलाव विस्तारों पर लागू नहीं किया जा सका। {err}",
+                ), &[("err", &crate::i18n::explain_io(self.t(), &e))]);
                 self.set_error_banner(msg);
             }
         }
@@ -979,7 +979,7 @@ impl AppState {
             }
             Err(e) => {
                 self.refresh_autostart_cache();
-                self.set_error_banner(fill(t.autostart_error, &[("err", &e.to_string())]));
+                self.set_error_banner(fill(t.autostart_error, &[("err", &crate::i18n::explain_io(t, &e))]));
             }
         }
     }
@@ -995,7 +995,7 @@ impl AppState {
         }
         self.settings.prefix = prefix;
         if let Err(e) = self.settings_store.save(&self.settings) {
-            let msg = fill(self.t().prefix_save_error, &[("err", &e.to_string())]);
+            let msg = fill(self.t().prefix_save_error, &[("err", &crate::i18n::explain_io(self.t(), &e))]);
             self.set_error_banner(msg);
         }
     }
@@ -1013,7 +1013,7 @@ impl AppState {
 
     fn save_theme_settings(&mut self) {
         if let Err(e) = self.settings_store.save(&self.settings) {
-            let msg = fill(self.t().theme_save_error, &[("err", &e.to_string())]);
+            let msg = fill(self.t().theme_save_error, &[("err", &crate::i18n::explain_io(self.t(), &e))]);
             self.set_error_banner(msg);
         }
     }
@@ -1038,7 +1038,7 @@ impl AppState {
         }
         self.settings.lang = lang;
         if let Err(e) = self.settings_store.save(&self.settings) {
-            let msg = fill(self.t().language_save_error, &[("err", &e.to_string())]);
+            let msg = fill(self.t().language_save_error, &[("err", &crate::i18n::explain_io(self.t(), &e))]);
             self.set_error_banner(msg);
         }
         // Fonts and tray labels can't be swapped from here (they need the egui context and the
@@ -1278,7 +1278,7 @@ impl AppState {
         self.settings.compact_view = compact;
         self.settings.grid_view = grid;
         if let Err(e) = self.settings_store.save(&self.settings) {
-            let msg = fill(self.t().view_save_error, &[("err", &e.to_string())]);
+            let msg = fill(self.t().view_save_error, &[("err", &crate::i18n::explain_io(self.t(), &e))]);
             self.set_error_banner(msg);
         }
     }
@@ -1720,7 +1720,7 @@ impl AppState {
         match crate::transfer::write(&path, &export) {
             Ok(()) => self.set_info_banner(fill(t.export_done, &[("n", &count.to_string())])),
             Err(crate::transfer::TransferError::Io(e)) => {
-                self.set_error_banner(fill(t.export_error, &[("err", &e)]))
+                self.set_error_banner(fill(t.export_error, &[("err", &crate::i18n::explain_io(t, &e))]))
             }
             Err(_) => self.set_error_banner(t.export_error),
         }
@@ -1745,7 +1745,7 @@ impl AppState {
         let export = match crate::transfer::read(&path) {
             Ok(export) => export,
             Err(crate::transfer::TransferError::Io(e)) => {
-                self.set_error_banner(fill(t.import_error, &[("err", &e)]));
+                self.set_error_banner(fill(t.import_error, &[("err", &crate::i18n::explain_io(t, &e))]));
                 return;
             }
             Err(_) => {
@@ -3034,7 +3034,7 @@ impl KhipuApp {
             Err(e) => {
                 let text = crate::i18n::fill(
                     ctx.settings.t().config_patch_warning,
-                    &[("err", &e.to_string())],
+                    &[("err", &crate::i18n::explain_io(ctx.settings.t(), &e))],
                 );
                 startup_warning = Some(match startup_warning.take() {
                     Some(existing) if existing.contains(&text) => existing,

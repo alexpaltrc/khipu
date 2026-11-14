@@ -278,7 +278,7 @@ impl Settings {
 /// to say it in, since [`SettingsStore::load`] runs long before one exists.
 pub enum SettingsIssue {
     /// The file is there but could not be read. Left exactly where it is.
-    Unreadable(String),
+    Unreadable(std::io::Error),
     /// The file is there and readable but is not settings any more. `kept_at` is where its
     /// contents were put, or `None` if even that could not be done.
     Damaged { kept_at: Option<PathBuf> },
@@ -335,7 +335,7 @@ impl SettingsStore {
             // lose something.
             Err(e) => (
                 Settings::default(),
-                Some(SettingsIssue::Unreadable(e.to_string())),
+                Some(SettingsIssue::Unreadable(e)),
             ),
         };
         // A settings file means this app has run here before, so whoever is at the keyboard has

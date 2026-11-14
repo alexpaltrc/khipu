@@ -87,7 +87,7 @@ pub enum LoadError {
 impl LoadError {
     pub fn friendly_message(&self, t: &'static Strings) -> String {
         match self {
-            LoadError::Io(e) => fill(t.err_read_file, &[("err", &e.to_string())]),
+            LoadError::Io(e) => fill(t.err_read_file, &[("err", &crate::i18n::explain_io(t, e))]),
             LoadError::Parse(e) => fill(t.err_parse_yaml, &[("err", &e.to_string())]),
         }
     }
@@ -140,7 +140,7 @@ impl SaveError {
                 .collect::<Vec<_>>()
                 .join("\n"),
             SaveError::SelfCheckFailed(e) => fill(t.err_self_check, &[("err", &e.to_string())]),
-            SaveError::Io(e) => fill(t.err_write_file, &[("err", &e.to_string())]),
+            SaveError::Io(e) => fill(t.err_write_file, &[("err", &crate::i18n::explain_io(t, e))]),
         }
     }
 }
@@ -166,10 +166,10 @@ impl SaveWarnings {
     pub fn message(&self, t: &'static Strings) -> Option<String> {
         let mut parts: Vec<String> = Vec::new();
         if let Some(e) = &self.backup {
-            parts.push(fill(t.save_backup_failed, &[("err", &e.to_string())]));
+            parts.push(fill(t.save_backup_failed, &[("err", &crate::i18n::explain_io(t, e))]));
         }
         if let Some(e) = &self.flush {
-            parts.push(fill(t.save_flush_failed, &[("err", &e.to_string())]));
+            parts.push(fill(t.save_flush_failed, &[("err", &crate::i18n::explain_io(t, e))]));
         }
         (!parts.is_empty()).then(|| parts.join("\n\n"))
     }

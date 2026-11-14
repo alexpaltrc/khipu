@@ -17,6 +17,11 @@ was published.
 - **About 11 MB less memory.** The letters on screen are kept in one picture, which egui made as
   wide as the graphics card allows: 16 384 pixels on an NVIDIA card, nearly all of it empty. Now it
   is 2048 wide, egui's own default. Measured on the same screen: 76 MB private before, 65 after.
+- **Error messages say what happened and what to do.** «Acceso denegado. (os error 5)» told nobody
+  anything. Now a file that cannot be saved says why in plain words — another program has it
+  open, the disk is full, the network drive is gone — and what to try, with no error numbers.
+  Messages about the expansions themselves no longer name internal programs (espansod.exe) or
+  files, and each ends with the step that usually fixes it.
 
 ### Fixed
 

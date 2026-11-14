@@ -403,10 +403,7 @@ impl EspansoCtl {
     pub fn ensure_running(&self, t: &'static Strings) -> Result<(), String> {
         if crate::EXPERIMENTAL { return Ok(()); }
         if !self.exe_exists() {
-            return Err(fill(
-                t.err_espansod_missing,
-                &[("path", &self.exe_path.display().to_string())],
-            ));
+            return Err(t.err_espansod_missing.to_string());
         }
         if self.is_running(t) {
             return Ok(());
@@ -435,7 +432,7 @@ impl EspansoCtl {
         }
 
         self.spawn_detached(&["daemon"])
-            .map_err(|e| fill(t.err_espanso_start, &[("err", &e.to_string())]))?;
+            .map_err(|_| t.err_espanso_start.to_string())?;
         if self.wait_until_running(Duration::from_secs(6), t) {
             return Ok(());
         }

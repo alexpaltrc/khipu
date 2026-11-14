@@ -88,7 +88,7 @@ fn is_false(b: &bool) -> bool {
 /// What went wrong, in terms the caller can turn into a sentence for the user.
 pub enum TransferError {
     /// The file could not be read or written at all.
-    Io(String),
+    Io(std::io::Error),
     /// The file is not YAML, or not our shape.
     NotOurs,
     /// Valid, but there was nothing in it to import.
@@ -231,7 +231,7 @@ pub fn retain_folders(mut export: Export, keep: &[Option<String>]) -> Export {
 }
 
 pub fn write(path: &Path, export: &Export) -> Result<(), TransferError> {
-    let body = serde_norway::to_string(export).map_err(|e| TransferError::Io(e.to_string()))?;
+    let body = serde_norway::to_string(export).map_err(|e| TransferError::Io(std::io::Error::other(e)))?;
     let text = format!(
         // English on purpose: this file is made to be sent to someone else, whose copy of the app
         // may well be running in another language.
@@ -239,11 +239,15 @@ pub fn write(path: &Path, export: &Export) -> Result<(), TransferError> {
          # Import them from Settings -> Export and import. They are added to whatever is\n\
          # already there; nothing you have is replaced.\n\n{body}"
     );
-    std::fs::write(path, text).map_err(|e| TransferError::Io(e.to_string()))
+    std::fs::write(path, text).map_err(TransferError::Io)
 }
 
 pub fn read(path: &Path) -> Result<Export, TransferError> {
-    let text = std::fs::read_to_string(path).map_err(|e| TransferError::Io(e.to_string()))?;
+    // Text that is not UTF-8 is not a file this app wrote, whatever its name says.
+    let text = std::fs::read_to_string(path).map_err(|e| match e.kind() {
+        std::io::ErrorKind::InvalidData => TransferError::NotOurs,
+        _ => TransferError::Io(e),
+    })?;
     let export: Export = serde_norway::from_str(&text).map_err(|_| TransferError::NotOurs)?;
     if export.khipu_export == 0 {
         return Err(TransferError::NotOurs);
