@@ -1101,6 +1101,7 @@ impl AppState {
     /// The renames the prefix question listed, once it has been answered yes.
     fn rename_to_prefix(&mut self, renamed: Vec<(String, String)>) {
         let t = self.t();
+        let before = Snapshot::of(&self.match_file, &self.settings);
 
         // Exactly the renames the question listed: worked out again here, `:--` lost its symbols
         // to the prefix alone, a change nobody was shown and the collision check never saw.
@@ -1122,9 +1123,16 @@ impl AppState {
         let _ = self.settings_store.save(&self.settings);
         self.touch_list();
         // From here on the expansions carry the new prefix.
-        self.prefix_before = None;
+        let prefix_before = self.prefix_before.take();
 
-        self.save_and_reload(crate::i18n::fill_count(t.prefix_applied, renamed.len(), &[]));
+        if !self.save_and_reload(crate::i18n::fill_count(t.prefix_applied, renamed.len(), &[])) {
+            // Still the old prefix on disk, so still the old one here, and «Aplicar» still waiting.
+            self.put_back(before);
+            for (old, new) in &renamed {
+                self.selection_rename(new, old);
+            }
+            self.prefix_before = prefix_before;
+        }
     }
 
     pub fn request_delete(&mut self, index: usize) {
@@ -1378,6 +1386,8 @@ impl AppState {
                 }
                 if self.save_and_reload(message) {
                     self.offer_undo(UndoAction::Restore(Box::new(before)));
+                } else {
+                    self.put_back(before);
                 }
             }
             PendingConfirmKind::DeleteSelection => {
@@ -1387,6 +1397,8 @@ impl AppState {
                 self.clear_selection();
                 if self.save_and_reload(message) {
                     self.offer_undo(UndoAction::Restore(Box::new(before)));
+                } else {
+                    self.put_back(before);
                 }
             }
             PendingConfirmKind::RenamePrefix => self.rename_to_prefix(pending.items),
@@ -1421,7 +1433,23 @@ impl AppState {
         let t = self.t();
         if self.save_and_reload(t.expansion_deleted) {
             self.offer_undo(UndoAction::Restore(Box::new(before)));
+        } else {
+            self.put_back(before);
         }
+    }
+
+    /// Puts back what a snapshot holds, in memory and in `settings.json` — everything but
+    /// `base.yml`. A change whose file could not be written comes back through here: the red
+    /// banner says why, and the list never hides a row that espanso still expands.
+    fn put_back(&mut self, snapshot: Snapshot) {
+        let Snapshot { entries, off, folder_by_trigger, folders, favorites } = snapshot;
+        self.match_file.entries = entries;
+        self.match_file.off = off;
+        self.settings.folder_by_trigger = folder_by_trigger;
+        self.settings.folders = folders;
+        self.settings.favorites = favorites;
+        let _ = self.settings_store.save(&self.settings);
+        self.touch_list();
     }
 
     pub fn start_rename_folder(&mut self, folder: &str) {
@@ -1904,15 +1932,8 @@ impl AppState {
                 self.touch_list();
             }
             UndoAction::Restore(snapshot) => {
-                let Snapshot { entries, off, folder_by_trigger, folders, favorites } = *snapshot;
-                self.match_file.entries = entries;
-                self.match_file.off = off;
-                self.settings.folder_by_trigger = folder_by_trigger;
-                self.settings.folders = folders;
-                self.settings.favorites = favorites;
-                let _ = self.settings_store.save(&self.settings);
+                self.put_back(*snapshot);
                 self.clear_selection();
-                self.touch_list();
                 let t = self.t();
                 match yaml_io::save(&self.match_file_path, &self.match_file, &self.backups_dir) {
                     Ok(warnings) => {

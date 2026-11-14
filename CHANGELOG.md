@@ -19,6 +19,10 @@ was published.
 
 - **New folder…** in **Move to a folder** now moves the expansions into the folder it makes. It
   used to make the folder and leave them where they were.
+- **A deletion or a prefix change that cannot be saved no longer shows as done.** If the
+  expansions file could not be written, the list hid the deleted expansions (and forgot their
+  folders) while espanso went on expanding them. Now everything stays as it was, and the red pill
+  says why.
 
 ## 0.0.8 — 2026-10-29
 
