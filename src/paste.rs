@@ -33,10 +33,11 @@
 //! - **The pasted text stays out of the Win+V history** and out of the cloud clipboard, through the
 //!   formats Windows defines for exactly that. The restored content is marked the same way, so the
 //!   history does not get a second copy of something it already has.
-//! - **The clipboard is restored when the paste has been read**, not after a guessed delay. The text
+//! - **The clipboard is restored once the paste has been read**, not after a guessed delay. The text
 //!   is offered with delayed rendering, so Windows asks for it at the moment the target reads it —
-//!   and that request is the signal. A request from a process that is not the target (a clipboard
-//!   tool that ignores the exclusion formats) does not count, and a fixed wait covers that case.
+//!   and that request is the signal, plus a short margin for the target to finish ([`AFTER_READ`]).
+//!   A request from a process that is not the target (a clipboard tool that ignores the exclusion
+//!   formats) does not count, and a fixed wait covers that case.
 //!
 //! And one rule: if anything else is put on the clipboard while this is in progress, it is the
 //! user's, and it is not overwritten with the old content.
@@ -71,6 +72,13 @@ const READ_TIMEOUT: Duration = Duration::from_secs(2);
 /// first and the target's own read then comes from memory without asking. It is espanso's own
 /// figure for every paste (`restore_clipboard_delay`, 300 ms), doubled.
 const BLIND_WAIT: Duration = Duration::from_millis(600);
+/// How long the clipboard stays as it is after the target has read the text. Reading it is not the
+/// end of a paste: Chromium (Brave, Chrome, Edge) reads the text, then looks at the clipboard again
+/// before it inserts anything, and finding it already changed it inserts nothing at all. Measured
+/// in Brave: restored within a millisecond of the read, as this used to, the launcher pasted
+/// nothing in 10 tries out of 10; restored 20 ms after, 8 out of 8. This is espanso's own
+/// `restore_clipboard_delay`, which leaves a wide margin for a slow machine.
+const AFTER_READ: Duration = Duration::from_millis(300);
 /// Another program may have the clipboard open for a moment; opening it is retried for this long.
 const OPEN_TIMEOUT: Duration = Duration::from_millis(500);
 
@@ -132,16 +140,24 @@ unsafe fn paste_with(window: HWND, text: &str, target_pid: u32) -> bool {
 
     let start = Instant::now();
     let mut deadline = start + READ_TIMEOUT;
+    let mut read = false;
     loop {
         pump();
         match RENDERED.with(Cell::get) {
-            // Read by the target, or by a reader Windows cannot name. Either way the paste is done.
-            Some(None) => break,
-            Some(Some(pid)) if pid == target_pid => break,
+            // Read by the target, or by a reader Windows cannot name. The paste is under way, not
+            // done: see [`AFTER_READ`].
+            Some(None) if !read => {
+                read = true;
+                deadline = Instant::now() + AFTER_READ;
+            }
+            Some(Some(pid)) if pid == target_pid && !read => {
+                read = true;
+                deadline = Instant::now() + AFTER_READ;
+            }
             // Read by somebody else first. The target's own read will now come from memory without
             // a word to us, so the only thing left is to give it time.
-            Some(Some(_)) => deadline = deadline.min(start + BLIND_WAIT),
-            None => {}
+            Some(Some(_)) if !read => deadline = deadline.min(start + BLIND_WAIT),
+            _ => {}
         }
         let now = Instant::now();
         if now >= deadline {

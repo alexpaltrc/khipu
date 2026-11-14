@@ -17,6 +17,10 @@ was published.
 
 ### Fixed
 
+- **Picking an expansion with the shortcut works in Brave, Chrome and Edge again.** Khipu gave the
+  clipboard back the instant the browser read the text, and the browser, finding it changed,
+  pasted nothing: 10 tries out of 10 in Brave. Khipu now waits a moment (300 ms, espanso's own
+  figure) before handing the clipboard back; with a 20 ms wait, a test paste worked 8 times of 8.
 - **New folder…** in **Move to a folder** now moves the expansions into the folder it makes. It
   used to make the folder and leave them where they were.
 - **A deletion or a prefix change that cannot be saved no longer shows as done.** If the
