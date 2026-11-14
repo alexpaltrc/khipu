@@ -18,6 +18,14 @@ was published.
 - **A new question never takes the name of one deleted a moment ago,** which made it show the old
   one's answer in the preview.
 - **Multi-line boxes line up with single-line ones.** Their text sat 2 pixels further left.
+- **Questions, the date and what was copied are pills everywhere,** not only in the editor: the
+  list's cards and rows, the side panel and the launcher no longer show `[[día]]` or `{{fecha}}`.
+  The launcher shows a form's text too, instead of «2 preguntas por responder».
+- **The editor's preview is a card of its own,** so it does not look like part of what is being
+  made: **Vista previa**, a sentence with the trigger («Así quedará al escribir ;cliente»), the
+  text, and for a form **Prueba otras respuestas · no se guardan**. The character count is gone.
+- **A question that wraps onto two lines keeps its whole pill.** The second half started one
+  letter late.
 - **Every message is now a pill at the foot, like Undo's.** What Khipu says after an action — a
   prefix changed, an export done, a file that could not be saved — no longer sits at the top of
   the window or, in **Settings**, below the cards where it had to be scrolled to. In the main

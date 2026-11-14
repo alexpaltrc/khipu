@@ -771,6 +771,8 @@ fn row(
         egui::TextStyle::Body,
     );
     let middle = rect.center().y;
+    let preview_at = egui::pos2(preview_left, middle - preview.size().y * 0.5);
+    controls::paint_pills(ui, &preview, preview_at, is_light);
     let painter = ui.painter();
     painter.galley(
         egui::pos2(left, middle - trigger.size().y * 0.5 + columns.drop),
@@ -778,7 +780,7 @@ fn row(
         egui::Color32::PLACEHOLDER,
     );
     painter.galley(
-        egui::pos2(preview_left, middle - preview.size().y * 0.5),
+        preview_at,
         preview,
         egui::Color32::PLACEHOLDER,
     );

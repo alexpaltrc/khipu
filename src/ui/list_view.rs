@@ -3054,11 +3054,7 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                         ui.set_max_width((ui.available_width() - star_room).max(1.0));
                         let text =
                             controls::named_text(ui, row.name.as_deref(), strong, &row.preview, quiet, pass.needle);
-                        ui.add(
-                            egui::Label::new(text)
-                                .truncate()
-                                .selectable(false),
-                        )
+                        controls::label_with_pills(ui, text, is_light)
                     })
                     .inner;
                 if row.favorite {
@@ -3116,7 +3112,7 @@ fn comfortable_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selec
                         crate::app::secondary_text(is_light)
                     };
                     let text = controls::named_text(ui, None, quiet, &row.preview, quiet, pass.needle);
-                    ui.add(egui::Label::new(text).truncate().selectable(false));
+                    controls::label_with_pills(ui, text, is_light);
                 });
             });
         });
@@ -3182,6 +3178,7 @@ fn grid_card(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: b
                         egui::vec2(width, line * GRID_PREVIEW_LINES as f32),
                         egui::Sense::hover(),
                     );
+                    controls::paint_pills(ui, &galley, rect.min, is_light);
                     ui.painter().galley(rect.min, galley, egui::Color32::PLACEHOLDER);
                 });
             });
@@ -3460,7 +3457,7 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
                 .auto_shrink([false, true])
                 .show(ui, |ui| match &full {
                     Some(text) => {
-                        ui.add(egui::Label::new(text).wrap().selectable(true));
+                        controls::wrapped_with_pills(ui, text, ui.visuals().text_color(), is_light);
                     }
                     None => {
                         ui.label(controls::muted(t.no_matches, is_light));

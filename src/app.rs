@@ -680,12 +680,9 @@ impl AppState {
                     Some(crate::ui::search_view::Hit {
                         trigger: m.trigger.clone(),
                         name: entry.name().map(str::to_owned),
-                        // A form says how many blanks it will ask for: its text, with the
-                        // blanks still empty, is not what it writes.
-                        preview: match m.as_form() {
-                            Some(form) => crate::ui::studio::blanks_to_fill(self, form.fields.len()),
-                            None => entry.preview(t),
-                        },
+                        // A form reads as the message it writes, its questions drawn as pills
+                        // the way the editor and the list draw them.
+                        preview: entry.preview(t),
                     })
                 }
                 MatchEntry::Simple(_) => None,

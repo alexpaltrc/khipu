@@ -232,16 +232,174 @@ pub fn named_text(
     let hit = accent(ui.visuals());
     let mut job = egui::text::LayoutJob::default();
     if let Some(name) = name {
-        marked(&mut job, name, needle, &font, name_color, hit);
+        marked_with_pills(&mut job, name, needle, &font, name_color, hit, hit);
         let start = job.sections.len();
-        marked(&mut job, text, needle, &font, text_color, hit);
+        marked_with_pills(&mut job, text, needle, &font, text_color, hit, hit);
         if let Some(first) = job.sections.get_mut(start) {
             first.leading_space = GAP;
         }
     } else {
-        marked(&mut job, text, needle, &font, text_color, hit);
+        marked_with_pills(&mut job, text, needle, &font, text_color, hit, hit);
     }
     job
+}
+
+/// Where a text shows a pill: each question's `[[name]]` and each `{{name}}`, as byte ranges of
+/// the whole marker, in order and never overlapping. The editor draws these as pills, so every
+/// other place that shows the text does too: a card that reads `[[día]]` where the editor showed
+/// «día» is two apps, not one.
+pub fn pill_spans(text: &str) -> Vec<std::ops::Range<usize>> {
+    use crate::yaml::form;
+    let mut spans: Vec<_> = form::markers(text).into_iter().map(|(range, _)| range).collect();
+    let mut at = 0;
+    while let Some(open) = text[at..].find("{{").map(|i| at + i) {
+        let inner = open + 2;
+        let Some(close) = text[inner..].find("}}").map(|i| inner + i) else {
+            break;
+        };
+        let name = text[inner..close].trim();
+        if !name.is_empty() && !name.contains(['{', '\n', '\r']) && name.chars().count() <= form::NAME_MAX {
+            spans.push(open..close + 2);
+            at = close + 2;
+        } else {
+            at = open + 1;
+        }
+    }
+    spans.sort_by_key(|range| range.start);
+    let mut end = 0;
+    spans.retain(|range| {
+        let keep = range.start >= end;
+        if keep {
+            end = range.end;
+        }
+        keep
+    });
+    spans
+}
+
+/// [`marked`], with every marker as the editor shows it: the name in `pill_ink`, its brackets laid
+/// out but not seen, so [`paint_pills`] can draw the pill over the room they leave.
+pub fn marked_with_pills(
+    job: &mut egui::text::LayoutJob,
+    text: &str,
+    needle: &str,
+    font: &egui::FontId,
+    ink: egui::Color32,
+    hit: egui::Color32,
+    pill_ink: egui::Color32,
+) {
+    let mut done = 0;
+    for span in pill_spans(text) {
+        if span.start > done {
+            marked(job, &text[done..span.start], needle, font, ink, hit);
+        }
+        // Every marker opens and closes with two ASCII characters.
+        let marker = &text[span.clone()];
+        let (open, rest) = marker.split_at(2);
+        let (name, close) = rest.split_at(rest.len() - 2);
+        marked(job, open, "", font, egui::Color32::TRANSPARENT, egui::Color32::TRANSPARENT);
+        marked(job, name, "", font, pill_ink, pill_ink);
+        marked(job, close, "", font, egui::Color32::TRANSPARENT, egui::Color32::TRANSPARENT);
+        done = span.end;
+    }
+    if done < text.len() || text.is_empty() {
+        marked(job, &text[done..], needle, font, ink, hit);
+    }
+}
+
+/// Where the chars in `chars` were laid out: one rectangle per row they reach, so a pill the
+/// wrapping splits is drawn as two halves rather than as one box across the gap.
+///
+/// Glyphs are matched to the text one by one rather than counted: a row the wrapping broke leaves
+/// out the space it broke at, as a line break leaves out its newline, and counting would put every
+/// pill after it one letter off.
+pub fn pill_rects(galley: &egui::Galley, origin: egui::Pos2, chars: &std::ops::Range<usize>) -> Vec<egui::Rect> {
+    let text: Vec<char> = galley.text().chars().collect();
+    let mut rects = Vec::new();
+    let mut at = 0;
+    for row in &galley.rows {
+        let mut span: Option<egui::Rect> = None;
+        for glyph in &row.glyphs {
+            while text.get(at).is_some_and(|&c| c != glyph.chr && c.is_whitespace()) {
+                at += 1;
+            }
+            if chars.contains(&at) {
+                let min = origin + row.pos.to_vec2() + egui::vec2(glyph.pos.x, 0.0);
+                let rect = egui::Rect::from_min_size(min, egui::vec2(glyph.advance_width, row.size.y));
+                span = Some(span.map_or(rect, |s| s.union(rect)));
+            }
+            at += 1;
+        }
+        rects.extend(span);
+        if at >= chars.end {
+            break;
+        }
+    }
+    rects
+}
+
+/// How strongly a resting pill is tinted with the accent: the editor's own.
+pub fn pill_fill(visuals: &egui::Visuals, is_light: bool) -> egui::Color32 {
+    accent(visuals).gamma_multiply(if is_light { 0.14 } else { 0.24 })
+}
+
+/// The pills behind a galley laid out with [`marked_with_pills`], placed at `origin`: one rounded
+/// tint per marker and row, painted before the galley so the text sits on top.
+fn pill_shapes(ui: &egui::Ui, galley: &egui::Galley, origin: egui::Pos2, is_light: bool) -> Vec<egui::Shape> {
+    let text = galley.text();
+    let fill = pill_fill(ui.visuals(), is_light);
+    let mut shapes = Vec::new();
+    for span in pill_spans(text) {
+        let start = text[..span.start].chars().count();
+        let chars = start..start + text[span].chars().count();
+        for rect in pill_rects(galley, origin, &chars) {
+            let rect = rect.shrink2(egui::vec2(0.0, 1.0));
+            shapes.push(egui::Shape::rect_filled(rect, rect.height() * 0.5, fill));
+        }
+    }
+    shapes
+}
+
+/// Draws the pills behind a galley laid out with [`marked_with_pills`], at `origin`. Call it before
+/// painting the galley.
+pub fn paint_pills(ui: &egui::Ui, galley: &egui::Galley, origin: egui::Pos2, is_light: bool) {
+    ui.painter().extend(pill_shapes(ui, galley, origin, is_light));
+}
+
+/// A wrapping label that can be selected, with the pills of [`marked_with_pills`] drawn behind it.
+/// The label draws itself, selection and all; the pills go in a slot kept for them underneath,
+/// filled once the label has said where its text landed.
+pub fn wrapped_with_pills(ui: &mut egui::Ui, text: &str, ink: egui::Color32, is_light: bool) -> egui::Response {
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let pill_ink = accent(ui.visuals());
+    let mut job = egui::text::LayoutJob::default();
+    marked_with_pills(&mut job, text, "", &font, ink, pill_ink, pill_ink);
+    let slot = ui.painter().add(egui::Shape::Noop);
+    let mut laid = job.clone();
+    let response = ui.add(egui::Label::new(job).wrap().selectable(true));
+    laid.wrap.max_width = response.rect.width();
+    let galley = ui.fonts_mut(|f| f.layout_job(laid));
+    ui.painter().set(slot, pill_shapes(ui, &galley, response.rect.min, is_light));
+    response
+}
+
+/// A one-line label cut at the edge, with the pills of [`marked_with_pills`] drawn behind it.
+pub fn label_with_pills(ui: &mut egui::Ui, job: egui::text::LayoutJob, is_light: bool) -> egui::Response {
+    let (origin, galley, mut response) = egui::Label::new(job).truncate().selectable(false).layout_in_ui(ui);
+    if ui.is_rect_visible(response.rect) {
+        if galley.elided {
+            // The whole text on hover, as a plain label does.
+            let job = egui::text::LayoutJob {
+                sections: galley.job.sections.clone(),
+                text: galley.job.text.clone(),
+                ..Default::default()
+            };
+            response = response.on_hover_text(job);
+        }
+        paint_pills(ui, &galley, origin, is_light);
+        ui.painter().galley(origin, galley, egui::Color32::PLACEHOLDER);
+    }
+    response
 }
 
 /// Where `needle`, already lowercased, turns up in `text` when case is ignored: byte ranges of
@@ -1713,7 +1871,15 @@ pub fn field_underline(ui: &egui::Ui, rect: egui::Rect) {
 
 #[cfg(test)]
 mod tests {
-    use super::find_ignoring_case;
+    use super::{find_ignoring_case, pill_spans};
+
+    #[test]
+    fn every_marker_is_a_pill_and_stray_brackets_are_text() {
+        let text = "Hola [[cliente]], hoy {{ fecha }}. [[ no
+cierra]] {{}} [[a]]";
+        let found: Vec<&str> = pill_spans(text).into_iter().map(|r| &text[r]).collect();
+        assert_eq!(found, ["[[cliente]]", "{{ fecha }}", "[[a]]"]);
+    }
 
     #[test]
     fn finds_every_match_ignoring_case() {

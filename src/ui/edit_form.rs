@@ -835,8 +835,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
         );
         let edit = edit.clone();
         ui.scope_builder(egui::UiBuilder::new().max_rect(column), |ui| {
-            // What the column holds around the box: its label, the trigger, the rule and the count.
-            let around = 120.0;
+            // What the card holds around the box: its padding, the heading and the sentence under it.
+            let around = 150.0;
             // A form's blanks follow the box, and may run past the window: they scroll, in a column
             // of their own like the form's.
             egui::ScrollArea::vertical().id_salt("editor-side").auto_shrink([false, true]).show(ui, |ui| {
@@ -1281,32 +1281,6 @@ fn highlighted(ui: &egui::Ui, text: &str, copied: &str, date: &str, ink: egui::C
     job
 }
 
-/// Where the chars in `chars` were laid out: one rectangle per row they reach, so a pill the
-/// wrapping splits is drawn as two halves rather than as one box across the gap.
-fn pill_rects(galley: &egui::Galley, origin: egui::Pos2, chars: &std::ops::Range<usize>) -> Vec<egui::Rect> {
-    let mut rects = Vec::new();
-    let mut at = 0;
-    for row in &galley.rows {
-        let mut span: Option<egui::Rect> = None;
-        for glyph in &row.glyphs {
-            if chars.contains(&at) {
-                let min = origin + row.pos.to_vec2() + egui::vec2(glyph.pos.x, 0.0);
-                let rect = egui::Rect::from_min_size(min, egui::vec2(glyph.advance_width, row.size.y));
-                span = Some(span.map_or(rect, |s| s.union(rect)));
-            }
-            at += 1;
-        }
-        rects.extend(span);
-        if row.ends_with_newline {
-            at += 1;
-        }
-        if at >= chars.end {
-            break;
-        }
-    }
-    rects
-}
-
 /// The text an edit left, put right where it cut into a marker: a pill goes whole or not at all,
 /// and nothing typed lands inside one. `None` when every marker came through whole.
 ///
@@ -1564,7 +1538,7 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
         let accent = crate::app::accent(ui.visuals());
         let mut on_pill = false;
         for pill in &now {
-            let rects = pill_rects(&output.galley, output.galley_pos, &pill.chars);
+            let rects = controls::pill_rects(&output.galley, output.galley_pos, &pill.chars);
             let opens = pill.what != Marker::Copied;
             let hovered = opens && hover.is_some_and(|p| rects.iter().any(|r| r.contains(p)));
             if hovered && response.clicked() {
@@ -1600,7 +1574,7 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
             let origin = ctx.input(|i| i.pointer.press_origin());
             held = origin.and_then(|origin| {
                 now.iter()
-                    .find(|p| pill_rects(&output.galley, output.galley_pos, &p.chars).iter().any(|r| r.contains(origin)))
+                    .find(|p| controls::pill_rects(&output.galley, output.galley_pos, &p.chars).iter().any(|r| r.contains(origin)))
                     .map(|p| p.chars.clone())
             });
             if held.is_some() {
@@ -2223,128 +2197,134 @@ fn date_options(
     }
 }
 
-/// What the expansion will actually produce, under the trigger that produces it.
+/// What the expansion will actually produce, on a card of its own beside the form.
 ///
-/// Not a second copy of the box above it: the pairing is the point, and it is the same "you type
-/// this, this appears" the library's two columns are headed with. For a date it is the only place
+/// Everything to the left is the expansion being made; this card only shows it, so it is drawn as
+/// something else: a raised card, like the one beside the list, headed «Vista previa» with the
+/// trigger said in a sentence, and holding nothing to count or tune. For a date it is the only place
 /// the result can be seen at all — nobody reads `%-d de %B de %Y` and sees a date. The sample comes
 /// from [`crate::datefmt`], which is the code that runs when the expansion is used, so what is on
 /// screen is what espanso will write.
 ///
-/// A text with blanks is also tried out here: the blanks follow the box as the window will ask for
-/// them, and what is typed into them shows in the box as it would be written.
+/// A text with questions can be tried out at the foot of the card: the answers typed there show in
+/// the text as they would be written, and are said not to be kept.
 fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, max_height: f32, is_light: bool) {
     let trigger = edit.trigger();
     let shown = edit.as_spec(&edit.replace);
     let spec = (!shown.fields.is_empty()).then(|| shown.clone());
     let mut answers = spec.as_ref().map(|spec| preview_answers(ui.ctx(), spec));
-    // The blanks need the room more than the box does.
+    // The answers need the room more than the box does.
     let max_height = if spec.is_some() { max_height.min(PREVIEW_MAX_HEIGHT) } else { max_height };
     let result = &edit.replace;
+    let quiet = crate::app::secondary_text(is_light);
 
-    ui.label(controls::small_muted(
-        studio::text(state, "Vista previa", "Preview", "Preview", "पूर्वावलोकन"),
-        is_light,
-    ));
-    ui.add_space(controls::GAP_TIGHT);
-    controls::inset_frame(ui).show(ui, |ui| {
+    controls::section_frame(is_light).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        // The trigger sits midway between the box's top edge and the rule under it, measured by its
-        // ink: its line box carries Cascadia's descent below the letters, which left it hugging the
-        // top. The rule is drawn at the foot of the trigger's own rectangle, with nothing between.
-        let width = ui.available_width();
-        let galley = egui::WidgetText::from(controls::code(if trigger.is_empty() { "…" } else { &trigger }, ui.visuals()).strong())
-            .into_galley(ui, Some(egui::TextWrapMode::Wrap), width, egui::TextStyle::Body);
-        let ink = galley.mesh_bounds;
-        let above = controls::INSET_MARGIN_Y + ink.min.y;
-        let (rect, _) = ui.allocate_exact_size(egui::vec2(width, ink.max.y + above + 1.0), egui::Sense::hover());
-        ui.painter().galley(rect.min, galley, ui.visuals().text_color());
-        let rule = egui::Rect::from_min_max(egui::pos2(rect.left(), rect.bottom() - 1.0), rect.max);
-        ui.painter().rect_filled(rule, 0, crate::app::hairline(is_light));
-        ui.add_space(controls::GAP);
-        // Rounded down to whole lines, so the box never shows the top half of a line of text.
-        let line = ui.text_style_height(&egui::TextStyle::Body);
-        let cap = (max_height / line).floor().max(3.0) * line;
-        egui::ScrollArea::vertical()
-            .id_salt("editor-preview")
-            .max_height(cap)
-            .auto_shrink([false, true])
-            .show(ui, |ui| {
-                if result.is_empty() {
-                    ui.label(controls::muted(
-                        studio::text(
-                            state,
-                            "Tu texto aparecerá aquí…",
-                            "Your text will appear here…",
-                            "Lalabas ang teksto mo rito…",
-                            "आपका टेक्स्ट यहाँ दिखेगा…",
-                        ),
-                        is_light,
-                    ));
-                } else {
-                    // The same job the form window draws, so the date reads as today's and what was
-                    // last copied sits in the accent, just as it will once typed.
-                    let lang = state.settings.lang;
-                    let none = Vec::new();
-                    let answers = answers.as_ref().unwrap_or(&none);
-                    let job = crate::ui::form_view::result_job(ui, &shown, answers, None, lang, ui.available_width());
-                    ui.add(egui::Label::new(job).wrap().selectable(true));
-                }
-            });
-    });
-
-    ui.add_space(controls::GAP);
-    let only_date = edit.replace.trim() == format!("{{{{{}}}}}", edit.date.name);
-    let footnote = match only_date {
-        false => {
-            // What it writes for certain: the fixed words and the date, without the answers or
-            // what was copied, which change each time.
-            let n = shown.filled("", |_| String::new()).chars().count();
-            let template = studio::plural(
-                n,
-                studio::text(state, "{n} carácter", "{n} character", "{n} karakter", "{n} अक्षर"),
-                studio::text(
-                    state,
-                    "{n} caracteres",
-                    "{n} characters",
-                    "{n} karakter",
-                    "{n} अक्षर",
-                ),
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = controls::GAP;
+            crate::ui::glyphs::show(ui, Glyph::View, crate::ui::glyphs::SIZE, quiet);
+            ui.label(controls::h3(studio::text(state, "Vista previa", "Preview", "Preview", "पूर्वावलोकन")));
+        });
+        ui.add_space(controls::GAP_TIGHT);
+        // The trigger in the sentence, in the accent the way a trigger is always written.
+        let body = egui::TextStyle::Body.resolve(ui.style());
+        let mut job = egui::text::LayoutJob::default();
+        if trigger.is_empty() {
+            let said = studio::text(
+                state,
+                "Así quedará tu texto.",
+                "How your text will look.",
+                "Ganito lalabas ang teksto mo.",
+                "आपका टेक्स्ट ऐसा दिखेगा।",
             );
-            let characters = fill(template, &[("n", &n.to_string())]);
-            match &spec {
-                Some(spec) => format!("{} · {characters}", studio::blanks_to_fill(state, spec.fields.len())),
-                None => characters,
-            }
+            job.append(said, 0.0, egui::TextFormat::simple(body.clone(), quiet));
+        } else {
+            let said = studio::text(
+                state,
+                "Así quedará al escribir {trigger}.",
+                "How it looks when you type {trigger}.",
+                "Ganito ito lalabas kapag tinype mo ang {trigger}.",
+                "{trigger} लिखने पर ऐसा दिखेगा।",
+            );
+            let (before, after) = said.split_once("{trigger}").unwrap_or((said, ""));
+            job.append(before, 0.0, egui::TextFormat::simple(body.clone(), quiet));
+            job.append(&trigger, 0.0, controls::trigger_format(ui, &body, crate::app::accent(ui.visuals())));
+            job.append(after, 0.0, egui::TextFormat::simple(body.clone(), quiet));
         }
+        ui.add(egui::Label::new(job).wrap().selectable(false));
+        ui.add_space(controls::GAP_ROW);
+
+        controls::inset_frame(ui).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            // Rounded down to whole lines, so the box never shows the top half of a line of text.
+            let line = ui.text_style_height(&egui::TextStyle::Body);
+            let cap = (max_height / line).floor().max(3.0) * line;
+            egui::ScrollArea::vertical()
+                .id_salt("editor-preview")
+                .max_height(cap)
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
+                    if result.is_empty() {
+                        ui.label(controls::muted(
+                            studio::text(
+                                state,
+                                "Tu texto aparecerá aquí…",
+                                "Your text will appear here…",
+                                "Lalabas ang teksto mo rito…",
+                                "आपका टेक्स्ट यहाँ दिखेगा…",
+                            ),
+                            is_light,
+                        ));
+                    } else {
+                        // The same job the form window draws, so the date reads as today's and what
+                        // was last copied sits in the accent, just as it will once typed.
+                        let lang = state.settings.lang;
+                        let none = Vec::new();
+                        let answers = answers.as_ref().unwrap_or(&none);
+                        let job = crate::ui::form_view::result_job(ui, &shown, answers, None, lang, ui.available_width());
+                        ui.add(egui::Label::new(job).wrap().selectable(true));
+                    }
+                });
+        });
+
         // Said out loud because the preview shows *today*, and a date expansion that wrote today's
         // date for ever would be a bug rather than a feature.
-        true => studio::text(
-            state,
-            "La fecha se calcula cada vez que escribes el activador.",
-            "The date is worked out each time you type the trigger.",
-            "Kinakalkula ang petsa sa tuwing ita-type mo ang trigger.",
-            "हर बार ट्रिगर लिखने पर दिनांक की गणना होती है।",
-        )
-        .to_string(),
-    };
-    ui.label(controls::small_muted(footnote, is_light));
-
-    if let (Some(spec), Some(answers)) = (&spec, &mut answers) {
-        ui.add_space(controls::GAP_STACK);
-        ui.label(controls::small_muted(
-            studio::text(state, "Pruébala", "Try it", "Subukan ito", "आज़माएँ"),
-            is_light,
-        ));
-        ui.add_space(controls::GAP_TIGHT);
-        let was = answers.clone();
-        crate::ui::form_view::fields(ui, "editor-preview", spec, answers, false);
-        // The box above was drawn before this keystroke reached the blanks.
-        if *answers != was {
-            ui.ctx().request_repaint();
+        if edit.replace.trim() == format!("{{{{{}}}}}", edit.date.name) {
+            ui.add_space(controls::GAP);
+            ui.label(controls::small_muted(
+                studio::text(
+                    state,
+                    "La fecha se calcula cada vez que escribes el activador.",
+                    "The date is worked out each time you type the trigger.",
+                    "Kinakalkula ang petsa sa tuwing ita-type mo ang trigger.",
+                    "हर बार ट्रिगर लिखने पर दिनांक की गणना होती है।",
+                ),
+                is_light,
+            ));
         }
-        keep_preview_answers(ui.ctx(), spec, answers);
-    }
+
+        if let (Some(spec), Some(answers)) = (&spec, &mut answers) {
+            ui.add_space(controls::GAP_SECTION);
+            ui.label(controls::small_muted(
+                studio::text(
+                    state,
+                    "Prueba otras respuestas · no se guardan",
+                    "Try other answers · they aren't saved",
+                    "Subukan ang ibang sagot · hindi ito sine-save",
+                    "दूसरे जवाब आज़माएँ · ये सहेजे नहीं जाते",
+                ),
+                is_light,
+            ));
+            ui.add_space(controls::GAP_TIGHT);
+            let was = answers.clone();
+            crate::ui::form_view::fields(ui, "editor-preview", spec, answers, false);
+            // The box above was drawn before this keystroke reached the answers.
+            if *answers != was {
+                ui.ctx().request_repaint();
+            }
+            keep_preview_answers(ui.ctx(), spec, answers);
+        }
+    });
 }
 
 /// What it is called, if the trigger alone does not say. Laid out like the folder below it: both
