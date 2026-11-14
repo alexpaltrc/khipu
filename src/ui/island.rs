@@ -707,7 +707,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState, source: Source, room: f32) 
     // an error. Lands with a beat and a ring. It never trails past the round end as the pill closes
     // on it: the end carries it home.
     let own = center_x + isl.icon.x;
-    let own = if open { own.max(left_x + ISLAND_ICON) } else { own };
+    // Nor does it cross into the words while it travels to its place: they are written where they
+    // will stay, and the mark arriving late would land on the first letter.
+    let own = if open { own.max(left_x + ISLAND_ICON).min(text_x - ISLAND_ICON * 0.5) } else { own };
     let icon = egui::pos2(own.clamp(rect.left() + radius, (rect.right() - radius).max(rect.left() + radius)), middle);
     let m = isl.morph.x.clamp(-0.15, 1.15);
     let b = isl.bang.x.clamp(0.0, 1.0);
