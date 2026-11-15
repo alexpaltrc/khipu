@@ -10,18 +10,21 @@ was published.
 - **The editor's text box has a right-click menu**: **Cortar**, **Copiar** and **Pegar**, with
   their keys, and **Preguntar esto** when text is selected. A right click inside the selection
   keeps it, as in any Windows text box. The **Pegar** button is gone.
-- **Under the text, a button for each thing it can hold**: **+ Pregunta**, **Fecha** and **Lo
-  copiado**, instead of an **Añadir** menu that hid them. While the box is empty, **Ver un
+- **Under the text, a button for each thing it can hold**: **+ Pregunta** and **Fecha**,
+  instead of an **Añadir** menu that hid them. While the box is empty, **Ver un
   ejemplo** writes a short text with two questions to show what they are for.
+- **Gone: «Lo copiado» and «Convertir en texto».** Few people used them, and they made the editor
+  harder to read for everyone else. Texts that already have what was last copied keep working and
+  still show it as a pill.
 - **Answers are tried in the preview itself.** Clicking an option in the preview moves it to the
   next one; clicking a typed answer opens a box under it to type another. The fields that used to
   sit under the preview are gone.
 - **A question made from selected text is named after what it plainly asks**: «lunes» becomes
   «¿Qué día?», «10:30» «¿A qué hora?», an address «¿Qué correo?», a price «¿Cuánto?». When the
   text does not plainly say, it keeps naming itself, as before.
-- **A new pill pops into place** in the text box, with a short spring, when a question, the date
-  or what was copied is put in, pasted, or brought back by undo.
-- **Fields are questions now.** **Añadir → Una pregunta** (or **Preguntar esto** over selected
+- **A new pill pops into place** in the text box, with a short spring, when a question or the date
+  is put in, pasted, or brought back by undo.
+- **Fields are questions now.** **+ Pregunta** (or **Preguntar esto** over selected
   text) puts a question in the text, and its bubble asks just that: what to ask, whether the
   answer is **typed** or picked from **options**, and the answer it starts with. Options are one
   box each, with a ✕ to take one out and **Añadir opción** (or Enter) to add the next, instead of

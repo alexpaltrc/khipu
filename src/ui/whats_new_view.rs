@@ -32,13 +32,12 @@
 //! [`AppState::finish_onboarding`] marks these as seen), and anything about the list behind it.
 
 use crate::app::{accent, AppState};
-use crate::theme::ThemeMode;
 use crate::ui::controls::{self, Tone};
 use crate::ui::glyphs::{self, Glyph};
 use crate::ui::studio::in_lang;
 
 /// The release these notes are for. Changing it is what shows the card again, to everyone.
-pub const RELEASE: &str = "0.0.7";
+pub const RELEASE: &str = "0.0.9";
 
 /// The widest the card's contents get.
 const WIDEST: f32 = 400.0;
@@ -50,32 +49,16 @@ const FALL: f64 = 0.24;
 /// One new thing: its icon, what it is called, where to start, and — when the place is a few
 /// clicks deep — the way there, drawn with the very icons the person will be looking for.
 struct Item {
-    icon: Icon,
+    icon: Glyph,
     title: String,
     line: String,
     path: Vec<Step>,
-    /// A thing that can be tried right here, without going anywhere.
-    action: Option<Action>,
-}
-
-/// What an item's own button does.
-#[derive(Clone, Copy)]
-enum Action {
-    /// Put «Ultra oscuro» on; once on, the same button takes back the theme worn before.
-    UltraDark,
 }
 
 /// One stop on the way to a new thing: the control's icon, its name, or both, as it looks on screen.
 struct Step {
     glyph: Option<Glyph>,
     label: Option<String>,
-}
-
-/// What stands beside a new thing's title: a Fluent icon, or — for a change that is itself a
-/// key — that key, drawn as one.
-enum Icon {
-    Glyph(Glyph),
-    Key(&'static str),
 }
 
 fn icon(glyph: Glyph) -> Step {
@@ -89,128 +72,59 @@ fn named(glyph: Option<Glyph>, label: &str) -> Step {
 fn items(state: &AppState) -> Vec<Item> {
     let lang = state.settings.lang;
     let t = state.t();
-    let shortcut = state.search_shortcut.label(lang);
     let s = |es, en, fil, hi| in_lang(lang, es, en, fil, hi).to_string();
     vec![
         Item {
-            icon: Icon::Glyph(Glyph::ViewGrid),
-            title: s("Vista en cuadrícula", "Grid view", "Grid na view", "ग्रिड दृश्य"),
+            icon: Glyph::Rename,
+            title: s("Expansiones que preguntan", "Expansions that ask", "Mga expansion na nagtatanong", "पूछने वाले विस्तार"),
             line: s(
-                "Tus expansiones como tarjetas, más fáciles de leer y ordenar. Ya la tienes puesta; las otras vistas siguen aquí:",
-                "Your expansions as cards, quicker to read and to arrange. It is already on; the other views are still here:",
-                "Ang mga expansion mo bilang mga card, mas madaling basahin at ayusin. Naka-on na ito; narito pa rin ang ibang view:",
-                "आपके विस्तार कार्ड के रूप में, पढ़ने और व्यवस्थित करने में आसान। यह पहले से चालू है; बाकी दृश्य यहाँ हैं:",
-            ),
-            path: vec![icon(Glyph::More), named(Some(Glyph::View), t.view_label)],
-            action: None,
-        },
-        ultra_dark(state),
-        Item {
-            icon: Icon::Glyph(Glyph::Rename),
-            title: s("Formularios", "Forms", "Mga form", "फ़ॉर्म"),
-            line: s(
-                "Una expansión que te pregunta los datos antes de escribir. Para crear una:",
-                "An expansion that asks you for the details before it types. To make one:",
-                "Isang expansion na nagtatanong muna ng detalye bago mag-type. Para gumawa ng isa:",
-                "ऐसा विस्तार जो लिखने से पहले आपसे जानकारी पूछता है। एक बनाने के लिए:",
+                "Selecciona una palabra del texto y conviértela en pregunta: Khipu te la hace cada vez que uses la expansión, y hasta adivina cómo llamarla. Para verlo con un ejemplo:",
+                "Select a word in the text and turn it into a question: Khipu asks it each time you use the expansion, and even guesses what to call it. To see it with an example:",
+                "Pumili ng salita sa teksto at gawin itong tanong: itatanong ito ng Khipu tuwing gagamitin mo ang expansion, at hinuhulaan pa nito ang itatawag dito. Para makita sa isang halimbawa:",
+                "टेक्स्ट में कोई शब्द चुनें और उसे सवाल बना दें: हर बार विस्तार उपयोग करने पर Khipu वह पूछता है, और उसका नाम भी खुद सोच लेता है। एक उदाहरण से देखने के लिए:",
             ),
             path: vec![
                 icon(Glyph::Add),
-                named(Some(Glyph::Add), in_lang(lang, "Añadir", "Add", "Magdagdag", "जोड़ें")),
-                named(
-                    None,
-                    in_lang(lang, "Un campo para rellenar", "A field to fill in", "Isang field na pupunan", "भरने के लिए एक फ़ील्ड"),
-                ),
+                named(None, in_lang(lang, "Ver un ejemplo", "See an example", "Tingnan ang halimbawa", "उदाहरण देखें")),
             ],
-            action: None,
         },
         Item {
-            icon: Icon::Glyph(Glyph::StarFilled),
-            title: s("Favoritos", "Favorites", "Mga paborito", "पसंदीदा"),
-            line: crate::i18n::fill(
-                in_lang(
-                    lang,
-                    "Marca con la estrella las que más usas: salen primero en el buscador ({keys}), y la estrella de arriba te muestra solo esas.",
-                    "Star the ones you use most: they come first in search ({keys}), and the star at the top shows only them.",
-                    "Lagyan ng bituin ang mga madalas mong gamitin: mauuna sila sa paghahanap ({keys}), at ang bituin sa itaas ay sila lang ang ipapakita.",
-                    "जिनका आप सबसे ज़्यादा उपयोग करते हैं उन पर तारा लगाएँ: वे खोज ({keys}) में सबसे पहले आएँगे, और ऊपर का तारा सिर्फ़ उन्हें दिखाता है।",
-                ),
-                &[("keys", &shortcut)],
+            icon: Glyph::Edit,
+            title: s("Clic derecho", "Right-click", "Right-click", "राइट-क्लिक"),
+            line: s(
+                "Sobre una expansión: editarla, cambiar su disparador, moverla a una carpeta o borrarla, sin abrirla. Sobre su texto: cortar, copiar y pegar.",
+                "On an expansion: edit it, change its trigger, move it to a folder or delete it, without opening it. On its text: cut, copy and paste.",
+                "Sa isang expansion: i-edit, palitan ang trigger, ilipat sa folder o burahin, nang hindi ito binubuksan. Sa teksto nito: i-cut, kopyahin at i-paste.",
+                "किसी विस्तार पर: उसे खोले बिना संपादित करें, ट्रिगर बदलें, फ़ोल्डर में ले जाएँ या हटाएँ। उसके टेक्स्ट पर: काटें, कॉपी करें और चिपकाएँ।",
             ),
             path: vec![],
-            action: None,
         },
         Item {
-            icon: Icon::Key(";"),
-            title: s("Nuevo prefijo «;»", "A new prefix: “;”", "Bagong prefix: “;”", "नया उपसर्ग: “;”"),
+            icon: Glyph::MultiSelect,
+            title: s("Varias de un tirón", "Several at once", "Marami nang sabay-sabay", "एक साथ कई"),
             line: s(
-                "Outlook, Teams y otras apps convierten «:palabra» en emoji antes de que salga la expansión; por eso Khipu, recién instalado, empieza con «;». Tus expansiones siguen tal cual. Si quieres el nuevo prefijo:",
-                "Outlook, Teams and other apps turn “:word” into an emoji before the expansion can appear, so a fresh Khipu now starts with “;”. Your expansions are just as they were. If you want the new prefix:",
-                "Ginagawang emoji ng Outlook, Teams at iba pang app ang “:salita” bago lumabas ang expansion, kaya “;” na ang simula ng bagong install ng Khipu. Walang binago sa mga expansion mo. Kung gusto mo ang bagong prefix:",
-                "Outlook, Teams और दूसरे ऐप “:शब्द” को विस्तार आने से पहले इमोजी बना देते हैं, इसलिए नया इंस्टॉल किया Khipu अब “;” से शुरू होता है। आपके विस्तार जैसे थे वैसे ही हैं। अगर आप नया उपसर्ग चाहते हैं:",
+                "Arrastra sobre el espacio vacío de la lista, como en el Explorador: cada expansión que toque el recuadro queda elegida, lista para moverla o borrarla.",
+                "Drag across empty space in the list, as in File Explorer: every expansion the box touches is picked, ready to move or delete.",
+                "I-drag sa bakanteng bahagi ng listahan, gaya ng sa File Explorer: mapipili ang bawat expansion na madaanan ng kahon, handang ilipat o burahin.",
+                "सूची की खाली जगह पर खींचें, जैसे फ़ाइल एक्सप्लोरर में: बॉक्स जिस भी विस्तार को छूता है वह चुना जाता है, ले जाने या हटाने के लिए तैयार।",
             ),
-            path: vec![named(Some(Glyph::Settings), t.settings_title), named(None, t.prefix_section)],
-            action: None,
+            path: vec![],
+        },
+        Item {
+            icon: Glyph::Pause,
+            title: s("No expandir en…", "Don't expand in…", "Huwag mag-expand sa…", "इनमें विस्तार न करें…"),
+            line: s(
+                "Tus expansiones se quedan quietas en los programas que elijas, como un juego o una terminal. En todos los demás siguen igual.",
+                "Your expansions stay quiet in the programs you choose, such as a game or a terminal. Everywhere else they work as always.",
+                "Tahimik ang mga expansion mo sa mga program na pipiliin mo, gaya ng laro o terminal. Sa iba, gumagana pa rin sila gaya ng dati.",
+                "आपके विस्तार आपके चुने हुए प्रोग्राम में शांत रहते हैं, जैसे कोई गेम या टर्मिनल। बाकी हर जगह वे पहले जैसे काम करते हैं।",
+            ),
+            path: vec![
+                named(Some(Glyph::Settings), t.settings_title),
+                named(None, in_lang(lang, "No expandir en", "Don't expand in", "Huwag mag-expand sa", "इनमें विस्तार न करें")),
+            ],
         },
     ]
-}
-
-/// «Ultra oscuro», tried from right here. Someone already wearing it, not through this button, gets
-/// the way to Ajustes instead: there is nothing to try, and no theme of theirs to go back to.
-fn ultra_dark(state: &AppState) -> Item {
-    let lang = state.settings.lang;
-    let t = state.t();
-    let s = |es, en, fil, hi| in_lang(lang, es, en, fil, hi).to_string();
-    let found_there = state.settings.theme_mode == ThemeMode::UltraDark && state.whats_new_theme_before.is_none();
-    Item {
-        icon: Icon::Glyph(Glyph::Moon),
-        title: s("Tema Ultra oscuro", "Ultra dark theme", "Itim na tema", "अति गहरी थीम"),
-        line: s(
-            "El tema oscuro sobre negro puro, ideal para pantallas OLED. Tarjetas y botones conservan su gris, para que nada se pierda.",
-            "The dark theme on pure black, made for OLED screens. Cards and buttons keep their gray, so nothing gets lost.",
-            "Ang madilim na tema sa purong itim, para sa mga OLED screen. Nananatiling abo ang mga card at button, kaya walang nawawala.",
-            "शुद्ध काले पर गहरी थीम, OLED स्क्रीन के लिए। कार्ड और बटन अपना धूसर रंग रखते हैं, ताकि कुछ भी खो न जाए।",
-        ),
-        path: if found_there {
-            vec![named(Some(Glyph::Settings), t.settings_title), named(None, t.appearance_section)]
-        } else {
-            vec![]
-        },
-        action: (!found_there).then_some(Action::UltraDark),
-    }
-}
-
-/// The words on an [`Action`]'s button, as things stand now.
-fn action_label(state: &AppState, action: Action) -> String {
-    let lang = state.settings.lang;
-    match action {
-        Action::UltraDark => match state.whats_new_theme_before {
-            Some(before) if state.settings.theme_mode == ThemeMode::UltraDark => {
-                let name = crate::ui::settings_view::theme_name(state.t(), before, true);
-                crate::i18n::fill(
-                    in_lang(lang, "Volver a «{theme}»", "Back to “{theme}”", "Bumalik sa “{theme}”", "“{theme}” पर लौटें"),
-                    &[("theme", name)],
-                )
-            }
-            _ => in_lang(lang, "Probarlo", "Try it", "Subukan", "आज़माएँ").to_string(),
-        },
-    }
-}
-
-/// What an [`Action`]'s button does when pressed.
-fn run(state: &mut AppState, action: Action) {
-    match action {
-        Action::UltraDark => match state.whats_new_theme_before {
-            Some(before) if state.settings.theme_mode == ThemeMode::UltraDark => {
-                state.whats_new_theme_before = None;
-                state.set_theme_mode(before);
-            }
-            _ => {
-                state.whats_new_theme_before = Some(state.settings.theme_mode);
-                state.set_theme_mode(ThemeMode::UltraDark);
-            }
-        },
-    }
 }
 
 /// The way to a new thing, as one stamped tag: each control's own Fluent icon and name, joined by
@@ -236,14 +150,6 @@ fn path(ui: &mut egui::Ui, steps: &[Step], is_light: bool) {
             }
         });
     });
-}
-
-/// A key drawn as a key: its legend in the code face inside a rounded outline, in the accent, the
-/// size the Fluent icons beside it are drawn at.
-fn keycap(ui: &egui::Ui, slot: egui::Rect, legend: &str, ink: egui::Color32) {
-    let cap = egui::Rect::from_center_size(slot.center(), egui::Vec2::splat(24.0));
-    ui.painter().rect_stroke(cap, 5.0, egui::Stroke::new(1.5, ink), egui::StrokeKind::Inside);
-    ui.painter().text(cap.center(), egui::Align2::CENTER_CENTER, legend, egui::FontId::monospace(15.0), ink);
 }
 
 fn opened_id() -> egui::Id {
@@ -291,7 +197,6 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, (1.0 - eased) * below))
         .fade_in(false);
     let mut close = false;
-    let mut pressed = None;
     controls::dialog(ctx, "whats-new")
         .area(area)
         .backdrop_color(egui::Color32::from_black_alpha((100.0 * eased) as u8))
@@ -330,10 +235,7 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
                     ui.horizontal_top(|ui| {
                         ui.spacing_mut().item_spacing.x = controls::GAP_WIDE;
                         let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(controls::FIELD_HEIGHT), egui::Sense::hover());
-                        match item.icon {
-                            Icon::Glyph(glyph) => glyphs::paint(ui, rect, glyph, 22.0, ink),
-                            Icon::Key(key) => keycap(ui, rect, key, ink),
-                        }
+                        glyphs::paint(ui, rect, item.icon, 22.0, ink);
                         ui.vertical(|ui| {
                             ui.label(controls::h3(item.title));
                             ui.add_space(controls::GAP_TIGHT);
@@ -341,12 +243,6 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
                             if !item.path.is_empty() {
                                 ui.add_space(controls::GAP);
                                 path(ui, &item.path, is_light);
-                            }
-                            if let Some(action) = item.action {
-                                ui.add_space(controls::GAP);
-                                if controls::button(ui, &action_label(state, action), Tone::Normal, true).clicked() {
-                                    pressed = Some(action);
-                                }
                             }
                         });
                     });
@@ -387,9 +283,6 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
                 close |= controls::button(ui, great, Tone::Primary, true).clicked();
             });
         });
-    if let Some(action) = pressed {
-        run(state, action);
-    }
     // Enter is «¡Genial!»; Esc and a click outside are left alone on purpose. See the module doc.
     close |= ctx.input(|i| i.key_pressed(egui::Key::Enter));
     if close && closing.is_none() {

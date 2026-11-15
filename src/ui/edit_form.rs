@@ -42,8 +42,9 @@
 //!
 //! Three numbered questions: **¿Qué vas a escribir?**, **¿Qué quieres que aparezca?** and **¿Algo
 //! más?**. A step whose previous one is still empty is drawn faint, never locked: the order is a
-//! suggestion, and anybody may fill them in any order. A question, the date and what was
-//! last copied are a button each under the text, whose right-click menu cuts, copies and pastes.
+//! suggestion, and anybody may fill them in any order. A question and the date are a
+//! button each under the text, whose right-click menu cuts, copies and pastes. What was last
+//! copied is still shown as a pill in texts that have it, but nothing offers it any more.
 //! The name, the folder and the star wait folded inside the third step, which is optional and
 //! says so. What the expansion will do is shown once, in the preview, and nothing on the form
 //! repeats it.
@@ -1414,12 +1415,6 @@ fn new_blank_name(state: &AppState, taken: &[String]) -> String {
         .unwrap_or_default()
 }
 
-/// The word inside `{{...}}` for what was last copied, in the interface's language. Letters only,
-/// and Latin ones, because espanso reads it as the name of a variable.
-fn copied_word(state: &AppState) -> &'static str {
-    studio::text(state, "copiado", "copied", "kinopya", "copied")
-}
-
 /// The byte where char `at` begins, or the end of the text.
 fn byte_at(text: &str, at: usize) -> usize {
     text.char_indices().nth(at).map_or(text.len(), |(b, _)| b)
@@ -1857,7 +1852,6 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
     }
 
     let mut add_blank = false;
-    let mut add_copied = false;
     let mut add_date = false;
     // The right-click menu: the box's own commands, and a selection made a question right there.
     let mut cut = false;
@@ -1911,15 +1905,6 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
             "विस्तार उपयोग करते समय की दिनांक या समय",
         );
         add_date = controls::subtle_button(ui, Some(Glyph::Calendar), date, None).on_hover_text(date_tip).clicked();
-        let copied = studio::text(state, "Lo copiado", "Copied text", "Kinopya", "कॉपी किया");
-        let copied_tip = studio::text(
-            state,
-            "Al usar la expansión, aquí va lo último que hayas copiado",
-            "When you use it, the text you copied last goes here",
-            "Kapag ginamit mo ito, dito mapupunta ang huling tekstong kinopya mo",
-            "उपयोग करने पर, यहाँ वह टेक्स्ट आएगा जो आपने आखिरी बार कॉपी किया",
-        );
-        add_copied = controls::subtle_button(ui, Some(Glyph::Copy), copied, None).on_hover_text(copied_tip).clicked();
         // With nothing written yet, a whole example shows what the buttons are for.
         if text.trim().is_empty() {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1938,13 +1923,6 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
     }
     if let Some(chars) = convert {
         make_blank(&ctx, state, edit, text, chars);
-    }
-    if add_copied {
-        if edit.copied.is_empty() {
-            edit.copied = copied_word(state).to_string();
-        }
-        let at = selection(&ctx, text).end;
-        put(&ctx, text, at..at, &format!("{{{{{}}}}}", edit.copied));
     }
     // The date goes in at the caret with its bubble open, so how it is written is chosen right
     // there. One written in words starts out in the interface's language.
@@ -2133,26 +2111,6 @@ fn bubble(
                 if ui.add(input).changed() {
                     edit.field_mut(&current).default = value;
                 }
-            }
-
-            // The way back: the pill becomes plain text again, what it started with or its name.
-            ui.add_space(controls::GAP);
-            let label = studio::text(state, "Convertir en texto", "Make it text", "Gawing teksto", "टेक्स्ट बनाएँ");
-            if controls::subtle_button(ui, Some(Glyph::Undo), label, None).clicked() {
-                let words = match field.kind {
-                    FieldKind::Choice => field.options.iter().map(|o| o.trim()).find(|o| !o.is_empty()).unwrap_or(""),
-                    _ => field.default.as_str(),
-                };
-                let words = if words.is_empty() { current.clone() } else { words.to_string() };
-                let ranges: Vec<_> = form::markers(text)
-                    .into_iter()
-                    .filter(|(_, found)| *found == current)
-                    .map(|(range, _)| range)
-                    .collect();
-                for range in ranges.into_iter().rev() {
-                    text.replace_range(range, &words);
-                }
-                kept = None;
             }
         })?;
 

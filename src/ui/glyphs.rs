@@ -71,8 +71,6 @@ pub enum Glyph {
     ViewGrid,
     News,
     Calendar,
-    /// «QuietHours», the crescent moon: «Ultra oscuro» in Novedades.
-    Moon,
 }
 
 impl Glyph {
@@ -114,7 +112,6 @@ impl Glyph {
             Glyph::ViewGrid => '\u{E8A9}',
             Glyph::News => '\u{E789}',
             Glyph::Calendar => '\u{E787}',
-            Glyph::Moon => '\u{E708}',
         }
     }
 }
