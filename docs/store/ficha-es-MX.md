@@ -8,7 +8,7 @@ Khipu
 ## Descripción
 Escribe menos. Di más.
 
-Khipu es un expansor de texto para Windows. Escribe un atajo corto como :firma y aparece tu firma completa. Escribe :hoy y aparece la fecha de hoy. Funciona en casi todo lugar donde escribes: correo, chat, documentos, formularios y el navegador.
+Khipu es un expansor de texto para Windows. Escribe un atajo corto como ;firma y aparece tu firma completa. Escribe ;hoy y aparece la fecha de hoy. Funciona en casi todo lugar donde escribes: correo, chat, documentos, formularios y el navegador.
 
 Crear expansiones es tan sencillo como usarlas. Escribes lo corto, escribes lo largo, y listo. Sin archivos de configuración ni sintaxis que aprender.
 
@@ -17,6 +17,9 @@ TODAS TUS EXPANSIONES, A UN ATAJO
 
 FECHAS QUE SE ESCRIBEN SOLAS
 Elige un formato y ve en vivo cómo se verá la fecha de hoy mientras lo configuras. El mes puede escribirse en español, inglés, filipino o hindi, sin importar el idioma de Windows.
+
+EXPANSIONES QUE PREGUNTAN
+Selecciona una palabra del texto y conviértela en pregunta: cada vez que uses la expansión, Khipu te la hace en una ventanita y escribe tu respuesta en su lugar. Ideal para correos con un nombre o una fecha que cambian. Khipu hasta adivina cómo llamar a la pregunta, y la vista previa te deja probar respuestas antes de guardar.
 
 ORDENADO Y FÁCIL DE ENCONTRAR
 Agrupa tus expansiones en carpetas: correo, reuniones, datos personales. Busca en toda la lista mientras escribes, y desactiva expansiones sin borrarlas.
@@ -33,9 +36,11 @@ Cada vez que guardas, Khipu respalda tu biblioteca, y puedes exportar las carpet
 Khipu es gratuito y de código abierto, bajo la GPL de GNU. Está construido sobre espanso, el motor de expansión de código abierto de Federico Terzi, que viene incluido y listo para usar.
 
 ## Características (una por línea, hasta 20; 200 caracteres cada una) · «Características del producto»
-Escribe un atajo corto como :firma y aparece el texto completo, en casi cualquier aplicación.
+Escribe un atajo corto como ;firma y aparece el texto completo, en casi cualquier aplicación.
 Presiona Alt+Espacio en cualquier programa para buscar entre tus expansiones y elegir una.
 Crea y edita expansiones en un formulario sencillo, sin archivos de configuración.
+Convierte cualquier palabra del texto en una pregunta que Khipu te hace al usar la expansión.
+Elige los programas donde tus expansiones no se activan, como un juego o una terminal.
 Inserta la fecha de hoy en un formato listo o en el tuyo, con vista previa en vivo.
 Escribe el mes en español, inglés, filipino o hindi.
 Organiza tus expansiones en carpetas y filtra la lista por carpeta.
@@ -83,13 +88,14 @@ Código fuente: https://github.com/alexpaltrc/khipu
 
 Khipu incluye espanso (https://espanso.org), de Federico Terzi, también bajo la GPL de GNU v3; su código fuente está en https://github.com/espanso/espanso. Los avisos de cada componente están en THIRD-PARTY-NOTICES.txt, que se instala con la aplicación.
 
-## Novedades de esta versión (0.0.8) · «Novedades de esta versión»
-Deshacer: después de guardar, borrar, mover o importar, el botón + se vuelve una pastilla con «Deshacer».
-Clic derecho en una expansión: Editar, Cambiar activador, Mover a carpeta y Eliminar, sin abrirla.
-Selecciona varias arrastrando un recuadro con el mouse, como en el Explorador de archivos.
-Campos dentro del texto: selecciona unas palabras y conviértelas en un campo. La vista previa queda a un lado y es el propio formulario.
-La fecha y lo último que copiaste se ponen en cualquier parte del texto.
-No expandir en: elige los programas donde tus expansiones no se activan.
-Funciona con Narrador y otros lectores de pantalla.
-Los formularios se abren en el monitor donde estás escribiendo.
-Varias correcciones en formularios y carpetas.
+## Novedades de esta versión (0.0.9) · «Novedades de esta versión»
+Preguntas: selecciona unas palabras del texto y conviértelas en una pregunta que Khipu te hace al usar la expansión. Si lo seleccionado es un día, una hora, un correo o un precio, la pregunta ya sale con nombre («¿Qué día?»).
+Con el texto vacío, «Ver un ejemplo» escribe uno para que veas cómo funciona.
+Arrastra una pregunta para moverla a otro lugar del texto.
+Clic derecho en el texto: Cortar, Copiar, Pegar y Preguntar esto.
+La vista previa es una tarjeta propia: haz clic en una respuesta para probar otra.
+Las preguntas y la fecha se ven como pastillas en la lista y en el buscador.
+Cada mensaje sale en una pastilla al pie, y los errores dicen qué pasó y qué hacer.
+El buscador (Alt+Espacio) vuelve a pegar en Brave, Chrome y Edge.
+Usa unos 11 MB menos de memoria.
+Varias correcciones en carpetas y al borrar.

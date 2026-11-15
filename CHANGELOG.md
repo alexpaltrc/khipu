@@ -3,7 +3,7 @@
 All notable changes to Khipu, called Espanso Manager until 0.0.5. Dates are the day the work was finished, not the day it
 was published.
 
-## Unreleased
+## 0.0.9 — 2026-11-14
 
 ### Changed
 

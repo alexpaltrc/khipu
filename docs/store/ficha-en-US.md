@@ -8,7 +8,7 @@ Khipu
 ## Description · «Descripción»
 Type less. Say more.
 
-Khipu is a text expander for Windows. Type a short trigger like :sig and your full signature appears. Type :today and today's date appears. It works almost everywhere you type: email, chat, documents, forms, the browser.
+Khipu is a text expander for Windows. Type a short trigger like ;sig and your full signature appears. Type ;today and today's date appears. It works almost everywhere you type: email, chat, documents, forms, the browser.
 
 Setting expansions up is as simple as using them. Write the short thing, write the long thing, and it's ready. No configuration files, no syntax to learn.
 
@@ -17,6 +17,9 @@ Can't remember a trigger? Press Alt+Space in any program, type a few letters, an
 
 DATES THAT WRITE THEMSELVES
 Choose a format and see a live preview of today's date as you set it up. The month can be written in English, Spanish, Filipino or Hindi, whatever language Windows is in.
+
+EXPANSIONS THAT ASK
+Select a word in the text and turn it into a question: each time you use the expansion, Khipu asks it in a small window and types your answer in its place. Perfect for emails where a name or a date changes. Khipu even guesses what to call the question, and the preview lets you try answers before you save.
 
 TIDY, AND QUICK TO FIND
 Keep expansions in folders: email, meetings, personal details. Search the whole list as you type, and switch expansions off without deleting them.
@@ -33,9 +36,11 @@ Every save keeps a backup of your library, and you can export the folders you ch
 Khipu is free and open source, under the GNU GPL. It is built on espanso, the open-source expansion engine by Federico Terzi, which is included and set up for you.
 
 ## Features (one per line, up to 20; 200 characters each) · «Características del producto»
-Type a short trigger like :sig and the full text appears, in almost any app.
+Type a short trigger like ;sig and the full text appears, in almost any app.
 Press Alt+Space in any program to search all your expansions and pick one.
 Create and edit expansions in a simple form, with no configuration files.
+Turn any word in the text into a question Khipu asks you when you use the expansion.
+Choose the programs where your expansions stay quiet, such as a game or a terminal.
 Insert today's date in a ready-made format or your own, with a live preview.
 Write the month in English, Spanish, Filipino or Hindi.
 Organize expansions in folders and filter the list by folder.
@@ -83,13 +88,14 @@ Source code: https://github.com/alexpaltrc/khipu
 
 Khipu includes espanso (https://espanso.org) by Federico Terzi, also under the GNU GPL v3; its source code is at https://github.com/espanso/espanso. The notices of every component are in THIRD-PARTY-NOTICES.txt, installed with the app.
 
-## What's new in this version (0.0.8) · «Novedades de esta versión»
-Undo: after you save, delete, move or import, the + button turns into a pill with Undo.
-Right-click an expansion: Edit, Change trigger, Move to folder and Delete, without opening it.
-Pick several by dragging a box with the mouse, as in File Explorer.
-Fields inside the text: select some words and make them a field. The preview sits to one side and is the form itself.
-The date and what you last copied go anywhere in the text.
-Don't expand in: choose the programs where your expansions stay quiet.
-Works with Narrator and other screen readers.
-Forms open on the monitor you are typing on.
-Several fixes to forms and folders.
+## What's new in this version (0.0.9) · «Novedades de esta versión»
+Questions: select some words in the text and turn them into a question Khipu asks when you use the expansion. If what you selected is a day, a time, an email address or a price, the question comes already named ("Which day?").
+With the text empty, See an example writes one so you can see how it works.
+Drag a question to move it elsewhere in the text.
+Right-click the text: Cut, Copy, Paste and Ask for this.
+The preview is a card of its own: click an answer to try another.
+Questions and the date show as pills in the list and in search.
+Every message appears as a pill at the bottom, and errors say what happened and what to do.
+Search (Alt+Space) pastes in Brave, Chrome and Edge again.
+Uses about 11 MB less memory.
+Several fixes to folders and deleting.

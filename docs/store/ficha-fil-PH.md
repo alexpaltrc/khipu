@@ -10,7 +10,7 @@ Khipu
 ## Paglalarawan · «Descripción»
 Mas kaunting type, mas marami ang nasasabi.
 
-Ang Khipu ay isang text expander para sa Windows. Mag-type ng maikling trigger tulad ng :sig at lalabas ang buo mong pirma. Mag-type ng :ngayon at lalabas ang petsa ngayon. Gumagana ito halos saanman ka nagta-type: email, chat, dokumento, form, at browser.
+Ang Khipu ay isang text expander para sa Windows. Mag-type ng maikling trigger tulad ng ;sig at lalabas ang buo mong pirma. Mag-type ng ;ngayon at lalabas ang petsa ngayon. Gumagana ito halos saanman ka nagta-type: email, chat, dokumento, form, at browser.
 
 Kasing-dali ng paggamit ang pag-set up ng mga expansion. Isulat ang maikli, isulat ang mahaba, at handa na. Walang configuration file, walang syntax na kailangang pag-aralan.
 
@@ -19,6 +19,9 @@ Hindi maalala ang trigger? Pindutin ang Alt+Space sa anumang program, mag-type n
 
 MGA PETSANG KUSANG NAISUSULAT
 Pumili ng format at makikita mo agad ang itsura ng petsa ngayon habang sine-set up mo ito. Maaaring isulat ang buwan sa Filipino, English, Spanish o Hindi, anuman ang wika ng Windows mo.
+
+MGA EXPANSION NA NAGTATANONG
+Pumili ng salita sa teksto at gawin itong tanong: tuwing gagamitin mo ang expansion, itatanong ito ng Khipu sa isang maliit na window at isusulat ang sagot mo sa lugar nito. Bagay sa mga email na nagbabago ang pangalan o petsa. Hinuhulaan pa ng Khipu ang itatawag sa tanong, at sa preview ay masusubukan mo ang mga sagot bago mag-save.
 
 MAAYOS AT MADALING HANAPIN
 Ilagay ang mga expansion sa mga folder: email, meeting, personal na detalye. Hanapin sa buong listahan habang nagta-type, at i-off ang mga expansion nang hindi binubura.
@@ -35,9 +38,11 @@ Sa bawat pag-save, may backup ang library mo, at puwede mong i-export ang mga fo
 Libre at open source ang Khipu, sa ilalim ng GNU GPL. Nakabatay ito sa espanso, ang open-source na expansion engine ni Federico Terzi, na kasama na at naka-set up para sa iyo.
 
 ## Mga feature (isa bawat linya, hanggang 20; 200 character bawat isa) · «Características del producto»
-Mag-type ng maikling trigger tulad ng :sig at lalabas ang buong teksto, sa halos anumang app.
+Mag-type ng maikling trigger tulad ng ;sig at lalabas ang buong teksto, sa halos anumang app.
 Pindutin ang Alt+Space sa anumang program para hanapin ang lahat ng expansion mo at pumili.
 Gumawa at mag-edit ng mga expansion sa isang simpleng form, walang configuration file.
+Gawing tanong ang anumang salita sa teksto, na itatanong ng Khipu kapag ginamit mo ang expansion.
+Piliin ang mga program kung saan tahimik ang mga expansion mo, gaya ng laro o terminal.
 Ilagay ang petsa ngayon sa handang format o sa sarili mong format, may live preview.
 Isulat ang buwan sa Filipino, English, Spanish o Hindi.
 Ayusin ang mga expansion sa mga folder at i-filter ang listahan ayon sa folder.
@@ -87,13 +92,14 @@ Source code: https://github.com/alexpaltrc/khipu
 
 Khipu includes espanso (https://espanso.org) by Federico Terzi, also under the GNU GPL v3; its source code is at https://github.com/espanso/espanso. The notices of every component are in THIRD-PARTY-NOTICES.txt, installed with the app.
 
-## Ano ang bago sa bersyong ito (0.0.8) · «Novedades de esta versión»
-I-undo: pagkatapos mag-save, magbura, maglipat o mag-import, nagiging pill ang + button na may I-undo.
-I-right-click ang isang expansion: I-edit, Palitan ang trigger, Ilipat sa folder at Burahin, nang hindi ito binubuksan.
-Pumili ng marami sa pag-drag ng kahon gamit ang mouse, gaya ng sa File Explorer.
-Mga field sa loob ng teksto: pumili ng ilang salita at gawin itong field. Nasa gilid ang preview at ito mismo ang form.
-Mailalagay kahit saan sa teksto ang petsa at ang huli mong kinopya.
-Huwag mag-expand sa: piliin ang mga program kung saan hindi gagana ang mga expansion mo.
-Gumagana sa Narrator at iba pang screen reader.
-Bumubukas ang mga form sa monitor kung saan ka nagta-type.
-Iba't ibang ayos sa mga form at folder.
+## Ano ang bago sa bersyong ito (0.0.9) · «Novedades de esta versión»
+Mga tanong: pumili ng ilang salita sa teksto at gawin itong tanong na itatanong ng Khipu kapag ginamit mo ang expansion. Kung araw, oras, email o presyo ang pinili mo, may pangalan na agad ang tanong ("Anong araw?").
+Kapag walang laman ang teksto, sumusulat ng isa ang Tingnan ang halimbawa para makita mo kung paano ito gumagana.
+I-drag ang isang tanong para ilipat ito sa ibang bahagi ng teksto.
+I-right-click ang teksto: I-cut, Kopyahin, I-paste at Itanong ito.
+Sariling card na ang preview: i-click ang isang sagot para sumubok ng iba.
+Pill na ang itsura ng mga tanong at ng petsa sa listahan at sa paghahanap.
+Lumalabas ang bawat mensahe bilang pill sa ibaba, at sinasabi ng mga error kung ano ang nangyari at ano ang gagawin.
+Nagpe-paste ulit ang paghahanap (Alt+Space) sa Brave, Chrome at Edge.
+Mga 11 MB na mas kaunting memory.
+Iba't ibang ayos sa mga folder at sa pagbura.
