@@ -364,6 +364,17 @@ fn main() {
     if EXPERIMENTAL && std::env::var_os("EM_PREVIEW_BACKGROUND").is_some() {
         viewport = viewport.with_active(false);
     }
+    // And at an exact size, `1925x1295`, for captures drawn at `EM_PREVIEW_ZOOM`: the layout of a
+    // window that size divided by the zoom, at every pixel of the larger one.
+    if EXPERIMENTAL {
+        let size = std::env::var("EM_PREVIEW_SIZE").ok().and_then(|s| {
+            let (w, h) = s.split_once('x')?;
+            Some([w.trim().parse::<f32>().ok()?, h.trim().parse::<f32>().ok()?])
+        });
+        if let Some(size) = size {
+            viewport = viewport.with_inner_size(size);
+        }
+    }
 
     let native_options = eframe::NativeOptions {
         viewport,

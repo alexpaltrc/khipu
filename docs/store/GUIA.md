@@ -3,7 +3,8 @@
 *Actualizada el 2026-11-14 para la actualización a la 0.0.9. Las pantallas son las que se comprobaron el 2026-10-07 (skill `subir-a-microsoft-store`); si alguna no coincide, mándame la captura.*
 
 *Las imágenes y capturas que esta guía y las fichas (`ficha-<idioma>.md`) mencionan no están en el
-repo: viven en `Documentos\Vibecode Archivos\Khipu Archivos\marca\store\`.*
+repo: viven en `Documentos\Vibecode Archivos\Khipu Archivos\marca\store\`. Las capturas vigentes
+(cuatro por idioma, con su `leyendas.txt`) están en `marca\campana-store\Store\Capturas\<idioma>\`.*
 
 Khipu está en la Store, **pública**, desde que se aprobó el envío 2 (0.0.6): Store ID
 `9NXXV15RJ94T`, `https://apps.microsoft.com/detail/9NXXV15RJ94T`. Todo lo que se hace en Partner
@@ -113,28 +114,29 @@ Van en inglés porque los leen los certificadores.
   captura de esa sección.
 - **«Descripción*» en rojo en un idioma:** la borraste y no se pegó el texto nuevo. Copia otra vez
   la sección «Descripción» de su ficha.
-- **Rechazo por la norma 10.1** (las capturas no reflejan la app): las capturas llevan un titular
-  encima de la interfaz real. Si lo objetan, las capturas limpias están en `fuentes\` (`cap-*.png`).
+- **Rechazo por la norma 10.1** (las capturas no reflejan la app): las cuatro capturas son
+  ilustraciones de la app, no la interfaz capturada tal cual. Si lo objetan, las capturas reales de
+  antes están en `Capturas-opciones\01-anteriores\` y las limpias en `fuentes\` (`cap-*.png`).
 
 ## Por qué está así
 
 - **Texto dentro de las capturas.** Microsoft pide capturas de la app y deja la explicación a la
   leyenda, pero las apps grandes (Microsoft 365, Notion, Spotify) ponen un titular encima y la
-  Store lo acepta. La interfaz es siempre la real, capturada del binario sin retoques.
+  Store lo acepta. Desde 2026-11-21 son cuatro ilustraciones con cordones de khipu (portada,
+  formulario, buscador, carpetas y «No expandir en»), con los textos y botones reales de la app.
+- **Cuatro y no siete**: cada imagen cuenta una sola cosa; lo demás se descubre usando la app.
 - **Lo importante va en los dos tercios de arriba**, que es lo que enseñan las miniaturas.
-- **Datos de demostración, nunca los tuyos**: una persona ficticia por idioma, con correos
-  `@example.com`.
-- **Alt+Espacio en la diapositiva 2**, el atajo de fábrica. En la de Ajustes (7) sale
-  Mayús+Alt+Espacio porque tu Khipu ya tenía Alt+Espacio y la instancia de prueba cayó al segundo,
-  como hace la app. Es un estado real, aunque no el más común.
-- **Sin la pantalla de bienvenida**: su segunda página exige teclear.
+- **Datos de demostración, nunca los tuyos**: Dafne Ruiz y Alex Ortega en los cuatro idiomas, con
+  correos `@example.com`.
+- **Alt+Espacio en la captura 3**, el atajo de fábrica.
 - **Hero art**: el pájaro del icono sobre su propio cordón de khipu, a la derecha y por encima
   del cuarto inferior, porque la Store pone ahí el nombre y los botones.
 
 ## Pendiente
 
 1. **Revisión nativa de filipino e hindi**: los textos de `fil-PH` y `hi-IN`, y los titulares de
-   sus capturas, no los ha leído ninguna persona hablante nativa.
+   sus capturas, no los ha leído ninguna persona hablante nativa. Cada `leyendas.txt` de esos dos
+   idiomas lleva debajo de cada leyenda lo que dice en español.
 2. **Pública**: hecho con el envío de la 0.0.6.
 3. **winget**: no hay que enviar nada. Winget la encuentra por la fuente `msstore`. Con la ficha
    oculta, puede que no salga en sus búsquedas (sin confirmar).

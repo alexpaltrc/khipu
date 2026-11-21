@@ -60,13 +60,10 @@ Nasa isang simple at nababasang file sa sarili mong PC ang mga expansion mo.
 Libre at open source, sa ilalim ng GNU GPL.
 
 ## Mga caption ng screenshot (parehong pagkakasunod ng mga larawan sa capturas/) · «Capturas de pantalla › leyendas»
-01. Mas kaunting type, mas marami ang nasasabi. Mag-type ng maikling trigger at isusulat ng Khipu ang buong teksto, sa halos anumang app.
-02. Lahat ng expansion mo, isang shortcut lang. Pindutin ang Alt+Space, maghanap, at pumili. Lalabas ang teksto kung saan ka nagta-type.
-03. Lahat, kita agad. Maghanap, mag-preview, at i-on o i-off ang mga expansion sa iisang malinis na listahan.
-04. Mga petsang kusang naisusulat. Pumili ng format at lalabas ang petsa ngayon habang nagta-type ka, sa wika mo.
-05. May folder para sa bawat konteksto. Email, meeting, personal na detalye: nasa tamang lugar ang bawat isa.
-06. Gawa para sa Windows 11. Maliwanag man o madilim, sinusunod nito ang tema at accent color ng system mo.
-07. Pribado mula sa disenyo. Nananatili ang lahat sa PC mo. Walang account, walang cloud, walang tracking.
+01. Mag-type ng maikling shortcut at Khipu na ang susulat ng iba: ang pirma mo, isang sagot, isang address. Gumagana sa email, dokumento at chat.
+02. Mga expansion na nagtatanong: hinihingi ng Khipu ang mga detalyeng nagbabago at binubuo nito ang buong mensahe para sa iyo.
+03. Nakalimutan ang shortcut? Pindutin ang Alt+Space sa anumang app, hanapin ito, at lalabas ito kung saan ka nagta-type.
+04. Igrupo sa mga folder ang mga shortcut mo at piliin ang mga app kung saan sila hindi gagana. Maayos ang lahat, sa paraan mo.
 
 ## Maikling paglalarawan · «Campos complementarios › Descripción corta»
 Mag-type ng maikling trigger at isusulat ng Khipu ang buong teksto, sa halos anumang app. Ang pirma mo, ang address mo, ang petsa ngayon: i-set up nang isang beses sa isang malinis na window, handa na saanman ka mag-type. Libre, pribado, walang account.

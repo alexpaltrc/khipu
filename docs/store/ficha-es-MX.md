@@ -58,13 +58,10 @@ Tus expansiones quedan en un archivo sencillo y legible en tu propio equipo.
 Gratuito y de código abierto, bajo la GPL de GNU.
 
 ## Leyendas de las capturas (mismo orden que las imágenes de capturas/) · «Capturas de pantalla › leyendas»
-01. Escribe menos. Di más. Escribe un atajo corto y Khipu completa el texto por ti, en casi cualquier aplicación.
-02. Todas tus expansiones, a un atajo. Presiona Alt+Espacio, busca y elige. El texto aparece donde estabas escribiendo.
-03. Todo a la vista. Busca, revisa y activa o desactiva tus expansiones en una sola lista serena.
-04. Fechas que se escriben solas. Elige un formato y la fecha de hoy aparece mientras escribes, en tu idioma.
-05. Una carpeta para cada contexto. Correo, reuniones, datos personales: cada cosa en su lugar.
-06. Hecho para Windows 11. Claro u oscuro, sigue el tema y el color de énfasis de tu sistema.
-07. Privado por diseño. Todo se queda en tu equipo. Sin cuentas, sin nube, sin rastreo.
+01. Escribe un atajo corto y Khipu escribe el resto: tu firma, una respuesta, una dirección. Funciona en el correo, en documentos y en chats.
+02. Expansiones que preguntan: Khipu te pide los datos que cambian y arma el mensaje completo por ti.
+03. ¿Olvidaste un atajo? Presiona Alt+Espacio en cualquier programa, búscalo e insértalo donde estabas escribiendo.
+04. Agrupa tus atajos en carpetas y elige en qué programas no se activan. Todo en orden, a tu manera.
 
 ## Descripción corta · «Campos complementarios › Descripción corta»
 Escribe un atajo corto y Khipu completa el texto por ti, en casi cualquier aplicación. Tu firma, tu dirección, la fecha de hoy: las configuras una vez en una ventana serena y quedan listas dondequiera que escribas. Gratis, privado y sin cuenta.

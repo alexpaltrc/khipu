@@ -5,6 +5,14 @@ was published.
 
 ## Unreleased
 
+### Store
+
+- **Four new screenshots in each language, with new captions**: you type a little and Khipu
+  writes the rest; expansions that ask; finding a shortcut with Alt+Space; folders and the
+  programs where shortcuts stay off.
+- Experimental builds open at an exact size with `EM_PREVIEW_SIZE` (`1925x1295`), for captures
+  drawn with `EM_PREVIEW_ZOOM`.
+
 ## 0.0.9 — 2026-11-14
 
 ### Changed

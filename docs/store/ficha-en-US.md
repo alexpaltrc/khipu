@@ -58,13 +58,10 @@ Your expansions stay in a plain, readable file on your own PC.
 Free and open source, under the GNU GPL.
 
 ## Screenshot captions (same order as the images in capturas/) · «Capturas de pantalla › leyendas»
-01. Type less. Say more. Type a short trigger and Khipu writes the whole text for you, in almost any app.
-02. Every expansion, one shortcut away. Press Alt+Space, search and choose. Your text lands where you were typing.
-03. Everything at a glance. Search, preview and switch expansions on or off in one calm list.
-04. Dates that write themselves. Pick a format, and today's date appears as you type, in your language.
-05. A folder for every context. Email, meetings, personal details: each set right where you expect it.
-06. Made for Windows 11. Light or dark, it follows your system theme and accent color.
-07. Private by design. Everything stays on your PC. No account, no cloud, no tracking.
+01. Type a short trigger and Khipu writes the rest: your signature, a reply, an address. Works in email, documents and chats.
+02. Expansions that ask: Khipu asks for the details that change and writes the whole message for you.
+03. Forgot a shortcut? Press Alt+Space in any app, find it, and it lands right where you were typing.
+04. Group your shortcuts in folders and choose the apps where they stay off. All in order, your way.
 
 ## Short description · «Campos complementarios › Descripción corta»
 Type a short trigger and Khipu writes the whole text for you, in almost any app. Your signature, your address, today's date: set up once in a calm window, ready everywhere you type. Free, private, no account.
