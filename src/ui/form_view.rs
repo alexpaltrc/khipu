@@ -476,6 +476,13 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
         emit(&trigger, studio);
         return;
     };
+    // A form whose text has format is pasted by espanso as Markdown, so the result goes out as
+    // the Markdown Khipu writes for any text (see [`crate::yaml::rich`]).
+    let rich = crate::yaml::rich::is_rich(&spec.template);
+    let emit = |text: &str, studio| match rich {
+        true => emit(&crate::yaml::rich::to_markdown(text), studio),
+        false => emit(text, studio),
+    };
 
     // Whoever was being typed into, so the result goes back there and not to whatever Windows
     // picks once this window is gone.

@@ -163,6 +163,7 @@ solo el índice para saber cuál abrir.
 | `yaml/io.rs` | Cargar, validar, respaldar y guardar. **Nada aquí escribe a consola: no hay** |
 | `yaml/presets.rs` · `datefmt.rs` | Los cuatro formatos de fecha, y la vista previa en vivo de cualquier formato |
 | `yaml/form.rs` | Expansiones con campos por rellenar, y el ayudante que hace que espanso abra la ventana de Khipu |
+| `yaml/rich.rs` | Expansiones con formato (negritas, cursivas, listas): se guardan como Markdown y espanso siempre las pega (experimento en la rama `experiment/formato`) |
 | `folders.rs` | Carpetas y cambios de prefijo, derivados de los disparadores reales; los planes no tocan disco |
 | `transfer.rs` | Exportar e importar entre máquinas |
 

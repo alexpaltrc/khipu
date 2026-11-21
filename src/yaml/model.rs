@@ -127,13 +127,25 @@ impl SimpleMatch {
             .is_some_and(|var| self.replace.trim() == format!("{{{{{}}}}}", var.name))
     }
 
+    /// Whether espanso gets this text with format: a text that uses it, or a form whose text does.
+    /// See [`super::rich`].
+    pub fn is_rich(&self) -> bool {
+        match self.as_form() {
+            Some(form) => super::rich::is_rich(&form.template),
+            None => super::rich::is_rich(&self.replace),
+        }
+    }
+
     /// The text espanso would insert for this match, when it can be known for certain without
     /// asking espanso: plain text, or one date we format letter for letter the way espanso does.
     ///
-    /// `None` for everything else, which the launcher hands to espanso instead: other kinds of
-    /// `vars`, a `{{...}}` that could name a global var, the `$|$` cursor mark, a date code, time
-    /// zone, language or parameter that [`crate::datefmt`] does not reproduce.
+    /// `None` for everything else, which the launcher hands to espanso instead: a text with format,
+    /// other kinds of `vars`, a `{{...}}` that could name a global var, the `$|$` cursor mark, a
+    /// date code, time zone, language or parameter that [`crate::datefmt`] does not reproduce.
     pub fn literal_text(&self) -> Option<String> {
+        if self.is_rich() {
+            return None;
+        }
         if self.vars.is_empty() {
             let plain = !self.replace.contains("{{") && !self.replace.contains("$|$");
             return plain.then(|| self.replace.clone());
@@ -263,7 +275,11 @@ impl MatchEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SimpleMatchRaw {
     trigger: String,
-    replace: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    replace: Option<String>,
+    /// A text with format. See [`super::rich`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    markdown: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     vars: Vec<VarEntry>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -274,13 +290,19 @@ struct SimpleMatchRaw {
 
 fn classify(value: &Value) -> MatchEntry {
     if let Ok(raw) = serde_norway::from_value::<SimpleMatchRaw>(value.clone()) {
-        if raw.extra.is_empty() {
-            return MatchEntry::Simple(SimpleMatch {
-                trigger: raw.trigger,
-                replace: raw.replace.replace("\r\n", "\n"),
-                vars: raw.vars,
-                label: raw.label,
-            });
+        // Exactly one of the two texts; a `markdown:` only if it is the way Khipu writes one.
+        let markdown_given = raw.markdown.is_some();
+        let replace = match (raw.replace, raw.markdown) {
+            (Some(text), None) => Some(text.replace("\r\n", "\n")),
+            (None, Some(md)) => super::rich::from_markdown(&md.replace("\r\n", "\n")),
+            _ => None,
+        };
+        if let (true, Some(replace)) = (raw.extra.is_empty(), replace) {
+            let m = SimpleMatch { trigger: raw.trigger, replace, vars: raw.vars, label: raw.label };
+            // A `markdown:` with no format in it would go back out as `replace:`.
+            if !markdown_given || m.is_rich() {
+                return MatchEntry::Simple(m);
+            }
         }
     }
     MatchEntry::Advanced(value.clone())
@@ -300,9 +322,12 @@ fn to_value(entry: &MatchEntry) -> Value {
             // A form's argument is re-derived from its trigger here, the one door every match
             // leaves by. See [`super::form`].
             let m = m.normalized();
+            let rich = m.is_rich();
+            let markdown = |text: &str| windows_lines(&super::rich::to_markdown(text));
             let raw = SimpleMatchRaw {
                 trigger: m.trigger,
-                replace: windows_lines(&m.replace),
+                replace: (!rich).then(|| windows_lines(&m.replace)),
+                markdown: rich.then(|| markdown(&m.replace)),
                 vars: m.vars,
                 label: m.label,
                 extra: Mapping::new(),
@@ -634,6 +659,36 @@ mod tests {
         match &MatchFile::from_str(&text).unwrap().entries[0] {
             MatchEntry::Simple(m) => assert_eq!(m.replace, "Uno.\n\nDos.\nTres."),
             MatchEntry::Advanced(_) => panic!("should stay simple"),
+        }
+    }
+
+    /// A text with format goes to espanso as Markdown, which it always pastes, and comes back to
+    /// the editor as written; a `markdown:` Khipu would not write the same way stays untouched.
+    #[test]
+    fn a_text_with_format_goes_out_as_markdown_and_comes_back_as_written() {
+        let written = "Hola **Ana**,\ngracias.\n\n- uno\n- dos";
+        let mut mf = MatchFile::default();
+        mf.entries.push(MatchEntry::Simple(SimpleMatch {
+            trigger: ":r".into(),
+            replace: written.into(),
+            vars: Vec::new(),
+            label: None,
+        }));
+        let text = mf.to_string_with_banner().unwrap();
+        let raw: Value = serde_norway::from_str(&text).unwrap();
+        assert!(raw["matches"][0].get("replace").is_none());
+        assert_eq!(
+            raw["matches"][0]["markdown"].as_str(),
+            Some("Hola **Ana**,\\\r\ngracias.\r\n\r\n- uno\r\n- dos")
+        );
+        match &MatchFile::from_str(&text).unwrap().entries[0] {
+            MatchEntry::Simple(m) => assert_eq!(m.replace, written),
+            MatchEntry::Advanced(_) => panic!("should stay simple"),
+        }
+        for foreign in ["markdown: \"uno\\ndos\"", "markdown: hola", "replace: a\n    markdown: b"] {
+            let yaml = format!("matches:\n  - trigger: \":x\"\n    {foreign}\n");
+            let mf = MatchFile::from_str(&yaml).unwrap();
+            assert!(matches!(mf.entries[0], MatchEntry::Advanced(_)), "{foreign}");
         }
     }
 

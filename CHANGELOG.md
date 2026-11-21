@@ -5,6 +5,12 @@ was published.
 
 ## Unreleased
 
+### Experiment (branch `experiment/formato`)
+
+- **Expansions with format**: `**bold**`, `*italics*` and lines starting with `- ` or `1. ` in an
+  expansion's text, or a form's, make espanso paste it with format, short ones too. Apps that
+  understand format get it; the rest get the plain text.
+
 ### Fixed
 
 - **Blank lines between paragraphs survive the expansion.** Espanso pasted long texts with bare
