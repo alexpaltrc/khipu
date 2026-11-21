@@ -199,6 +199,57 @@ pub fn copied_text() -> String {
     }
 }
 
+/// What was copied, with its format turned into the editor's marks (`**bold**`, `*italics*`,
+/// `- ` lists), when it came from an app that copies format (Teams, Word, Outlook, a browser) and
+/// has any of it. `None` otherwise: the paste is then the plain text, as always.
+pub fn copied_with_format() -> Option<String> {
+    let html = unsafe {
+        let format = RegisterClipboardFormatW(w!("HTML Format"));
+        if format == 0 || IsClipboardFormatAvailable(format).is_err() {
+            return None;
+        }
+        let deadline = Instant::now() + OPEN_TIMEOUT;
+        while OpenClipboard(None).is_err() {
+            if Instant::now() >= deadline {
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let mut bytes = Vec::new();
+        if let Ok(handle) = GetClipboardData(format) {
+            let memory = HGLOBAL(handle.0);
+            let data = GlobalLock(memory) as *const u8;
+            if !data.is_null() {
+                let all = std::slice::from_raw_parts(data, GlobalSize(memory));
+                let end = all.iter().position(|&b| b == 0).unwrap_or(all.len());
+                bytes = all[..end].to_vec();
+                let _ = GlobalUnlock(memory);
+            }
+        }
+        let _ = CloseClipboard();
+        String::from_utf8_lossy(&bytes).into_owned()
+    };
+    let text = crate::yaml::rich::from_html(html_fragment(&html));
+    (crate::yaml::rich::is_rich(&text) && !text.trim().is_empty()).then_some(text)
+}
+
+/// The part of a CF_HTML clipboard entry that was copied, without the page around it: between the
+/// fragment comments, or else at the offsets its header gives.
+fn html_fragment(cf_html: &str) -> &str {
+    let between = |start: &str, end: &str| {
+        let from = cf_html.find(start)? + start.len();
+        let to = cf_html[from..].find(end)? + from;
+        Some(&cf_html[from..to])
+    };
+    let offset = |key: &str| -> Option<usize> {
+        let at = cf_html.find(key)? + key.len();
+        cf_html[at..].lines().next()?.trim().parse().ok()
+    };
+    between("<!--StartFragment-->", "<!--EndFragment-->")
+        .or_else(|| cf_html.get(offset("StartFragment:")?..offset("EndFragment:")?))
+        .unwrap_or(cf_html)
+}
+
 /// Opens the clipboard as `window`, waiting out whoever has it open right now. The reader that has
 /// just been handed the text is one of them: its `CloseClipboard` is what this waits for.
 unsafe fn open(window: HWND) -> bool {

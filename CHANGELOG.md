@@ -10,6 +10,10 @@ was published.
 - **Expansions with format**: `**bold**`, `*italics*` and lines starting with `- ` or `1. ` in an
   expansion's text, or a form's, make espanso paste it with format, short ones too. Apps that
   understand format get it; the rest get the plain text.
+- **An asterisk with no partner is an asterisk**: `*8374` stays as written, alone or inside an
+  expansion with format. So do `_`, `#`, `&`, `<` and `[`.
+- **Pasting format keeps it**: text copied from Teams, Word, Outlook or a web page arrives in the
+  editor with its bold, italics and lists written as `**`, `*`, `- ` and `1. `.
 
 ### Fixed
 

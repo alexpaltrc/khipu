@@ -1668,6 +1668,20 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
         ui.painter().layout_job(highlighted(ui, buffer.as_str(), &copied, &date, ink, wrap))
     };
     let carrying = ctx.data(|d| d.get_temp::<std::ops::Range<usize>>(drag_key())).is_some();
+    // Text copied with format, from Teams, Word or Outlook, keeps it: the paste the box is about
+    // to take is swapped for the same words with their marks.
+    let pasting = ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Paste(_))));
+    if pasting && ctx.memory(|m| m.has_focus(replace_id())) {
+        if let Some(rich) = crate::paste::copied_with_format() {
+            ctx.input_mut(|i| {
+                for event in &mut i.events {
+                    if let egui::Event::Paste(pasted) = event {
+                        *pasted = rich.clone();
+                    }
+                }
+            });
+        }
+    }
     let layout = egui::Layout::centered_and_justified(ui.layout().main_dir());
     let mut output = ui
         .allocate_ui_with_layout(egui::vec2(ui.available_width(), height), layout, |ui| {
@@ -1941,7 +1955,7 @@ fn text_with_blanks(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, t
         }
     }
     if paste {
-        let pasted = crate::paste::copied_text();
+        let pasted = crate::paste::copied_with_format().unwrap_or_else(crate::paste::copied_text);
         if !pasted.is_empty() {
             put(&ctx, text, picked.clone(), &pasted);
         }
