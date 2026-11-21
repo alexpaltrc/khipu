@@ -5,6 +5,13 @@ was published.
 
 ## Unreleased
 
+### Fixed
+
+- **Blank lines between paragraphs survive the expansion.** Espanso pasted long texts with bare
+  LF line endings, which plain Windows text boxes show as nothing, so the paragraphs came out
+  glued together. Texts and form results now reach espanso with CRLF; the editor still shows
+  them the same.
+
 ### Store
 
 - **Four new screenshots in each language, with new captions**: you type a little and Khipu

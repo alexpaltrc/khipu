@@ -277,13 +277,21 @@ fn classify(value: &Value) -> MatchEntry {
         if raw.extra.is_empty() {
             return MatchEntry::Simple(SimpleMatch {
                 trigger: raw.trigger,
-                replace: raw.replace,
+                replace: raw.replace.replace("\r\n", "\n"),
                 vars: raw.vars,
                 label: raw.label,
             });
         }
     }
     MatchEntry::Advanced(value.clone())
+}
+
+/// The text with Windows line endings, the way espanso has to receive it. When it pastes, it puts
+/// the text on the clipboard byte for byte, and a lone LF shows as nothing in plain Win32 edit
+/// boxes, gluing paragraphs together; when it types, it splits on CRLF just the same. Khipu reads
+/// the file back with plain LF, which is what its editor and the launcher work with.
+pub fn windows_lines(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\n', "\r\n")
 }
 
 fn to_value(entry: &MatchEntry) -> Value {
@@ -294,7 +302,7 @@ fn to_value(entry: &MatchEntry) -> Value {
             let m = m.normalized();
             let raw = SimpleMatchRaw {
                 trigger: m.trigger,
-                replace: m.replace,
+                replace: windows_lines(&m.replace),
                 vars: m.vars,
                 label: m.label,
                 extra: Mapping::new(),
@@ -607,6 +615,26 @@ mod tests {
         assert!(mf
             .extra_top_level
             .contains_key(Value::String("imports".to_string())));
+    }
+
+    /// Blank lines between paragraphs reach espanso as CRLF, which is what survives a paste into
+    /// any Windows app, and come back to the editor as plain LF.
+    #[test]
+    fn paragraphs_go_out_with_windows_line_endings_and_come_back_plain() {
+        let mut mf = MatchFile::default();
+        mf.entries.push(MatchEntry::Simple(SimpleMatch {
+            trigger: ":p".into(),
+            replace: "Uno.\n\nDos.\r\nTres.".into(),
+            vars: Vec::new(),
+            label: None,
+        }));
+        let text = mf.to_string_with_banner().unwrap();
+        let raw: Value = serde_norway::from_str(&text).unwrap();
+        assert_eq!(raw["matches"][0]["replace"].as_str(), Some("Uno.\r\n\r\nDos.\r\nTres."));
+        match &MatchFile::from_str(&text).unwrap().entries[0] {
+            MatchEntry::Simple(m) => assert_eq!(m.replace, "Uno.\n\nDos.\nTres."),
+            MatchEntry::Advanced(_) => panic!("should stay simple"),
+        }
     }
 
     #[test]

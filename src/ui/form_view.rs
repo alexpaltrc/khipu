@@ -618,6 +618,7 @@ fn needs_devanagari(title: &str, spec: &FormSpec, copied: &str) -> bool {
 /// the exe, since nothing reads its output there.
 fn emit(text: &str, studio: bool) {
     use std::io::Write as _;
+    let text = crate::yaml::model::windows_lines(text);
     let mut out = std::io::stdout().lock();
     let _ = out.write_all(text.as_bytes());
     let _ = out.flush();
