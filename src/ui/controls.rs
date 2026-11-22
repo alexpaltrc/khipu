@@ -613,6 +613,153 @@ pub fn page_header(ui: &mut egui::Ui, back: &str, title: &str, lang: Lang) -> bo
     leaving
 }
 
+// --- Cards of rows ----------------------------------------------------------------------------
+
+/// Inside a card, from its edge to a row's words and controls: what a Windows settings card keeps.
+pub const CARD_PAD_X: f32 = ROW_PAD_X;
+
+/// Above and below each row's contents, so a divider sits halfway between two rows.
+pub const CARD_PAD_Y: f32 = ROW_PAD_COMFORTABLE;
+
+/// Between a row's name and the quiet line under it.
+const ABOUT_GAP: f32 = 2.0;
+
+/// A group's name over its card.
+pub fn card_heading(ui: &mut egui::Ui, text: &str) {
+    ui.label(semibold(text));
+    ui.add_space(GAP);
+}
+
+/// One card of rows divided by the hairline, the way Windows' own settings are laid out. Ajustes
+/// and the options of a folder are both made of them.
+pub fn card(ui: &mut egui::Ui, rows: impl FnOnce(&mut egui::Ui)) {
+    let is_light = !ui.visuals().dark_mode;
+    egui::Frame::default()
+        .fill(crate::app::win_control_for(is_light))
+        .stroke(egui::Stroke::new(1.0, crate::app::hairline(is_light)))
+        .corner_radius(RADIUS_SECTION)
+        .inner_margin(egui::Margin::symmetric(CARD_PAD_X as i8, 0))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.spacing_mut().item_spacing.y = 0.0;
+            rows(ui);
+        });
+}
+
+/// The hairline between two rows of a card, from one edge of the card to the other.
+pub fn card_divider(ui: &mut egui::Ui) {
+    let is_light = !ui.visuals().dark_mode;
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
+    let line = rect.expand2(egui::vec2(CARD_PAD_X, 0.0));
+    ui.painter().rect_filled(line, 0.0, crate::app::hairline(is_light));
+}
+
+/// A row's name and the line on what it is for, laid out `width` wide: the two galleys and the
+/// height they take together.
+fn card_words(
+    ui: &egui::Ui,
+    title: &str,
+    about: egui::RichText,
+    width: f32,
+) -> (std::sync::Arc<egui::Galley>, std::sync::Arc<egui::Galley>, f32) {
+    let wrap = Some(egui::TextWrapMode::Wrap);
+    let title = egui::WidgetText::from(title).into_galley(ui, wrap, width, egui::TextStyle::Body);
+    let about = egui::WidgetText::from(about).into_galley(ui, wrap, width, egui::TextStyle::Small);
+    // A row with no name of its own (the line beside an Apply button) is only its quiet line.
+    let height = if title.text().is_empty() {
+        about.size().y
+    } else {
+        title.size().y + ABOUT_GAP + about.size().y
+    };
+    (title, about, height)
+}
+
+/// Puts [`card_words`] in place, as labels, at the top of `rect`.
+fn put_card_words(
+    ui: &mut egui::Ui,
+    rect: egui::Rect,
+    title: std::sync::Arc<egui::Galley>,
+    about: std::sync::Arc<egui::Galley>,
+) {
+    let mut column = ui.new_child(
+        egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)),
+    );
+    column.spacing_mut().item_spacing.y = ABOUT_GAP;
+    if !title.text().is_empty() {
+        column.add(egui::Label::new(title));
+    }
+    column.add(egui::Label::new(about));
+}
+
+/// One row of a card: its name and a quiet line on what it is for, with its control at the card's
+/// right edge, centred on the words. `control_width` is what the control takes, so the words wrap
+/// before they reach it.
+pub fn card_row<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    about: &str,
+    control_width: f32,
+    control: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let is_light = !ui.visuals().dark_mode;
+    card_row_with(ui, title, small_muted(about, is_light), control_width, control)
+}
+
+/// [`card_row`] with the line under the name in a voice of its own — the warning beside a button
+/// that deletes, said in the colour of danger.
+pub fn card_row_with<R>(
+    ui: &mut egui::Ui,
+    title: &str,
+    about: egui::RichText,
+    control_width: f32,
+    control: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let width = ui.available_width();
+    let room = (width - control_width - GAP_WIDE).max(80.0);
+    let (title, about, text_height) = card_words(ui, title, about, room);
+    let height = text_height.max(FIELD_HEIGHT);
+    ui.add_space(CARD_PAD_Y);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    let top = rect.center().y - text_height * 0.5;
+    put_card_words(
+        ui,
+        egui::Rect::from_min_size(egui::pos2(rect.left(), top), egui::vec2(room, text_height)),
+        title,
+        about,
+    );
+    let place = egui::Rect::from_min_max(egui::pos2(rect.left() + room, rect.top()), rect.max);
+    let mut right = ui.new_child(
+        egui::UiBuilder::new().max_rect(place).layout(egui::Layout::right_to_left(egui::Align::Center)),
+    );
+    let out = control(&mut right);
+    ui.add_space(CARD_PAD_Y);
+    out
+}
+
+/// A row whose control needs the card's whole width — a row of options: the name and the quiet
+/// line, and the control under them.
+pub fn card_stacked_row(ui: &mut egui::Ui, title: &str, about: &str, control: impl FnOnce(&mut egui::Ui)) {
+    let is_light = !ui.visuals().dark_mode;
+    let width = ui.available_width();
+    let (title, about, text_height) = card_words(ui, title, small_muted(about, is_light), width);
+    ui.add_space(CARD_PAD_Y);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, text_height), egui::Sense::hover());
+    put_card_words(ui, rect, title, about);
+    ui.add_space(GAP_ROW);
+    control(ui);
+    ui.add_space(CARD_PAD_Y);
+}
+
+/// What a [`button`] with `label` takes across.
+pub fn button_width(ui: &egui::Ui, label: &str) -> f32 {
+    let font = egui::FontId::new(
+        egui::TextStyle::Button.resolve(ui.style()).size,
+        crate::fonts::icons_family(),
+    );
+    let text = ui.painter().layout_no_wrap(label.to_owned(), font, egui::Color32::PLACEHOLDER);
+    text.size().x + 2.0 * ui.spacing().button_padding.x
+}
+
 // --- Surfaces ---------------------------------------------------------------------------------
 
 /// One titled section of a screen: a raised card with the one line colour around it.

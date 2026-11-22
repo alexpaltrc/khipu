@@ -145,120 +145,6 @@ const BAR_MAKES_WAY: f32 = 0.5;
 /// The title row and the space under it.
 const TITLE_ROW: f32 = controls::FIELD_HEIGHT + controls::GAP_WIDE;
 
-/// Inside a card, from its edge to a row's words and controls: what a Windows settings card keeps.
-const CARD_PAD_X: f32 = controls::ROW_PAD_X;
-
-/// Above and below each row's contents, so a divider sits halfway between two rows.
-const CARD_PAD_Y: f32 = controls::ROW_PAD_COMFORTABLE;
-
-/// Between a setting's name and the quiet line under it.
-const ABOUT_GAP: f32 = 2.0;
-
-/// A group's name over its card.
-fn heading(ui: &mut egui::Ui, text: &str) {
-    ui.label(controls::semibold(text));
-    ui.add_space(controls::GAP);
-}
-
-/// One card of settings, rows inside it divided by the hairline.
-fn card(ui: &mut egui::Ui, rows: impl FnOnce(&mut egui::Ui)) {
-    let is_light = !ui.visuals().dark_mode;
-    egui::Frame::default()
-        .fill(crate::app::win_control_for(is_light))
-        .stroke(egui::Stroke::new(1.0, crate::app::hairline(is_light)))
-        .corner_radius(controls::RADIUS_SECTION)
-        .inner_margin(egui::Margin::symmetric(CARD_PAD_X as i8, 0))
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.spacing_mut().item_spacing.y = 0.0;
-            rows(ui);
-        });
-}
-
-/// The hairline between two rows of a card, from one edge of the card to the other.
-fn divider(ui: &mut egui::Ui) {
-    let is_light = !ui.visuals().dark_mode;
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 1.0), egui::Sense::hover());
-    let line = rect.expand2(egui::vec2(CARD_PAD_X, 0.0));
-    ui.painter().rect_filled(line, 0.0, crate::app::hairline(is_light));
-}
-
-/// A setting's name and the quiet line on what it is for, laid out `width` wide: the two galleys
-/// and the height they take together.
-fn words(ui: &egui::Ui, title: &str, about: &str, width: f32) -> (std::sync::Arc<egui::Galley>, std::sync::Arc<egui::Galley>, f32) {
-    let is_light = !ui.visuals().dark_mode;
-    let wrap = Some(egui::TextWrapMode::Wrap);
-    let title = egui::WidgetText::from(title).into_galley(ui, wrap, width, egui::TextStyle::Body);
-    let about = egui::WidgetText::from(controls::small_muted(about, is_light)).into_galley(
-        ui,
-        wrap,
-        width,
-        egui::TextStyle::Small,
-    );
-    let height = title.size().y + ABOUT_GAP + about.size().y;
-    (title, about, height)
-}
-
-/// Puts [`words`] in place, as labels, at the top of `rect`.
-fn put_words(ui: &mut egui::Ui, rect: egui::Rect, title: std::sync::Arc<egui::Galley>, about: std::sync::Arc<egui::Galley>) {
-    let mut column = ui.new_child(
-        egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)),
-    );
-    column.spacing_mut().item_spacing.y = ABOUT_GAP;
-    column.add(egui::Label::new(title));
-    column.add(egui::Label::new(about));
-}
-
-/// One setting: its name and a quiet line on what it is for, with its control at the card's right
-/// edge, centred on the words. `control_width` is what the control takes, so the words wrap before
-/// they reach it.
-fn row<R>(
-    ui: &mut egui::Ui,
-    title: &str,
-    about: &str,
-    control_width: f32,
-    control: impl FnOnce(&mut egui::Ui) -> R,
-) -> R {
-    let width = ui.available_width();
-    let room = (width - control_width - controls::GAP_WIDE).max(80.0);
-    let (title, about, text_height) = words(ui, title, about, room);
-    let height = text_height.max(controls::FIELD_HEIGHT);
-    ui.add_space(CARD_PAD_Y);
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
-    let top = rect.center().y - text_height * 0.5;
-    put_words(ui, egui::Rect::from_min_size(egui::pos2(rect.left(), top), egui::vec2(room, text_height)), title, about);
-    let place = egui::Rect::from_min_max(egui::pos2(rect.left() + room, rect.top()), rect.max);
-    let mut right = ui.new_child(
-        egui::UiBuilder::new().max_rect(place).layout(egui::Layout::right_to_left(egui::Align::Center)),
-    );
-    let out = control(&mut right);
-    ui.add_space(CARD_PAD_Y);
-    out
-}
-
-/// A setting whose control needs the card's whole width — a row of options: the name and the
-/// quiet line, and the control under them.
-fn stacked_row(ui: &mut egui::Ui, title: &str, about: &str, control: impl FnOnce(&mut egui::Ui)) {
-    let width = ui.available_width();
-    let (title, about, text_height) = words(ui, title, about, width);
-    ui.add_space(CARD_PAD_Y);
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, text_height), egui::Sense::hover());
-    put_words(ui, rect, title, about);
-    ui.add_space(controls::GAP_ROW);
-    control(ui);
-    ui.add_space(CARD_PAD_Y);
-}
-
-/// What a [`controls::button`] with `label` takes across.
-fn button_width(ui: &egui::Ui, label: &str) -> f32 {
-    let font = egui::FontId::new(
-        egui::TextStyle::Button.resolve(ui.style()).size,
-        crate::fonts::icons_family(),
-    );
-    let text = ui.painter().layout_no_wrap(label.to_owned(), font, egui::Color32::PLACEHOLDER);
-    text.size().x + 2.0 * ui.spacing().button_padding.x
-}
-
 /// How long the hidden theme's option is pointed out after it has been found.
 pub const SPOTLIGHT: std::time::Duration = std::time::Duration::from_secs(4);
 
@@ -346,17 +232,17 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     let t = state.t();
     let is_light = !ui.visuals().dark_mode;
 
-    heading(ui, studio::text(state, "General", "General", "Pangkalahatan", "सामान्य"));
-    card(ui, |ui| {
+    controls::card_heading(ui, studio::text(state, "General", "General", "Pangkalahatan", "सामान्य"));
+    controls::card(ui, |ui| {
         let mut autostart = state.autostart_enabled && !crate::EXPERIMENTAL;
-        let changed = row(ui, t.autostart_checkbox, t.autostart_hint, 40.0, |ui| {
+        let changed = controls::card_row(ui, t.autostart_checkbox, t.autostart_hint, 40.0, |ui| {
             ui.add_enabled_ui(!crate::EXPERIMENTAL, |ui| controls::toggle(ui, &mut autostart, t.autostart_checkbox).changed())
                 .inner
         });
         if changed {
             state.set_autostart(autostart);
         }
-        divider(ui);
+        controls::card_divider(ui);
 
         // Each language is written in itself, so someone who cannot read the current interface
         // language can still find theirs — falling back to a Latin spelling for any script the
@@ -364,12 +250,12 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
         let names: Vec<&str> = Lang::ALL.iter().map(|lang| lang.picker_label(ui.ctx())).collect();
         let widest = names
             .iter()
-            .map(|n| button_width(ui, n))
+            .map(|n| controls::button_width(ui, n))
             .fold(0.0_f32, f32::max);
         let combo = (widest + LANGUAGE_ARROW).max(controls::dropdown_list_width(ui, &names));
         let current = state.settings.lang;
         let mut picked = None;
-        row(ui, t.language_section, t.language_hint, combo, |ui| {
+        controls::card_row(ui, t.language_section, t.language_hint, combo, |ui| {
             let shown = names[Lang::ALL.iter().position(|l| *l == current).unwrap_or(0)];
             let picker = egui::ComboBox::from_id_salt("settings_language")
                 .selected_text(shown)
@@ -387,14 +273,14 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
         if let Some(lang) = picked {
             state.set_language(lang);
         }
-        divider(ui);
+        controls::card_divider(ui);
 
-        stacked_row(ui, t.appearance_section, t.theme_hint, |ui| theme_row(ui, state));
+        controls::card_stacked_row(ui, t.appearance_section, t.theme_hint, |ui| theme_row(ui, state));
     });
 
     ui.add_space(GROUP_GAP);
-    heading(ui, studio::text(state, "Al escribir", "While you type", "Habang nagta-type", "टाइप करते समय"));
-    card(ui, |ui| {
+    controls::card_heading(ui, studio::text(state, "Al escribir", "While you type", "Habang nagta-type", "टाइप करते समय"));
+    controls::card(ui, |ui| {
         let about = studio::text(
             state,
             "Lo que escribes antes de la palabra, como \":\" en \":hola\".",
@@ -402,12 +288,12 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
             "Ang tine-type mo bago ang salita, gaya ng \":\" sa \":kumusta\".",
             "शब्द से पहले जो आप टाइप करते हैं, जैसे \":नमस्ते\" में \":\"।",
         );
-        stacked_row(ui, t.prefix_section, about, |ui| prefix_row(ui, state));
-        divider(ui);
+        controls::card_stacked_row(ui, t.prefix_section, about, |ui| prefix_row(ui, state));
+        controls::card_divider(ui);
 
         let go = studio::text(state, "Aplicar", "Apply", "Ilapat", "लागू करें");
-        let width = button_width(ui, go);
-        let apply = row(
+        let width = controls::button_width(ui, go);
+        let apply = controls::card_row(
             ui,
             apply_title(state),
             studio::text(
@@ -423,7 +309,7 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
         if apply {
             state.apply_prefix_to_existing();
         }
-        divider(ui);
+        controls::card_divider(ui);
 
         excluded_apps(ui, state);
     });
@@ -432,8 +318,8 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     // ours for it to change.
     if state.hotkey.is_some() {
         ui.add_space(GROUP_GAP);
-        heading(ui, studio::text(state, "Buscador", "Search", "Paghahanap", "खोज"));
-        card(ui, |ui| {
+        controls::card_heading(ui, studio::text(state, "Buscador", "Search", "Paghahanap", "खोज"));
+        controls::card(ui, |ui| {
             let width = shortcut_box_width(ui, state) + controls::GAP + controls::FIELD_HEIGHT;
             let about = studio::text(
                 state,
@@ -442,18 +328,18 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
                 "Binubuksan ang paghahanap mula sa kahit anong program.",
                 "किसी भी प्रोग्राम से खोज खोलता है।",
             );
-            row(ui, t.launcher_shortcut_section, about, width, |ui| launcher_shortcut(ui, state));
+            controls::card_row(ui, t.launcher_shortcut_section, about, width, |ui| launcher_shortcut(ui, state));
             if let Some(taken) = state.shortcut_taken {
                 let lang = state.settings.lang;
                 let text = fill(t.launcher_shortcut_taken, &[("keys", &taken.label(lang))]);
                 ui.add(egui::Label::new(egui::RichText::new(text).color(crate::app::danger(is_light))).wrap());
-                ui.add_space(CARD_PAD_Y);
+                ui.add_space(controls::CARD_PAD_Y);
             }
-            divider(ui);
+            controls::card_divider(ui);
 
             let mut first = state.settings.favorites_first;
             let name = studio::text(state, "Favoritos primero", "Favorites first", "Mga paborito muna", "पसंदीदा पहले");
-            let changed = row(
+            let changed = controls::card_row(
                 ui,
                 name,
                 studio::text(
@@ -473,11 +359,11 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     }
 
     ui.add_space(GROUP_GAP);
-    heading(ui, studio::text(state, "Tus expansiones", "Your expansions", "Ang iyong mga expansion", "आपके विस्तार"));
-    card(ui, |ui| {
+    controls::card_heading(ui, studio::text(state, "Tus expansiones", "Your expansions", "Ang iyong mga expansion", "आपके विस्तार"));
+    controls::card(ui, |ui| {
         let export = studio::text(state, "Exportar…", "Export…", "I-export…", "निर्यात…");
         let import = studio::text(state, "Importar…", "Import…", "I-import…", "आयात…");
-        let width = button_width(ui, export) + controls::GAP + button_width(ui, import);
+        let width = controls::button_width(ui, export) + controls::GAP + controls::button_width(ui, import);
         let about = studio::text(
             state,
             "Guárdalas en un archivo, o trae las de otra computadora.",
@@ -485,7 +371,7 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
             "I-save sa isang file, o kunin ang mula sa ibang kompyuter.",
             "इन्हें फ़ाइल में सहेजें, या दूसरे कंप्यूटर से लाएँ।",
         );
-        let (exporting, importing) = row(ui, t.transfer_section, about, width, |ui| {
+        let (exporting, importing) = controls::card_row(ui, t.transfer_section, about, width, |ui| {
             ui.spacing_mut().item_spacing.x = controls::GAP;
             // Right to left: the second button first.
             let importing = controls::button(ui, import, Tone::Normal, true).clicked();
@@ -540,7 +426,7 @@ fn excluded_apps(ui: &mut egui::Ui, state: &mut AppState) {
     let add = studio::text(state, "Añadir", "Add", "Magdagdag", "जोड़ें");
     let width = controls::subtle_button_width(ui, true, add, true);
     let mut picked = None;
-    row(
+    controls::card_row(
         ui,
         studio::text(state, "No expandir en", "Don't expand in", "Huwag mag-expand sa", "इनमें विस्तार न करें"),
         studio::text(
@@ -621,7 +507,7 @@ fn excluded_apps(ui: &mut egui::Ui, state: &mut AppState) {
             });
         });
     }
-    ui.add_space(CARD_PAD_Y);
+    ui.add_space(controls::CARD_PAD_Y);
     if let Some(exe) = removed {
         state.include_app(&exe);
     }
@@ -971,7 +857,7 @@ mod tests {
     /// window, less the room `segmented` keeps for itself).
     #[test]
     fn the_theme_row_fits_in_every_language() {
-        const ROOM: f32 = WIDEST - 10.0 - 8.0 - 2.0 * CARD_PAD_X - 2.0;
+        const ROOM: f32 = WIDEST - 10.0 - 8.0 - 2.0 * controls::CARD_PAD_X - 2.0;
         let ctx = egui::Context::default();
         crate::fonts::install(&ctx, true);
         ctx.all_styles_mut(|s| {

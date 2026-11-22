@@ -28,6 +28,12 @@ was published.
 - **Ctrl+Z undoes and Ctrl+Y redoes**, up to fifty steps: deleting, moving to a folder,
   renaming or creating a folder, starring, switching on or off and changing a prefix. «Deshacer»
   and «Rehacer» are also at the top of the «⋯» menu, with their shortcuts.
+- **A folder's options, redesigned like Ajustes.** Rows in cards, each with one quiet line and
+  its control at the right: Nombre, Encendida, Prefijo, Exportar, and Eliminar carpeta in a card
+  of its own that says what goes with it. The name is kept as soon as you click elsewhere (Esc
+  takes it back), with no Guardar button; on and off is a switch that says how many are off; the
+  prefix shows every trigger it would change before «Aplicar». An empty folder shows only its
+  name and Eliminar.
 
 ### Fixed
 
