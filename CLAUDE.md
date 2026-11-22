@@ -198,6 +198,13 @@ solo el índice para saber cuál abrir.
   resortes, transformando en vez de reemplazar, revisadas cuadro a cuadro en claro y oscuro, e
   iteradas hasta que cada fotograma se vea bien (skill `alex-vibecode`, sección 2).
 - El texto cortado en el borde de la ventana quita elegancia, prestigio y belleza.
+- **Alineación al píxel** (revisión del 2026-11-22). Toda la letra se dibuja `fonts::TEXT_LIFT`
+  más arriba de donde egui la coloca, para que quede al centro de su caja: lo que se centre en las
+  letras (no en la caja) le resta esa elevación. Dos tipos de letra en una línea (Cascadia Mono
+  junto a Segoe UI) van sobre la misma línea base con `controls::baseline_drop`, nunca centrados.
+  Las pruebas `capitals_stand_in_the_middle_of_their_line` y `code_beside_words_shares_their_baseline`
+  lo vigilan; no se apagan. En las capturas se mide con palabras de solo mayúsculas
+  (la tinta de una «H»), no a ojo.
 - **Nada de subagentes ni workflows.** Son lo más caro del plan. Verifica tú mismo.
 - Los hallazgos de la revisión se trabajan **uno por uno**, para llevar el control del
   uso del plan. No adelantarse al lote que el usuario pidió.

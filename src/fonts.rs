@@ -453,6 +453,36 @@ mod tests {
         out.textures_delta.clear();
     }
 
+    /// Where a capital's ink sits in a line laid out at `size`, as (top, bottom, line height), in
+    /// points from the line's top: what is drawn, lift included.
+    pub(crate) fn capital_ink(ctx: &egui::Context, family: egui::FontFamily, size: f32) -> (f32, f32, f32) {
+        let galley = ctx.fonts_mut(|f| f.layout_no_wrap("H".to_owned(), egui::FontId::new(size, family), egui::Color32::WHITE));
+        let row = &galley.rows[0];
+        let glyph = &row.glyphs[0];
+        let top = row.pos.y + glyph.pos.y + glyph.uv_rect.offset.y;
+        (top, top + glyph.uv_rect.size.y, galley.size().y)
+    }
+
+    /// Every button, pill and row centres its words' line in its box, so the letters have to stand
+    /// in the middle of their own line — or every label sits low and every icon beside it looks
+    /// lifted, which is what [`TEXT_LIFT`] was measured to undo. A new Windows font, a new egui, or
+    /// a change to the lift that brings that back fails here instead of on screen.
+    #[test]
+    fn capitals_stand_in_the_middle_of_their_line() {
+        let ctx = egui::Context::default();
+        install(&ctx, false);
+        pass(&ctx, |_| {});
+        pass(&ctx, |ctx| {
+            for family in [egui::FontFamily::Proportional, semibold_family()] {
+                for size in [12.0, 13.0, 14.0, 16.0, 20.0, 28.0] {
+                    let (top, bottom, height) = capital_ink(ctx, family.clone(), size);
+                    let off = (top + bottom) * 0.5 - height * 0.5;
+                    assert!(off.abs() <= 0.5, "{family:?} at {size}: capitals {off:+.2} pt off the middle of the line");
+                }
+            }
+        });
+    }
+
     /// The glyphs the interface reaches for, and the trap that used to hide them.
     ///
     /// Deliberately does **not** call [`install`]: every character below lives in a face egui

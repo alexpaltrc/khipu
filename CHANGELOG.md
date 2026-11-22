@@ -37,6 +37,9 @@ was published.
 
 ### Fixed
 
+- **No crash with a screen reader or other accessibility tool listening.** Giving a box the focus
+  before it was drawn — «+» for a new folder's name, among others — handed AccessKit a tree whose
+  focus was missing, and it closed the app. Whatever has the focus is now always in the tree.
 - **Blank lines between paragraphs survive the expansion.** Espanso pasted long texts with bare
   LF line endings, which plain Windows text boxes show as nothing, so the paragraphs came out
   glued together. Texts and form results now reach espanso with CRLF; the editor still shows

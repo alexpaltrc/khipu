@@ -2469,6 +2469,25 @@ pub(crate) fn apply_motion(ctx: &egui::Context) {
     });
 }
 
+/// Whatever has the keyboard is in the accessibility tree at the end of every pass, drawn or not.
+///
+/// A box is often given the focus in the frame before it is drawn — «+» asking for the new
+/// folder's name, a step jumping to its first field — and egui names the focused id in AccessKit's
+/// update whether or not a node was made for it. AccessKit takes that as a broken tree and panics,
+/// which is a crash for anyone whose screen reader, Voice Access, or other UI Automation client is
+/// listening; nobody else ever runs that code. An empty node under the window fills the gap for
+/// that one frame; the next, the real widget writes its own.
+pub(crate) fn keep_focus_in_accessibility_tree(ctx: &egui::Context) {
+    ctx.on_end_pass(
+        "focus-in-accessibility-tree",
+        std::sync::Arc::new(|ui: &mut egui::Ui| {
+            if let Some(id) = ui.ctx().memory(|m| m.focused()) {
+                ui.ctx().accesskit_node_builder(id, |_| ());
+            }
+        }),
+    );
+}
+
 pub(crate) fn apply_layout_style(ctx: &egui::Context, text_scale: f32) {
     // Windows 11's own ramp, in the same units egui measures in, rather than egui's defaults
     // multiplied by some factor:
@@ -3072,6 +3091,7 @@ impl KhipuApp {
         }
         crate::theme::refresh_animations();
         apply_motion(&cc.egui_ctx);
+        keep_focus_in_accessibility_tree(&cc.egui_ctx);
         set_palette_for(ctx.settings.theme_mode);
         apply_theme(&cc.egui_ctx, window.as_deref(), is_light);
         // The title bar is the one strip of this window that Windows draws, and on Windows 11 it can
@@ -4106,6 +4126,20 @@ impl eframe::App for KhipuApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A box given the focus before it is drawn — what «+» does for the new folder's name — still
+    /// leaves the focused node in AccessKit's update; without it, a screen reader crashed the app.
+    #[test]
+    fn the_focused_widget_is_always_in_the_accessibility_tree() {
+        let ctx = egui::Context::default();
+        keep_focus_in_accessibility_tree(&ctx);
+        ctx.enable_accesskit();
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            ui.memory_mut(|m| m.request_focus(egui::Id::new("drawn next frame")));
+        });
+        let update = output.platform_output.accesskit_update.expect("AccessKit is on");
+        assert!(update.nodes.iter().any(|(id, _)| *id == update.focus));
+    }
 
     /// WCAG's contrast ratio between two colours.
     fn contrast_ratio(a: egui::Color32, b: egui::Color32) -> f32 {

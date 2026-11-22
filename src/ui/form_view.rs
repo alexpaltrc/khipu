@@ -591,7 +591,10 @@ fn dress(
     theme_mode: crate::theme::ThemeMode,
     devanagari: bool,
 ) -> bool {
-    use crate::app::{apply_layout_style, apply_motion, apply_theme, contrast_is_light, refresh_contrast, set_palette_for};
+    use crate::app::{
+        apply_layout_style, apply_motion, apply_theme, contrast_is_light, keep_focus_in_accessibility_tree, refresh_contrast,
+        set_palette_for,
+    };
     refresh_contrast();
     let is_light = contrast_is_light().unwrap_or(theme_mode.is_light());
     if let Some(window) = window {
@@ -608,6 +611,7 @@ fn dress(
     }
     crate::theme::refresh_animations();
     apply_motion(&cc.egui_ctx);
+    keep_focus_in_accessibility_tree(&cc.egui_ctx);
     set_palette_for(theme_mode);
     apply_theme(&cc.egui_ctx, window, is_light);
     if let Some(window) = window {

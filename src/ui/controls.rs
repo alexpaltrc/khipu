@@ -2107,7 +2107,31 @@ pub fn field_underline(ui: &egui::Ui, rect: egui::Rect) {
 
 #[cfg(test)]
 mod tests {
-    use super::{find_ignoring_case, pill_spans};
+    use super::{baseline_drop, find_ignoring_case, pill_spans, widget_line};
+
+    /// A trigger in Cascadia Mono beside words in Segoe UI — a prefix chip, «;hola» in Consejos,
+    /// a row's trigger and name — stands on the words' baseline once lowered by [`baseline_drop`].
+    /// Measured on what is drawn, a capital's ink, so a change to either font, to the lift, or to
+    /// how the drop is worked out that leaves the two a step apart fails here.
+    #[test]
+    fn code_beside_words_shares_their_baseline() {
+        let ctx = egui::Context::default();
+        crate::fonts::install(&ctx, false);
+        for _ in 0..2 {
+            let mut out = ctx.run_ui(Default::default(), |ui| {
+                let foot = |text: egui::RichText| {
+                    let line = widget_line(ui, text, egui::TextStyle::Body);
+                    let (row, glyph) = (&line.rows[0], &line.rows[0].glyphs[0]);
+                    row.pos.y + glyph.pos.y + glyph.uv_rect.offset.y + glyph.uv_rect.size.y - line.size().y * 0.5
+                };
+                let words = foot(egui::RichText::new("H"));
+                let code = foot(egui::RichText::new("H").monospace())
+                    + baseline_drop(ui, egui::RichText::new("x"), egui::RichText::new("x").monospace());
+                assert!((code - words).abs() <= 0.5, "code stands {:+.2} pt off the words' baseline", code - words);
+            });
+            out.textures_delta.clear();
+        }
+    }
 
     #[test]
     fn every_marker_is_a_pill_and_stray_brackets_are_text() {
