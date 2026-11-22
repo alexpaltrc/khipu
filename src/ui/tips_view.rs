@@ -352,7 +352,7 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
                 ("all", text(state, "Todas las carpetas", "All folders", "Lahat ng folder", "सभी फ़ोल्डर")),
                 ("none", t.no_folder),
                 ("select", text(state, "Seleccionar varias", "Select several", "Pumili ng ilan", "कई चुनें")),
-                ("new", t.add_new_folder.trim_start_matches(['+', ' ']).trim_end_matches('…')),
+                ("new", t.new_folder),
                 ("options", text(state, "Opciones de carpeta", "Folder options", "Mga opsyon ng folder", "फ़ोल्डर विकल्प")),
             ],
         );
@@ -487,11 +487,9 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
         // What each setting does, at more length than the one line the dialog gives it: under the
         // same name and in the same order, for whoever asks.
         topic(ui, false, t.settings_title, |ui| {
-            part(ui, true, t.autostart_checkbox, t.autostart_hint);
+            part(ui, true, t.appearance_section, t.theme_hint);
             part(ui, false, t.language_section, t.language_hint);
-            part(ui, false, t.appearance_section, t.theme_hint);
             part(ui, false, t.prefix_section, t.prefix_hint);
-            part(ui, false, super::settings_view::apply_title(state), t.apply_prefix_hint);
             // Only where Settings shows it: see the same test in the search topic above.
             if state.hotkey.is_some() {
                 let default = crate::hotkey::DEFAULT.label(state.settings.lang);

@@ -116,9 +116,6 @@ pub struct Settings {
     /// espanso has nowhere to put it. Every operation that changes a trigger carries its star along,
     /// exactly as it carries its folder.
     pub favorites: BTreeSet<String>,
-    /// Whether the launcher lists starred expansions ahead of the rest. On unless switched off,
-    /// which is also what a file written before the field existed reads back as.
-    pub favorites_first: bool,
     /// The release whose «Novedades» card has been closed. Nothing, as in a file from before the
     /// card existed, means an update nobody has been told about yet.
     pub whats_new_seen: Option<String>,
@@ -145,7 +142,6 @@ impl Default for Settings {
             onboarding_done: false,
             launcher_shortcut: None,
             favorites: BTreeSet::new(),
-            favorites_first: true,
             whats_new_seen: None,
             excluded_apps: Vec::new(),
         }
@@ -441,7 +437,7 @@ mod tests {
         s.set_favorite(";firma", false);
         assert!(s.favorites.is_empty());
         let old: Settings = serde_json::from_str("{}").unwrap();
-        assert!(old.favorites.is_empty() && old.favorites_first);
+        assert!(old.favorites.is_empty());
     }
 
     /// A new install starts with `;`; a file that says nothing about the prefix keeps the `:` its

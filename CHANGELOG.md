@@ -35,10 +35,22 @@ was published.
   prefix shows every trigger it would change before «Aplicar». An empty folder shows only its
   name and Eliminar.
 - **Making an expansion asks two questions, not three.** «¿Algo más?» is gone: the star, the
-  folder and the name wait as quiet buttons at the left of the editor's foot, opposite Cancelar
-  and Guardar. Each shows what it holds (the folder's name, the expansion's name, cut with «…»
-  when long) and says on hover what it is for. The folder opens a short list with «Nueva
-  carpeta…» at the end; the name opens a box with the cursor already in it, put away with Enter.
+  folder and the name wait at the left of the editor's foot, opposite Cancelar and Guardar. The
+  star and the folder are one icon each until they hold something (the folder then shows its
+  name), and each says on hover what it is for. The name is typed right there: the word
+  «Nombre» becomes a box when pointed at. The folder opens a short list with «Nueva carpeta» at
+  the end.
+- **The hover highlight glides at any speed.** On its way it stretches towards where it is
+  going and gathers itself as it arrives, like something liquid; a fast sweep never turns into a
+  long smear, and crossing the gap between two controls no longer makes it blink out and back.
+- **A smaller Ajustes.** The theme is one icon beside the ✕ (sun, moon…) that moves to the next
+  theme with each click, its icon turning over; the language is another icon that opens the four.
+  «Iniciar con Windows» is gone: Khipu starts with Windows from the first run, and is switched off
+  where Windows lists its startup apps. «Favoritos primero» is gone: favorites always come
+  first. The two prefix settings are one: picking a new prefix offers to change your existing
+  expansions too («Cambiarlas» or «Solo las nuevas»).
+- **No more trailing «…»** on buttons and hints (Exportar, Importar, «Nueva carpeta», «Tu texto
+  aparecerá aquí» and others): only words that are a sentence end like one.
 
 ### Fixed
 

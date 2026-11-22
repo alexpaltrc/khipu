@@ -131,8 +131,8 @@ pub enum PendingConfirmKind {
     DeleteOne { index: usize },
     DeleteFolder { folder: String },
     DeleteSelection,
-    /// Not a deletion, and the one kind still asked: «Aplicar» in Ajustes renaming every listed
-    /// trigger to the new prefix, in the app's own modal. The items are (old, new) pairs.
+    /// Not a deletion, and the one kind still asked: after a new prefix in Ajustes, whether to
+    /// rename every listed trigger to it too, in the app's own modal. The items are (old, new) pairs.
     RenamePrefix,
 }
 
@@ -459,13 +459,14 @@ pub struct AppState {
     /// «Novedades», over the list after an update. See [crate::ui::whats_new_view].
     pub whats_new_open: bool,
     /// The prefix in force before Ajustes changed it in this run: the one the expansions still
-    /// carry until «Aplicar». See [`crate::folders::retarget`].
+    /// carry until they are renamed to the new one. See [`crate::folders::retarget`].
     prefix_before: Option<String>,
     pub search: String,
     pub banner: Option<Banner>,
     /// Why the expansions file could not be read, if it could not. Saving is refused while this
     /// is set: the model in memory is empty, and it did not come from disk.
     pub load_error: Option<String>,
+    /// Whether Windows will start this copy at login, for the welcome's last tip.
     pub autostart_enabled: bool,
     pub exe_path: PathBuf,
     /// Triggers of the expansions currently checked in the list, for bulk actions.
@@ -577,11 +578,7 @@ impl AppState {
     }
 
     /// Opens Ajustes over the current screen. The one way in.
-    ///
-    /// Blocking here is fine: the user has just asked for the dialog, and the switch has to say what
-    /// Windows will really do at the next start, not what it said when the app was launched.
     pub fn open_settings(&mut self) {
-        self.refresh_autostart_cache();
         self.ensure_espanso_version();
         self.settings_note = None;
         self.settings_open = true;
@@ -716,10 +713,8 @@ impl AppState {
                 MatchEntry::Advanced(_) => None,
             })
             .collect();
-        if self.settings.favorites_first {
-            // Stable, so each half keeps the file's order.
-            hits.sort_by_key(|hit| !self.settings.is_favorite(&hit.trigger));
-        }
+        // Starred ones first, always. Stable, so each half keeps the file's order.
+        hits.sort_by_key(|hit| !self.settings.is_favorite(&hit.trigger));
         hits
     }
 
@@ -743,23 +738,6 @@ impl AppState {
             self.set_error_banner(msg);
         }
         self.record(before, false);
-    }
-
-    pub fn set_favorites_first(&mut self, on: bool) {
-        if self.settings.favorites_first == on {
-            return;
-        }
-        self.settings.favorites_first = on;
-        if let Err(e) = self.settings_store.save(&self.settings) {
-            let msg = fill(ui::studio::text(
-                self,
-                "No se pudo guardar el ajuste del buscador. {err}",
-                "Could not save the search setting. {err}",
-                "Hindi ma-save ang setting ng paghahanap. {err}",
-                "खोज की सेटिंग सहेजी नहीं जा सकी। {err}",
-            ), &[("err", &crate::i18n::explain_io(self.t(), &e))]);
-            self.set_error_banner(msg);
-        }
     }
 
     /// Turns espanso off in `app`. See [`crate::exclusions`].
@@ -845,10 +823,6 @@ impl AppState {
         }
         self.espanso_version_asked = true;
         self.espanso_version = self.ctl.version(self.t());
-    }
-
-    pub fn refresh_autostart_cache(&mut self) {
-        self.autostart_enabled = autostart::is_enabled(&self.exe_path);
     }
 
     /// Shorthand for the active language's string table.
@@ -988,28 +962,22 @@ impl AppState {
         }
     }
 
-    pub fn set_autostart(&mut self, enabled: bool) {
+    /// Starts Khipu with Windows, on the first run. Turning it off is Windows' own switch.
+    pub fn enable_autostart(&mut self) {
         if crate::EXPERIMENTAL { return; }
         let t = self.t();
-        match autostart::set_enabled(enabled, &self.exe_path) {
-            Ok(()) => {
-                // Read back rather than assuming the write is the whole answer. Windows keeps a
-                // separate veto over start-up entries, and if clearing it did not take, the entry
-                // is written and still dead — better a switch that stays where the machine has it
-                // than one that says yes on top of a no.
-                //
-                // Nothing is announced: the switch, drawn from that read-back, is the answer. A
-                // sentence repeating it under the switch was one more thing to read for nothing.
-                self.refresh_autostart_cache();
-            }
+        let result = autostart::enable(&self.exe_path);
+        // Read back rather than assuming the write is the whole answer: Windows keeps a separate
+        // veto over start-up entries, and the welcome's last tip says what is really true.
+        self.autostart_enabled = autostart::is_enabled(&self.exe_path);
+        match result {
+            Ok(()) => {}
             // The installed copy's startup task can be vetoed in Windows' own Settings, and only
             // there: the useful thing to say is where.
             Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied && crate::install::is_packaged() => {
-                self.refresh_autostart_cache();
                 self.set_error_banner(t.autostart_vetoed.to_string());
             }
             Err(e) => {
-                self.refresh_autostart_cache();
                 self.set_error_banner(fill(t.autostart_error, &[("err", &crate::i18n::explain_io(t, &e))]));
             }
         }
@@ -1020,7 +988,7 @@ impl AppState {
             return;
         }
         // The first prefix left behind is the one the expansions still carry, however many are
-        // tried after it (or typed a key at a time) before «Aplicar».
+        // tried after it (or typed a key at a time) before they are renamed.
         if self.prefix_before.is_none() && self.settings.prefix != prefix {
             self.prefix_before = Some(self.settings.prefix.clone());
         }
@@ -1077,7 +1045,10 @@ impl AppState {
         self.pending_language_refresh = true;
     }
 
-    pub fn apply_prefix_to_existing(&mut self) {
+    /// Right after a new prefix is picked in Ajustes: if expansions still carry the one before,
+    /// one question offers to change them too. Nothing to change, nothing asked — the new prefix
+    /// was only ever for the expansions still to come.
+    pub fn offer_prefix_rename(&mut self) {
         let new_prefix = self.settings.prefix.clone();
         let before = self.prefix_before.clone();
         let mut renamed = Vec::new();
@@ -1101,7 +1072,6 @@ impl AppState {
 
         let t = self.t();
         if renamed.is_empty() {
-            self.set_info_banner(t.prefix_already_applied);
             return;
         }
 
@@ -1158,7 +1128,7 @@ impl AppState {
         let prefix_before = self.prefix_before.take();
 
         if !self.save_and_reload(crate::i18n::fill_count(t.prefix_applied, renamed.len(), &[])) {
-            // Still the old prefix on disk, so still the old one here, and «Aplicar» still waiting.
+            // Still the old prefix on disk, so still the old one here, and the offer still to be made.
             self.put_back(before);
             for (old, new) in &renamed {
                 self.selection_rename(new, old);
@@ -3260,7 +3230,7 @@ impl KhipuApp {
             // one that does nothing, and the last step of the welcome says where to turn it off.
             // A first run only — whoever already has a settings file has already chosen.
             if !replay {
-                state.set_autostart(true);
+                state.enable_autostart();
             }
             state.begin_onboarding();
             state.view = View::Onboarding;

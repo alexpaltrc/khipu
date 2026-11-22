@@ -174,8 +174,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             2 => t.onboarding_try_tip.to_owned(),
             // Said only once the switch is known to be on: the first run turns it on, but a veto
             // from Windows can keep it off, and then the tip says where to try again.
-            _ if state.autostart_enabled => crate::i18n::fill(t.onboarding_autostart_note, &[("settings", t.settings_title)]),
-            _ => crate::i18n::fill(t.onboarding_autostart_off_note, &[("settings", t.settings_title)]),
+            _ if state.autostart_enabled => t.onboarding_autostart_note.to_owned(),
+            _ => t.onboarding_autostart_off_note.to_owned(),
         };
         tip_line(ui, &tip, left, width, &enter, &mut frames);
         ui.add_space(controls::GAP_SECTION);

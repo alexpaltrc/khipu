@@ -76,6 +76,12 @@ pub enum Glyph {
     News,
     Calendar,
     Clock,
+    Sun,
+    Moon,
+    MoonFilled,
+    ThemeSystem,
+    Sparkle,
+    Language,
 }
 
 impl Glyph {
@@ -122,6 +128,23 @@ impl Glyph {
             Glyph::News => '\u{E789}',
             Glyph::Calendar => '\u{E787}',
             Glyph::Clock => '\u{E121}',
+            Glyph::Sun => '\u{E706}',
+            Glyph::Moon => '\u{E708}',
+            Glyph::MoonFilled => '\u{F1DB}',
+            Glyph::ThemeSystem => '\u{E793}',
+            Glyph::Sparkle => '\u{F4A5}',
+            Glyph::Language => '\u{F2B7}',
+        }
+    }
+
+    /// For the few icons only Segoe Fluent Icons has, the nearest one Segoe MDL2 Assets has, so
+    /// Windows 10 draws a cousin rather than an empty box.
+    const fn older(self) -> Option<char> {
+        match self {
+            Glyph::MoonFilled => Some('\u{E708}'),
+            Glyph::Sparkle => Some('\u{E734}'),
+            Glyph::Language => Some('\u{E774}'),
+            _ => None,
         }
     }
 }
@@ -139,6 +162,23 @@ pub fn available(ctx: &egui::Context) -> bool {
     let found = crate::fonts::can_draw(ctx, crate::fonts::fluent_family(), Glyph::Add.codepoint());
     ctx.data_mut(|d| d.insert_temp(key, found));
     found
+}
+
+/// The character that draws `glyph` here: its own, or its older cousin where the font lacks it.
+/// Asked once per icon and remembered, like [`available`].
+fn drawn(ctx: &egui::Context, glyph: Glyph) -> char {
+    let Some(older) = glyph.older() else { return glyph.codepoint() };
+    let key = egui::Id::new("fluent-only").with(glyph);
+    if let Some(known) = ctx.data(|d| d.get_temp::<char>(key)) {
+        return known;
+    }
+    let c = if crate::fonts::can_draw(ctx, crate::fonts::fluent_family(), glyph.codepoint()) {
+        glyph.codepoint()
+    } else {
+        older
+    };
+    ctx.data_mut(|d| d.insert_temp(key, c));
+    c
 }
 
 /// Draws `glyph` centred in `rect`, `size` points tall.
@@ -161,7 +201,7 @@ pub fn shape(ui: &egui::Ui, rect: Rect, glyph: Glyph, size: f32, ink: Color32) -
         return None;
     }
     let galley = ui.painter().layout_no_wrap(
-        glyph.codepoint().to_string(),
+        drawn(ui.ctx(), glyph).to_string(),
         egui::FontId::new(size, crate::fonts::fluent_family()),
         ink,
     );

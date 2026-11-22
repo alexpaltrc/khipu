@@ -1238,17 +1238,17 @@ pub fn segmented<S: AsRef<str>>(
     labels: &[S],
     selected: Option<usize>,
 ) -> Option<usize> {
-    segmented_marked(ui, id_salt, labels, selected, None)
-}
-
-/// One segment set apart from the others: drawn with its own outline and, while `glow` is above
-/// zero, a soft halo of the same colour that fades as it falls. `focus` hands it the keyboard, so
-/// Enter or Space picks it — the way to say «this one, over here» without picking it for the user.
-pub struct SegmentMark {
-    pub index: usize,
-    pub outline: egui::Color32,
-    pub glow: f32,
-    pub focus: bool,
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let faces: Vec<_> = labels
+        .iter()
+        .map(|label| {
+            SegmentFace::Words(
+                ui.painter().layout_no_wrap(label.as_ref().to_owned(), font.clone(), egui::Color32::PLACEHOLDER),
+                0.0,
+            )
+        })
+        .collect();
+    segmented_faces(ui, id_salt, faces, selected)
 }
 
 const SEGMENT_HEIGHT: f32 = FIELD_HEIGHT - 4.0;
@@ -1279,27 +1279,6 @@ pub fn segmented_natural_width<S: AsRef<str>>(ui: &egui::Ui, labels: &[S]) -> f3
     segments + SEGMENT_GAP * labels.len().saturating_sub(1) as f32 + 2.0 * 3.0
 }
 
-/// [`segmented`], with one segment set apart. See [`SegmentMark`].
-pub fn segmented_marked<S: AsRef<str>>(
-    ui: &mut egui::Ui,
-    id_salt: impl std::hash::Hash + std::fmt::Debug,
-    labels: &[S],
-    selected: Option<usize>,
-    mark: Option<SegmentMark>,
-) -> Option<usize> {
-    let font = egui::TextStyle::Button.resolve(ui.style());
-    let faces: Vec<_> = labels
-        .iter()
-        .map(|label| {
-            SegmentFace::Words(
-                ui.painter().layout_no_wrap(label.as_ref().to_owned(), font.clone(), egui::Color32::PLACEHOLDER),
-                0.0,
-            )
-        })
-        .collect();
-    segmented_faces(ui, id_salt, faces, selected, mark)
-}
-
 /// [`segmented`] whose first `codes` options are things to type, written the way a trigger is: in
 /// monospace, with no quotes round them, on the same baseline as the words in the rest. Set in the
 /// interface face, a «;» or a «:» was a speck that needed quotes to be seen at all.
@@ -1324,7 +1303,7 @@ pub fn segmented_codes<S: AsRef<str>>(
             )
         })
         .collect();
-    segmented_faces(ui, id_salt, faces, selected, None)
+    segmented_faces(ui, id_salt, faces, selected)
 }
 
 /// [`segmented`] with a pictogram in each segment instead of words: for a choice whose options read
@@ -1340,7 +1319,7 @@ pub fn segmented_icons(
         .iter()
         .map(|&(glyph, name)| SegmentFace::Icon(glyph, name.to_owned()))
         .collect();
-    segmented_faces(ui, id_salt, faces, selected, None)
+    segmented_faces(ui, id_salt, faces, selected)
 }
 
 /// The width a row of [`segmented_icons`] asks for, track included.
@@ -1371,7 +1350,6 @@ fn segmented_faces(
     id_salt: impl std::hash::Hash + std::fmt::Debug,
     faces: Vec<SegmentFace>,
     selected: Option<usize>,
-    mark: Option<SegmentMark>,
 ) -> Option<usize> {
     if faces.is_empty() {
         return None;
@@ -1422,34 +1400,8 @@ fn segmented_faces(
                         !is_selected && response.hovered(),
                         hover_tint(is_light),
                     );
-                    let marked = mark.as_ref().filter(|m| m.index == i);
-                    if marked.is_some_and(|m| m.focus) {
-                        response.request_focus();
-                    }
                     if ui.is_rect_visible(rect) {
                         segment_background(ui, rect, is_selected);
-                        if let Some(m) = marked {
-                            let radius = f32::from(RADIUS_CONTROL) - 1.0;
-                            // Rings fading outward, strongest against the segment.
-                            for step in 1..=3 {
-                                let k = step as f32;
-                                let alpha = m.glow * (1.0 - (k - 1.0) / 3.0) * 0.55;
-                                if alpha > 0.0 {
-                                    ui.painter().rect_stroke(
-                                        rect.expand(k),
-                                        radius + k,
-                                        egui::Stroke::new(1.0, m.outline.gamma_multiply(alpha)),
-                                        egui::StrokeKind::Inside,
-                                    );
-                                }
-                            }
-                            ui.painter().rect_stroke(
-                                rect,
-                                radius,
-                                egui::Stroke::new(1.5, m.outline),
-                                egui::StrokeKind::Inside,
-                            );
-                        }
                         let ink = if is_selected {
                             ui.visuals().text_color()
                         } else {
@@ -1647,10 +1599,9 @@ pub fn icon_button(ui: &mut egui::Ui, glyph: Glyph, tip: &str, enabled: bool) ->
 const TOOL_PAD_X: f32 = 8.0;
 const TOOL_ICON_GAP: f32 = 6.0;
 
-/// A borderless button with an icon and a few words, no wider than `max_width`: words that do not
-/// fit are cut with «…» and read in full on hover. `set` says it holds something — a folder, a name
-/// — and gives its words the text colour; empty, they are muted, so it reads as an offer rather
-/// than as a field waiting to be filled.
+/// A borderless button with an icon and, when it holds something, its words, no wider than
+/// `max_width`: words that do not fit are cut with «…» and read in full on hover. Empty (`label`
+/// blank), it is the icon alone, so an offer costs the eye one glyph; `tip` says what it is for.
 pub fn tool_button(ui: &mut egui::Ui, glyph: Glyph, label: &str, set: bool, max_width: f32, tip: &str) -> egui::Response {
     let is_light = !ui.visuals().dark_mode;
     let ink = if set { ui.visuals().text_color() } else { secondary_text(is_light) };
@@ -1666,7 +1617,8 @@ pub fn tool_button(ui: &mut egui::Ui, glyph: Glyph, label: &str, set: bool, max_
         overflow_character: Some('…'),
     };
     let words = ui.painter().layout_job(job);
-    let width = TOOL_PAD_X * 2.0 + glyphs::SIZE + TOOL_ICON_GAP + words.size().x;
+    let words_width = if label.is_empty() { 0.0 } else { TOOL_ICON_GAP + words.size().x };
+    let width = TOOL_PAD_X * 2.0 + glyphs::SIZE + words_width;
     let (rect, response) = ui.allocate_exact_size(egui::vec2(width, FIELD_HEIGHT), egui::Sense::click());
     let response = if set { response.on_hover_text(format!("{label}\n{tip}")) } else { response.on_hover_text(tip) };
     subtle_wash(ui, &response, true);
@@ -1686,9 +1638,35 @@ pub fn tool_button(ui: &mut egui::Ui, glyph: Glyph, label: &str, set: bool, max_
     if response.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+    let said = if label.is_empty() { tip } else { label };
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, said));
     focus_ring(ui, &response, f32::from(RADIUS_CONTROL));
     response
+}
+
+/// A box that reads as quiet words until it is pointed at or typed in: no border and no fill at
+/// rest, the field's own border on hover and while typing. For something optional among buttons,
+/// where a full empty box would ask to be filled; its words sit where a button's would.
+pub fn quiet_field(ui: &mut egui::Ui, id: egui::Id, text: &mut String, hint: &str, width: f32) -> egui::Response {
+    let live = ui.memory(|m| m.has_focus(id)) || ui.ctx().read_response(id).is_some_and(|r| r.hovered());
+    ui.scope(|ui| {
+        if !live {
+            let visuals = ui.visuals_mut();
+            visuals.text_edit_bg_color = Some(egui::Color32::TRANSPARENT);
+            visuals.widgets.inactive.bg_stroke = egui::Stroke::NONE;
+        }
+        ui.add(
+            text_field(text)
+                .id(id)
+                // Exactly as tall as the buttons beside it: a taller box would make the row centre
+                // what came before it on a shorter line, lifting the star and the folder.
+                .margin(egui::Margin::symmetric(TOOL_PAD_X as i8, 0))
+                .min_size(egui::vec2(0.0, FIELD_HEIGHT))
+                .desired_width(width - TOOL_PAD_X * 2.0)
+                .hint_text(hint),
+        )
+    })
+    .inner
 }
 
 /// How long a star's pop lasts, in seconds.
@@ -1815,25 +1793,6 @@ pub fn dropdown_chevron(ui: &egui::Ui, rect: egui::Rect, _: &egui::style::Widget
     glyphs::paint(ui, icon, Glyph::ChevronDown, CHEVRON, secondary_text(!ui.visuals().dark_mode));
 }
 
-/// How wide a drop-down has to be for its open list, check column included, to end where the
-/// box ends instead of past it.
-pub fn dropdown_list_width(ui: &egui::Ui, labels: &[&str]) -> f32 {
-    let widest = labels
-        .iter()
-        .map(|label| {
-            ui.painter()
-                .layout_no_wrap(
-                    (*label).to_owned(),
-                    egui::TextStyle::Button.resolve(ui.style()),
-                    egui::Color32::PLACEHOLDER,
-                )
-                .size()
-                .x
-        })
-        .fold(0.0_f32, f32::max);
-    MENU_PAD_X * 2.0 + MENU_ICON_COLUMN + widest + ui.spacing().menu_margin.sum().x
-}
-
 /// The choices inside a drop-down list, drawn as the folder menu draws its folders: a check on the
 /// chosen one and the same gliding wash under the pointer. True when `label` was clicked.
 pub fn dropdown_choice(ui: &mut egui::Ui, label: &str, chosen: bool) -> bool {
@@ -1864,7 +1823,7 @@ pub fn menu_item(
 }
 
 /// A [`menu_item`] that leaves its menu open, for a line that turns into something else in place —
-/// «Nueva carpeta…» becoming the box for the name.
+/// «Nueva carpeta» becoming the box for the name.
 pub fn menu_item_staying(ui: &mut egui::Ui, glyph: Option<Glyph>, label: &str) -> egui::Response {
     menu_line(ui, glyph, label, None, Tone::Normal, true, false, false)
 }

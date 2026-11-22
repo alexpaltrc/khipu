@@ -134,24 +134,13 @@ fn end_hover_frame(ctx: &egui::Context) {
 /// The one wash that follows the pointer down the list. Rows do not tint themselves on hover: a
 /// single shape, painted under all of them, glides from the row it was on to the row the pointer
 /// is on now, so moving down the list reads as one movement instead of a row going dark and
-/// another lighting up. It fades in where it first lands — it never flies in from wherever the
-/// pointer last left the list — and fades out, in place, when the pointer leaves.
+/// another lighting up. It moves like every other wash in Khipu ([`crate::ui::glide::Wash`]).
 ///
 /// Positions are kept relative to the top of the list's content, not the screen, so scrolling
 /// carries the wash with its row instead of leaving it to catch up. That is also why the list does
 /// not use [`crate::ui::glide`]'s groups, which measure from their first control: here the first
 /// row drawn changes with every scroll, because rows off screen are not drawn at all.
-#[derive(Clone, Copy, Default)]
-struct Glide {
-    top: f32,
-    height: f32,
-    top_speed: f32,
-    height_speed: f32,
-    /// 0 is gone, 1 is fully lit.
-    alpha: f32,
-    left: f32,
-    right: f32,
-}
+type Glide = crate::ui::glide::Wash;
 
 fn glide_key() -> egui::Id {
     egui::Id::new("library-glide")
@@ -172,52 +161,15 @@ fn glide(ui: &egui::Ui, slot: egui::layers::ShapeIdx, origin: f32, is_light: boo
     });
     let mut g = ctx.data(|d| d.get_temp::<Glide>(glide_key())).unwrap_or_default();
     let dt = ui.input(|i| i.stable_dt).clamp(0.0, 1.0 / 20.0);
-    let animate = crate::theme::animations_enabled();
-
-    match target {
-        Some(rect) => {
-            let top = rect.top() - origin;
-            // A fresh arrival, or Windows asked for no travelling: land in place.
-            if g.alpha < 0.02 || !animate {
-                g.top = top;
-                g.height = rect.height();
-                g.top_speed = 0.0;
-                g.height_speed = 0.0;
-            } else {
-                let (x, v) = crate::ui::glide::spring_step(g.top - top, g.top_speed, dt);
-                g.top = top + x;
-                g.top_speed = v;
-                let (x, v) = crate::ui::glide::spring_step(g.height - rect.height(), g.height_speed, dt);
-                g.height = rect.height() + x;
-                g.height_speed = v;
-            }
-            g.left = rect.left();
-            g.right = rect.right();
-            g.alpha = if animate { (g.alpha + dt / crate::ui::glide::FADE_IN).min(1.0) } else { 1.0 };
-        }
-        None => {
-            g.alpha = if animate { (g.alpha - dt / crate::ui::glide::FADE_OUT).max(0.0) } else { 0.0 }
-        }
-    }
-
-    let moving = target.is_some_and(|rect| {
-        (g.top - (rect.top() - origin)).abs() > 0.1
-            || (g.height - rect.height()).abs() > 0.1
-            || g.top_speed.abs() > 0.5
-    });
-    if moving || (g.alpha > 0.0 && g.alpha < 1.0) {
+    let lift = egui::vec2(0.0, origin);
+    if g.step(target.map(|r| r.translate(-lift)), dt) {
         ctx.request_repaint();
     }
-
     if g.alpha > 0.0 {
-        let rect = egui::Rect::from_min_max(
-            egui::pos2(g.left, origin + g.top),
-            egui::pos2(g.right, origin + g.top + g.height),
-        );
         ui.painter().set(
             slot,
             egui::epaint::RectShape::filled(
-                rect,
+                g.rect.translate(lift),
                 controls::RADIUS_CONTROL,
                 crate::app::hover_tint(is_light).gamma_multiply(g.alpha),
             ),
@@ -231,9 +183,7 @@ fn glide(ui: &egui::Ui, slot: egui::layers::ShapeIdx, origin: f32, is_light: boo
 /// the wash is solid enough to be the thing the eye sees there.
 fn glide_band(ctx: &egui::Context, origin: f32) -> Option<egui::Rangef> {
     let g = ctx.data(|d| d.get_temp::<Glide>(glide_key()))?;
-    (g.alpha > 0.35).then(|| {
-        egui::Rangef::new(origin + g.top - 0.5, origin + g.top + g.height + 0.5)
-    })
+    (g.alpha > 0.35).then(|| egui::Rangef::new(origin + g.rect.top() - 0.5, origin + g.rect.bottom() + 0.5))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1304,10 +1254,10 @@ fn folder_menu(
     let real_folder = active.filter(|f| !f.is_empty());
     let options_label = studio::text(
         state,
-        "Opciones de carpeta…",
-        "Folder options…",
-        "Mga opsyon ng folder…",
-        "फ़ोल्डर विकल्प…",
+        "Opciones de carpeta",
+        "Folder options",
+        "Mga opsyon ng folder",
+        "फ़ोल्डर विकल्प",
     );
 
     let by_keyboard = picker.clicked() && picker.has_focus();
@@ -1330,10 +1280,7 @@ fn folder_menu(
                 .collect();
             // The menu line draws its own plus; the string carries one for the places that have
             // no icon.
-            let new_folder = format!(
-                "{}…",
-                t.add_new_folder.trim_start_matches(['+', ' ']).trim_end_matches('…')
-            );
+            let new_folder = t.new_folder;
             let rename_keys = keys::text(keys::RENAME, lang);
             ui.spacing_mut().item_spacing.y = 0.0;
             let first = ui.next_auto_id();
@@ -2871,20 +2818,20 @@ fn show_row_inner(
                         }
                         let rename = studio::text(
                             state,
-                            "Cambiar activador…",
-                            "Change trigger…",
-                            "Palitan ang trigger…",
-                            "ट्रिगर बदलें…",
+                            "Cambiar activador",
+                            "Change trigger",
+                            "Palitan ang trigger",
+                            "ट्रिगर बदलें",
                         );
                         if controls::menu_item(ui, Some(Glyph::Tag), rename, None, Tone::Normal, true).clicked() {
                             menu = Some(RowMenu::Rename);
                         }
                         let move_label = studio::text(
                             state,
-                            "Mover a carpeta…",
-                            "Move to folder…",
-                            "Ilipat sa folder…",
-                            "फ़ोल्डर में ले जाएँ…",
+                            "Mover a carpeta",
+                            "Move to folder",
+                            "Ilipat sa folder",
+                            "फ़ोल्डर में ले जाएँ",
                         );
                         if controls::menu_item(ui, Some(Glyph::MoveToFolder), move_label, None, Tone::Normal, true)
                             .clicked()
@@ -3577,10 +3524,10 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
             let delete_keys = keys::text(keys::DELETE, lang);
             let move_label = studio::text(
                 state,
-                "Mover a carpeta…",
-                "Move to folder…",
-                "Ilipat sa folder…",
-                "फ़ोल्डर में ले जाएँ…",
+                "Mover a carpeta",
+                "Move to folder",
+                "Ilipat sa folder",
+                "फ़ोल्डर में ले जाएँ",
             );
             let foldered = folder.is_some();
             let remove_label = t.remove_from_folder;
@@ -3897,10 +3844,7 @@ pub fn show_move_modal(ctx: &egui::Context, state: &mut AppState) {
     let t = state.t();
     let folders = state.settings.all_folder_names();
     let mut chosen: Option<Option<String>> = None;
-    let new_folder = format!(
-        "{}…",
-        t.add_new_folder.trim_start_matches(['+', ' ']).trim_end_matches('…')
-    );
+    let new_folder = t.new_folder;
     let mut close = false;
 
     let modal = controls::dialog(ctx, "library-move").show(ctx, |ui| {
@@ -4038,7 +3982,7 @@ pub fn show_create_folder_modal(ctx: &egui::Context, state: &mut AppState) {
             controls::text_field(&mut name)
                 .id(egui::Id::new("library-create-folder-field"))
                 .desired_width(ui.available_width())
-                .hint_text(t.new_folder_placeholder),
+                .hint_text(t.new_folder),
         );
         if !field.has_focus() && !field.lost_focus() {
             field.request_focus();
@@ -4226,8 +4170,8 @@ fn trigger_column_width(ui: &egui::Ui, items: &[(String, String)]) -> f32 {
 }
 
 /// A deletion, on the frame after it was asked for (see [`crate::app::PendingConfirm`]); and the
-/// question «Aplicar» asks in Ajustes before renaming every trigger to the new prefix, in the
-/// app's own modal.
+/// question a new prefix in Ajustes asks before renaming every trigger to it, in the app's own
+/// modal.
 ///
 /// The question has to survive a list of any length without ever growing into a giant window, so
 /// the width is fixed, the list shows five with a "ver más" toggle for the rest, and past a
@@ -4322,11 +4266,12 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
 
         ui.add_space(controls::GAP_WIDE);
         controls::dialog_buttons(ui, |ui| {
-            if controls::button(ui, t.cancel, Tone::Normal, true).clicked() {
+            // Both answers keep the new prefix; they differ only in what it reaches, so each says so.
+            let keep = studio::text(state, "Solo las nuevas", "Only new ones", "Bago lang", "सिर्फ़ नए");
+            if controls::button(ui, keep, Tone::Normal, true).clicked() {
                 cancel = true;
             }
-            // Yes is said with the same word as the button that asked, in Ajustes.
-            let label = studio::text(state, "Aplicar", "Apply", "Ilapat", "लागू करें");
+            let label = studio::text(state, "Cambiarlas", "Change them", "Palitan", "बदलें");
             if controls::button(ui, label, Tone::Primary, true).clicked() {
                 confirm = true;
             }

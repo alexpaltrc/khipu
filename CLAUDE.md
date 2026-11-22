@@ -34,6 +34,8 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
 - **Pendiente de Alex**: cómo se crean la fecha y la hora dentro de una expansión (un solo sistema
   de «elementos»). Maquetas en `docs/disenos/elementos.html`, contexto en `docs/roadmap.md`. No
   construir hasta que decida; recordárselo cuando venga al caso.
+- **Pendiente de Alex**: el panel de detalle (cuatro propuestas, la cuarta atrevida). Maquetas en
+  `docs/disenos/detalle.html`. No construir hasta que elija.
 - **En curso: `0.0.10-dev`**. Sin publicar hasta que Alex lo pida. El
   `-dev` se quita en el commit que publica, y ese commit lleva la etiqueta de la versión.
 - **Microsoft Store**: Store ID `9NXXV15RJ94T`, `https://apps.microsoft.com/detail/9NXXV15RJ94T`.
@@ -148,7 +150,7 @@ solo el índice para saber cuál abrir.
 | `pacing.rs` | Dónde espera cada fotograma: en el compositor (`DwmFlush`), no dentro del driver (vsync apagado) |
 | `reload.rs` | Reiniciar espanso tras guardar en otro hilo: uno a la vez, y Pausa y Salir lo esperan |
 | `fonts.rs` · `i18n.rs` | Las caras del sistema (Segoe UI Variable, Cascadia Mono, iconos); las cadenas en cuatro idiomas |
-| `autostart.rs` · `hotkey.rs` | La casilla de inicio con Windows (clave Run en la portable, StartupTask en la instalada); el atajo global del launcher y su captura en Ajustes (encendido desde 0.0.4; su historia: `git show 58753f7:LAUNCHER-BACKUP.txt`) |
+| `autostart.rs` · `hotkey.rs` | Iniciar con Windows, encendido desde el primer arranque y sin casilla: se apaga en Windows (clave Run en la portable, StartupTask en la instalada); el atajo global del launcher y su captura en Ajustes (encendido desde 0.0.4; su historia: `git show 58753f7:LAUNCHER-BACKUP.txt`) |
 
 **Espanso**
 

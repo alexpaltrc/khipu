@@ -47,16 +47,123 @@ use std::collections::HashMap;
 /// How quickly a wash reaches its target: a critically damped spring, so it arrives without
 /// bouncing. At 34 it covers nine tenths of the way in about 0.11 s.
 const OMEGA: f32 = 34.0;
+/// On a trip, the edge in front and the edge behind: the front one leaves sooner and the back one
+/// follows, so a wash on its way stretches towards where it is going and gathers itself as it
+/// arrives, like something liquid being drawn along rather than a box sliding. On the hop to the
+/// next row the stretch is a few pixels; on a fast sweep across a menu it is the movement itself.
+const OMEGA_FRONT: f32 = 44.0;
+const OMEGA_BACK: f32 = 26.0;
+/// The longest a wash may draw out on its way, as a share of where it is going: past this, the
+/// edge behind is pulled along, so a very fast sweep never turns into a long smear.
+const STRETCH: f32 = 0.6;
 /// How long a wash takes to appear, and to go.
-pub const FADE_IN: f32 = 0.10;
-pub const FADE_OUT: f32 = 0.16;
+const FADE_IN: f32 = 0.10;
+const FADE_OUT: f32 = 0.16;
+/// How long a wash waits where it is after the pointer leaves its control, before it fades: long
+/// enough to cross the gap to the next control without going out and coming back, too short to be
+/// seen as a delay when the pointer leaves for good.
+const LINGER: f32 = 0.07;
+/// Coming back while fainter than this, a wash lands where it is going instead of travelling: a
+/// ghost of a wash crossing the whole menu to catch up reads as a glitch, not a glide.
+const LAND_BELOW: f32 = 0.35;
 
 /// One step of a critically damped spring, exact for any `dt`: `x` is the distance still to go,
 /// `v` the speed. Returns both after `dt` seconds.
 pub fn spring_step(x: f32, v: f32, dt: f32) -> (f32, f32) {
-    let decay = (-OMEGA * dt).exp();
-    let b = v + OMEGA * x;
-    ((x + b * dt) * decay, (v - OMEGA * b * dt) * decay)
+    spring_step_at(OMEGA, x, v, dt)
+}
+
+fn spring_step_at(omega: f32, x: f32, v: f32, dt: f32) -> (f32, f32) {
+    let decay = (-omega * dt).exp();
+    let b = v + omega * x;
+    ((x + b * dt) * decay, (v - omega * b * dt) * decay)
+}
+
+/// Moves one axis of a wash, `[low edge, high edge]`, a frame towards `to`, the edge in front
+/// faster than the one behind.
+fn chase_span(span: [f32; 2], speed: &mut [f32; 2], to: [f32; 2], dt: f32) -> [f32; 2] {
+    let ahead = (to[0] + to[1]) - (span[0] + span[1]);
+    let (low, high) = if ahead > 1.0 {
+        (OMEGA_BACK, OMEGA_FRONT)
+    } else if ahead < -1.0 {
+        (OMEGA_FRONT, OMEGA_BACK)
+    } else {
+        (OMEGA, OMEGA)
+    };
+    let (x0, v0) = spring_step_at(low, span[0] - to[0], speed[0], dt);
+    let (x1, v1) = spring_step_at(high, span[1] - to[1], speed[1], dt);
+    let (mut lo, mut hi) = (to[0] + x0, to[1] + x1);
+    *speed = [v0, v1];
+    let longest = (to[1] - to[0]).max(0.0) * (1.0 + STRETCH);
+    if hi - lo > longest {
+        if ahead > 0.0 {
+            lo = hi - longest;
+            speed[0] = speed[1];
+        } else {
+            hi = lo + longest;
+            speed[1] = speed[0];
+        }
+    }
+    [lo, hi.max(lo)]
+}
+
+/// How one wash moves: where it is, how fast each edge travels, and how lit it is. The groups
+/// below and the library's list both move theirs with it, so every list in Khipu feels the same.
+#[derive(Clone, Copy)]
+pub struct Wash {
+    pub rect: egui::Rect,
+    /// Left, right, top, bottom.
+    speed: [f32; 4],
+    /// 0 is gone, 1 is fully lit.
+    pub alpha: f32,
+    lingered: f32,
+}
+
+impl Default for Wash {
+    fn default() -> Self {
+        Self { rect: egui::Rect::NOTHING, speed: [0.0; 4], alpha: 0.0, lingered: 0.0 }
+    }
+}
+
+impl Wash {
+    /// Moves the wash a frame towards `target`, or towards going out when nothing is lit. Returns
+    /// whether it is still on its way and needs another frame.
+    pub fn step(&mut self, target: Option<egui::Rect>, dt: f32) -> bool {
+        let animate = crate::theme::animations_enabled();
+        match target {
+            Some(to) => {
+                self.lingered = 0.0;
+                if self.alpha < LAND_BELOW || !animate {
+                    self.rect = to;
+                    self.speed = [0.0; 4];
+                } else {
+                    let (mut sx, mut sy) = ([self.speed[0], self.speed[1]], [self.speed[2], self.speed[3]]);
+                    let [l, r] = chase_span([self.rect.left(), self.rect.right()], &mut sx, [to.left(), to.right()], dt);
+                    let [t, b] = chase_span([self.rect.top(), self.rect.bottom()], &mut sy, [to.top(), to.bottom()], dt);
+                    self.rect = egui::Rect::from_min_max(egui::pos2(l, t), egui::pos2(r, b));
+                    self.speed = [sx[0], sx[1], sy[0], sy[1]];
+                }
+                self.alpha = if animate { (self.alpha + dt / FADE_IN).min(1.0) } else { 1.0 };
+                let moving = (self.rect.min - to.min).length() > 0.1
+                    || (self.rect.max - to.max).length() > 0.1
+                    || self.speed.iter().any(|s| s.abs() > 0.5);
+                moving || self.alpha < 1.0
+            }
+            None if animate && self.alpha > 0.0 && self.lingered < LINGER => {
+                self.lingered += dt;
+                true
+            }
+            None => {
+                self.alpha = if animate { (self.alpha - dt / FADE_OUT).max(0.0) } else { 0.0 };
+                self.alpha > 0.0
+            }
+        }
+    }
+
+    /// Gone at once, as for a menu that was closed: it must never fly in from where it was left.
+    pub fn forget(&mut self) {
+        *self = Self::default();
+    }
 }
 
 /// What a control said about itself last frame: where it is, relative to its group's first
@@ -73,9 +180,7 @@ struct Target {
 #[derive(Clone, Copy)]
 struct Group {
     /// The wash, relative to the group's first control.
-    rect: egui::Rect,
-    speed: [f32; 4],
-    alpha: f32,
+    wash: Wash,
     fill: egui::Color32,
     radius: u8,
     /// Where this frame's controls are measured from, and which frame that is.
@@ -90,9 +195,7 @@ struct Group {
 impl Default for Group {
     fn default() -> Self {
         Self {
-            rect: egui::Rect::NOTHING,
-            speed: [0.0; 4],
-            alpha: 0.0,
+            wash: Wash::default(),
             fill: egui::Color32::TRANSPARENT,
             radius: 0,
             origin: egui::Pos2::ZERO,
@@ -130,9 +233,8 @@ pub fn item(ui: &egui::Ui, response: &egui::Response, radius: u8, lit: bool, fil
         if g.frame != frame {
             // The first control of the group this frame: last frame's reports become the target.
             if g.frame + 1 != frame {
-                // Not drawn last frame — a menu that was closed. Whatever it held is stale, and a
-                // wash must never fly in from where it was left.
-                g.alpha = 0.0;
+                // Not drawn last frame — a menu that was closed. Whatever it held is stale.
+                g.wash.forget();
                 g.reporting = None;
             }
             g.target = g.reporting.take();
@@ -165,43 +267,15 @@ pub fn item(ui: &egui::Ui, response: &egui::Response, radius: u8, lit: bool, fil
 /// Moves one group's wash a frame towards its target. Returns what to paint, in screen space, and
 /// whether it is still on its way and needs another frame.
 fn step(g: &mut Group, dt: f32) -> (Option<(egui::Rect, egui::Color32, u8)>, bool) {
-    let animate = crate::theme::animations_enabled();
-    match g.target {
-        Some(t) => {
-            if g.alpha < 0.02 || !animate {
-                g.rect = t.rect;
-                g.speed = [0.0; 4];
-            } else {
-                let now = [g.rect.left(), g.rect.top(), g.rect.width(), g.rect.height()];
-                let to = [t.rect.left(), t.rect.top(), t.rect.width(), t.rect.height()];
-                let mut next = [0.0; 4];
-                for i in 0..4 {
-                    let (x, v) = spring_step(now[i] - to[i], g.speed[i], dt);
-                    next[i] = to[i] + x;
-                    g.speed[i] = v;
-                }
-                g.rect = egui::Rect::from_min_size(
-                    egui::pos2(next[0], next[1]),
-                    egui::vec2(next[2], next[3]),
-                );
-            }
-            g.fill = t.fill;
-            g.radius = t.radius;
-            g.alpha = if animate { (g.alpha + dt / FADE_IN).min(1.0) } else { 1.0 };
-        }
-        None => g.alpha = if animate { (g.alpha - dt / FADE_OUT).max(0.0) } else { 0.0 },
+    if let Some(t) = g.target {
+        g.fill = t.fill;
+        g.radius = t.radius;
     }
-
-    let moving = g.target.is_some_and(|t| {
-        (g.rect.min - t.rect.min).length() > 0.1
-            || (g.rect.size() - t.rect.size()).length() > 0.1
-            || g.speed.iter().any(|s| s.abs() > 0.5)
-    });
-    let busy = moving || (g.alpha > 0.0 && g.alpha < 1.0);
-    let paint = (g.alpha > 0.0).then(|| {
+    let busy = g.wash.step(g.target.map(|t| t.rect), dt);
+    let paint = (g.wash.alpha > 0.0).then(|| {
         (
-            g.rect.translate(g.origin.to_vec2()),
-            g.fill.gamma_multiply(g.alpha),
+            g.wash.rect.translate(g.origin.to_vec2()),
+            g.fill.gamma_multiply(g.wash.alpha),
             g.radius,
         )
     });
@@ -224,5 +298,44 @@ pub fn end_frame(ctx: &egui::Context) {
     });
     if changed {
         ctx.request_repaint();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Runs one axis from `from` to `to` at 60 frames a second, and returns every frame's span.
+    fn trip(from: [f32; 2], to: [f32; 2], frames: usize) -> Vec<[f32; 2]> {
+        let (mut span, mut speed) = (from, [0.0; 2]);
+        (0..frames).map(|_| { span = chase_span(span, &mut speed, to, 1.0 / 60.0); span }).collect()
+    }
+
+    #[test]
+    fn a_wash_on_its_way_leans_forward_and_never_smears() {
+        // A sweep from the first row to the twentieth, 36 px each.
+        let frames = trip([0.0, 36.0], [684.0, 720.0], 40);
+        assert!(frames.iter().any(|s| s[1] - s[0] > 37.0), "it never stretched");
+        for s in &frames {
+            assert!(s[1] - s[0] <= 36.0 * (1.0 + STRETCH) + 0.01, "it smeared to {}", s[1] - s[0]);
+            assert!(s[1] >= s[0]);
+        }
+    }
+
+    #[test]
+    fn a_wash_arrives_without_overshooting() {
+        for (from, to) in [([0.0, 36.0], [36.0, 72.0]), ([684.0, 720.0], [0.0, 36.0])] {
+            let frames = trip(from, to, 30);
+            let down = to[0] > from[0];
+            for s in &frames {
+                if down {
+                    assert!(s[1] <= to[1] + 0.01 && s[0] <= to[0] + 0.01);
+                } else {
+                    assert!(s[0] >= to[0] - 0.01 && s[1] >= to[1] - 0.01);
+                }
+            }
+            let last = frames.last().unwrap();
+            assert!((last[0] - to[0]).abs() < 0.1 && (last[1] - to[1]).abs() < 0.1, "still on its way: {last:?}");
+        }
     }
 }

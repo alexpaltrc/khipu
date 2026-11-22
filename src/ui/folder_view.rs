@@ -403,7 +403,7 @@ fn export_row(ui: &mut egui::Ui, state: &mut AppState, folder: &str) {
         "I-save sa file para madala sa ibang kompyuter.",
         "दूसरे कंप्यूटर पर ले जाने के लिए फ़ाइल में सहेजें।",
     );
-    let label = studio::text(state, "Exportar…", "Export…", "I-export…", "निर्यात…");
+    let label = studio::text(state, "Exportar", "Export", "I-export", "निर्यात");
     let export = controls::card_row(ui, title, about, controls::button_width(ui, label), |ui| {
         controls::button(ui, label, Tone::Normal, true).clicked()
     });

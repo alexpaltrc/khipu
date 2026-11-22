@@ -28,7 +28,7 @@ pub fn has_word(trigger: &str) -> bool {
     trigger.chars().any(char::is_alphanumeric)
 }
 
-/// What «Aplicar» in Ajustes makes of one trigger, or `None` to leave it as it is.
+/// What a new prefix in Ajustes makes of one trigger, or `None` to leave it as it is.
 ///
 /// The prefix a trigger carries is the one it was made with, which Khipu knows only when the
 /// change happened in this run (`before`). Otherwise it is the run of symbols in front, which
@@ -146,7 +146,7 @@ mod tests {
         retarget(trigger, before, new)
     }
 
-    /// «Aplicar» with any prefix, symbols or letters, known or not.
+    /// A new prefix of any kind, symbols or letters, known or not.
     #[test]
     fn retarget_handles_every_kind_of_prefix() {
         // The everyday case, and what is already done.

@@ -21,11 +21,15 @@
 //! Ajustes: a dialog in the middle of the window, over the dimmed screen behind it. It is not a
 //! screen, and it cannot be moved.
 //!
-//! **One scroll, four cards.** General, Al escribir, Buscador and Tus expansiones, each a card of
-//! rows the way Windows' own settings are laid out: a setting's name, one quiet line on what it is
-//! for, and its control at the right edge. One line and no more — the whole story of each lives
-//! in the guide (Consejos → Ajustes). A row of options too wide to sit beside its name (the
-//! themes, the prefixes) goes under it, across the card.
+//! **Two icons and one scroll.** The theme and the language are icons beside the cross: the theme
+//! turns over with each click, the language opens its four. Under them Al escribir, Buscador and
+//! Tus expansiones, each a card of rows the way Windows' own settings are laid out: a setting's
+//! name, one quiet line on what it is for, and its control at the right edge. One line and no
+//! more — the whole story of each lives in the guide (Consejos → Ajustes). A row of options too
+//! wide to sit beside its name (the prefixes) goes under it, across the card.
+//!
+//! Not here on purpose: starting with Windows (always on; Windows has its own switch, see
+//! [`crate::autostart`]) and favorites first (always).
 //!
 //! Everything on it is a call into `AppState`, which is what saves and reports; nothing is written
 //! from here. What `AppState` says while the dialog is open comes back as
@@ -40,7 +44,7 @@ use crate::i18n::{fill, fill_count, Lang};
 use crate::settings::PREFIX_SUGGESTIONS;
 use crate::theme::ThemeMode;
 use crate::ui::controls::{self, Tone};
-use crate::ui::glyphs::Glyph;
+use crate::ui::glyphs::{self, Glyph};
 use crate::ui::island;
 use crate::ui::keys;
 use crate::ui::studio;
@@ -92,12 +96,14 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
                 if controls::icon_button(ui, Glyph::Close, &tip, true).clicked() {
                     close = true;
                 }
+                language_button(ui, state);
+                theme_button(ui, state);
             });
         });
         ui.add_space(controls::GAP_WIDE);
 
         // A bar that takes its own column, and only when the window is too short to need none:
-        // floating over the contents, it sat on top of the start-up switch at the right edge. In
+        // floating over the contents, it sat on top of the controls at the right edge. In
         // that column it shows only while the pointer is over the page.
         ui.spacing_mut().scroll = controls::quiet_scroll();
         let mut scroll = egui::ScrollArea::vertical()
@@ -145,86 +151,191 @@ const BAR_MAKES_WAY: f32 = 0.5;
 /// The title row and the space under it.
 const TITLE_ROW: f32 = controls::FIELD_HEIGHT + controls::GAP_WIDE;
 
-/// How long the hidden theme's option is pointed out after it has been found.
+/// How long the hidden theme is pointed out after it has been found.
 pub const SPOTLIGHT: std::time::Duration = std::time::Duration::from_secs(4);
 
 /// One beat of the halo while it is pointed out, in seconds.
 const SPOTLIGHT_BEAT: f32 = 1.2;
 
-/// A theme's name in the row: in full, or without the word «theme» where the full names do not fit.
-pub fn theme_name(t: &crate::i18n::Strings, mode: ThemeMode, short: bool) -> &'static str {
-    match (mode, short) {
-        (ThemeMode::System, _) => t.theme_system,
-        (ThemeMode::Light, false) => t.theme_light,
-        (ThemeMode::Light, true) => t.theme_light_short,
-        (ThemeMode::Dark, false) => t.theme_dark,
-        (ThemeMode::Dark, true) => t.theme_dark_short,
-        (ThemeMode::UltraDark, _) => t.theme_ultra_dark,
-        (ThemeMode::Khipu, _) => t.theme_khipu,
+/// Seconds one theme's icon takes to give way to the next.
+const THEME_SWAP: f32 = 0.22;
+
+/// A theme's name, for the button's tip and for a screen reader.
+pub fn theme_name(t: &crate::i18n::Strings, mode: ThemeMode) -> &'static str {
+    match mode {
+        ThemeMode::System => t.theme_system,
+        ThemeMode::Light => t.theme_light,
+        ThemeMode::Dark => t.theme_dark,
+        ThemeMode::UltraDark => t.theme_ultra_dark,
+        ThemeMode::Khipu => t.theme_khipu,
     }
 }
 
-/// Sistema, claro, oscuro — and, once found in Consejos, «I got chiiills», outlined in violet.
-///
-/// The fourth option makes the row longer than the dialog in Filipino («Maliwanag na tema»). Cut
-/// text is not an option, so where the full names do not fit, light and dark drop the word for
-/// «theme» instead; only then, so a language with room keeps the names it always had.
-fn theme_row(ui: &mut egui::Ui, state: &mut AppState) {
-    let t = state.t();
-    let found = state.settings.khipu_theme_found;
+/// What the button shows for each theme: the sun and the moon say light and dark without a word.
+fn theme_glyph(mode: ThemeMode) -> Glyph {
+    match mode {
+        ThemeMode::System => Glyph::ThemeSystem,
+        ThemeMode::Light => Glyph::Sun,
+        ThemeMode::Dark => Glyph::Moon,
+        ThemeMode::UltraDark => Glyph::MoonFilled,
+        ThemeMode::Khipu => Glyph::Sparkle,
+    }
+}
+
+/// The theme one click moves on to: sistema, claro, oscuro, ultra oscuro and, once found in
+/// Consejos, «I got chiiills», then round again.
+fn next_theme(mode: ThemeMode, found: bool) -> ThemeMode {
     let mut modes = ThemeMode::ALL.to_vec();
     if found {
         modes.push(ThemeMode::Khipu);
     }
-    let n = modes.len();
-    let full: Vec<&str> = modes.iter().map(|m| theme_name(t, *m, false)).collect();
-    let short: Vec<&str> = modes.iter().map(|m| theme_name(t, *m, true)).collect();
-    // The same room `segmented` measures itself against.
-    let room = ui.available_width() - 8.0;
-    let labels = if controls::segmented_natural_width(ui, &full) > room { &short } else { &full };
-    let selected = modes.iter().position(|m| *m == state.settings.theme_mode);
+    let at = modes.iter().position(|m| *m == mode).unwrap_or(0);
+    modes[(at + 1) % modes.len()]
+}
 
-    let mark = found.then(|| {
-        let is_light = !ui.visuals().dark_mode;
-        let elapsed = state.khipu_spotlight.map(|at| at.elapsed());
-        let glow = match elapsed {
-            Some(e) if e < SPOTLIGHT => {
-                let fade = 1.0 - e.as_secs_f32() / SPOTLIGHT.as_secs_f32();
-                ui.ctx().request_repaint();
-                if crate::theme::animations_enabled() {
-                    let phase = e.as_secs_f32() / SPOTLIGHT_BEAT * std::f32::consts::TAU;
-                    fade * (0.6 + 0.4 * phase.cos())
-                } else {
-                    // Nothing moves: the halo is simply there, and then it is not.
-                    1.0
+fn theme_swap_id() -> egui::Id {
+    egui::Id::new("settings_theme_swap")
+}
+
+/// The theme, as one button beside the cross that shows the theme on and moves to the next with
+/// each click. The icon on its way out shrinks and fades as the next one grows in past its size
+/// and settles, so a click reads as the theme turning over rather than a picture being replaced.
+///
+/// Just after the hidden theme is found, the button is ringed in violet and holds the keyboard,
+/// and its next click puts that theme on, wherever the turn would have gone: offered, not put on.
+fn theme_button(ui: &mut egui::Ui, state: &mut AppState) {
+    let t = state.t();
+    let mode = state.settings.theme_mode;
+    let is_light = !ui.visuals().dark_mode;
+    let spotlight = state.khipu_spotlight.filter(|at| at.elapsed() < SPOTLIGHT);
+    if state.khipu_spotlight.is_some() && spotlight.is_none() {
+        state.khipu_spotlight = None;
+    }
+    let tip = format!("{}: {}", t.appearance_section, theme_name(t, mode));
+
+    let (rect, response) = ui.allocate_exact_size(egui::Vec2::splat(controls::FIELD_HEIGHT), egui::Sense::click());
+    let response = response.on_hover_text(&tip);
+    controls::subtle_wash(ui, &response, true);
+
+    // The keyboard is handed over once, as it is pointed out: Enter or Space then wears it. Asked
+    // for on every frame it would hold the keyboard for the whole four seconds.
+    if let Some(at) = spotlight {
+        let focus_id = egui::Id::new("khipu-spotlight-focused");
+        let first = ui.ctx().data_mut(|d| {
+            let first = d.get_temp::<std::time::Instant>(focus_id) != Some(at);
+            d.insert_temp(focus_id, at);
+            first
+        });
+        if first {
+            response.request_focus();
+        }
+    }
+
+    let now = ui.input(|i| i.time);
+    let animate = crate::theme::animations_enabled();
+    let swap = ui.ctx().data(|d| d.get_temp::<(Glyph, f64)>(theme_swap_id()));
+    let progress = swap.map_or(1.0, |(_, at)| ((now - at) as f32 / THEME_SWAP).clamp(0.0, 1.0));
+    if progress < 1.0 {
+        ui.ctx().request_repaint();
+    }
+
+    if ui.is_rect_visible(rect) {
+        let ink = ui.visuals().text_color();
+        let size = glyphs::SIZE;
+        match swap.filter(|_| progress < 1.0) {
+            Some((before, _)) => {
+                // Out over the first half, eased in; in over the whole, eased out past its size.
+                let out = (progress * 2.0).min(1.0);
+                let gone = out * out;
+                if gone < 1.0 {
+                    glyphs::paint(ui, rect, before, size * (1.0 - 0.45 * gone), ink.gamma_multiply(1.0 - gone));
+                }
+                let grow = ease_out_back(progress);
+                glyphs::paint(ui, rect, theme_glyph(mode), size * (0.55 + 0.45 * grow), ink.gamma_multiply(progress.min(1.0)));
+            }
+            None => glyphs::paint(ui, rect, theme_glyph(mode), size, ink),
+        }
+
+        if let Some(at) = spotlight {
+            let e = at.elapsed().as_secs_f32();
+            let fade = 1.0 - e / SPOTLIGHT.as_secs_f32();
+            let glow = if animate {
+                fade * (0.6 + 0.4 * (e / SPOTLIGHT_BEAT * std::f32::consts::TAU).cos())
+            } else {
+                // Nothing moves: the halo is simply there, and then it is not.
+                1.0
+            };
+            ui.ctx().request_repaint();
+            let outline = crate::app::khipu_outline(is_light);
+            let radius = f32::from(controls::RADIUS_CONTROL);
+            // Rings fading outward, strongest against the button.
+            for step in 1..=3 {
+                let k = step as f32;
+                let alpha = glow * (1.0 - (k - 1.0) / 3.0) * 0.55;
+                ui.painter().rect_stroke(
+                    rect.expand(k),
+                    radius + k,
+                    egui::Stroke::new(1.0, outline.gamma_multiply(alpha)),
+                    egui::StrokeKind::Inside,
+                );
+            }
+            ui.painter().rect_stroke(rect, radius, egui::Stroke::new(1.5, outline), egui::StrokeKind::Inside);
+        }
+    }
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &tip));
+    controls::focus_ring(ui, &response, f32::from(controls::RADIUS_CONTROL));
+
+    if response.clicked() {
+        let next = if spotlight.is_some() {
+            ThemeMode::Khipu
+        } else {
+            next_theme(mode, state.settings.khipu_theme_found)
+        };
+        state.khipu_spotlight = None;
+        if animate {
+            ui.ctx().data_mut(|d| d.insert_temp(theme_swap_id(), (theme_glyph(mode), now)));
+        }
+        state.set_theme_mode(next);
+    }
+}
+
+/// Eased out past the end and back: 0 to a touch over 1, settling on 1.
+fn ease_out_back(x: f32) -> f32 {
+    const C: f32 = 1.4;
+    let x = x - 1.0;
+    1.0 + (C + 1.0) * x * x * x + C * x * x
+}
+
+/// The language, as one button beside the theme's that opens the four, each written in itself so
+/// someone who cannot read the current one can still find theirs.
+fn language_button(ui: &mut egui::Ui, state: &mut AppState) {
+    let t = state.t();
+    let current = state.settings.lang;
+    let tip = format!("{}: {}", t.language_section, current.picker_label(ui.ctx()));
+    let button = controls::icon_button(ui, Glyph::Language, &tip, true);
+    let by_keyboard = button.clicked() && button.has_focus();
+    let mut picked = None;
+    egui::Popup::menu(&button)
+        .align(egui::RectAlign::BOTTOM_END)
+        .gap(controls::GAP_TIGHT)
+        .width(160.0)
+        .show(|ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            let first = ui.next_auto_id();
+            for lang in Lang::ALL {
+                if controls::menu_check_item(ui, lang.picker_label(ui.ctx()), None, lang == current).clicked() {
+                    picked = Some(lang);
                 }
             }
-            _ => 0.0,
-        };
-        if elapsed.is_some_and(|e| e >= SPOTLIGHT) {
-            state.khipu_spotlight = None;
-        }
-        // The keyboard is handed over once, as it is pointed out: Enter or Space then wears it.
-        // Asked for on every frame it would hold the keyboard for the whole four seconds.
-        let focus_id = egui::Id::new("khipu-spotlight-focused");
-        let focus = match state.khipu_spotlight {
-            Some(at) => ui.ctx().data_mut(|d| {
-                let first = d.get_temp::<std::time::Instant>(focus_id) != Some(at);
-                d.insert_temp(focus_id, at);
-                first
-            }),
-            None => false,
-        };
-        controls::SegmentMark {
-            index: n - 1,
-            outline: crate::app::khipu_outline(is_light),
-            glow,
-            focus,
-        }
-    });
-
-    if let Some(picked) = controls::segmented_marked(ui, "theme", labels, selected, mark) {
-        state.set_theme_mode(modes[picked]);
+            if by_keyboard {
+                ui.memory_mut(|m| m.request_focus(first));
+            }
+        });
+    if let Some(lang) = picked {
+        state.set_language(lang);
     }
 }
 
@@ -232,53 +343,6 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
     let t = state.t();
     let is_light = !ui.visuals().dark_mode;
 
-    controls::card_heading(ui, studio::text(state, "General", "General", "Pangkalahatan", "सामान्य"));
-    controls::card(ui, |ui| {
-        let mut autostart = state.autostart_enabled && !crate::EXPERIMENTAL;
-        let changed = controls::card_row(ui, t.autostart_checkbox, t.autostart_hint, 40.0, |ui| {
-            ui.add_enabled_ui(!crate::EXPERIMENTAL, |ui| controls::toggle(ui, &mut autostart, t.autostart_checkbox).changed())
-                .inner
-        });
-        if changed {
-            state.set_autostart(autostart);
-        }
-        controls::card_divider(ui);
-
-        // Each language is written in itself, so someone who cannot read the current interface
-        // language can still find theirs — falling back to a Latin spelling for any script the
-        // loaded fonts can't draw yet.
-        let names: Vec<&str> = Lang::ALL.iter().map(|lang| lang.picker_label(ui.ctx())).collect();
-        let widest = names
-            .iter()
-            .map(|n| controls::button_width(ui, n))
-            .fold(0.0_f32, f32::max);
-        let combo = (widest + LANGUAGE_ARROW).max(controls::dropdown_list_width(ui, &names));
-        let current = state.settings.lang;
-        let mut picked = None;
-        controls::card_row(ui, t.language_section, t.language_hint, combo, |ui| {
-            let shown = names[Lang::ALL.iter().position(|l| *l == current).unwrap_or(0)];
-            let picker = egui::ComboBox::from_id_salt("settings_language")
-                .selected_text(shown)
-                .width(combo)
-                .icon(controls::dropdown_chevron)
-                .show_ui(ui, |ui| {
-                    for (lang, name) in Lang::ALL.iter().zip(&names) {
-                        if controls::dropdown_choice(ui, name, *lang == current) && *lang != current {
-                            picked = Some(*lang);
-                        }
-                    }
-                });
-            controls::say_as(&picker.response, t.language_section);
-        });
-        if let Some(lang) = picked {
-            state.set_language(lang);
-        }
-        controls::card_divider(ui);
-
-        controls::card_stacked_row(ui, t.appearance_section, t.theme_hint, |ui| theme_row(ui, state));
-    });
-
-    ui.add_space(GROUP_GAP);
     controls::card_heading(ui, studio::text(state, "Al escribir", "While you type", "Habang nagta-type", "टाइप करते समय"));
     controls::card(ui, |ui| {
         let about = studio::text(
@@ -289,26 +353,6 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
             "शब्द से पहले जो आप टाइप करते हैं, जैसे \":नमस्ते\" में \":\"।",
         );
         controls::card_stacked_row(ui, t.prefix_section, about, |ui| prefix_row(ui, state));
-        controls::card_divider(ui);
-
-        let go = studio::text(state, "Aplicar", "Apply", "Ilapat", "लागू करें");
-        let width = controls::button_width(ui, go);
-        let apply = controls::card_row(
-            ui,
-            apply_title(state),
-            studio::text(
-                state,
-                "Cambia el prefijo de tus expansiones de ahora por el de arriba.",
-                "Changes the prefix of the expansions you have to the one above.",
-                "Papalitan ang prefix ng mga expansion mo ng nasa itaas.",
-                "आपके मौजूदा विस्तारों का उपसर्ग ऊपर वाले से बदल देता है।",
-            ),
-            width,
-            |ui| controls::button(ui, go, Tone::Normal, true).clicked(),
-        );
-        if apply {
-            state.apply_prefix_to_existing();
-        }
         controls::card_divider(ui);
 
         excluded_apps(ui, state);
@@ -335,34 +379,14 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.add(egui::Label::new(egui::RichText::new(text).color(crate::app::danger(is_light))).wrap());
                 ui.add_space(controls::CARD_PAD_Y);
             }
-            controls::card_divider(ui);
-
-            let mut first = state.settings.favorites_first;
-            let name = studio::text(state, "Favoritos primero", "Favorites first", "Mga paborito muna", "पसंदीदा पहले");
-            let changed = controls::card_row(
-                ui,
-                name,
-                studio::text(
-                    state,
-                    "Las expansiones con estrella salen arriba al buscar.",
-                    "Starred expansions come first when you search.",
-                    "Nauuna ang mga expansion na may bituin kapag naghahanap.",
-                    "खोजने पर तारांकित विस्तार सबसे ऊपर आते हैं।",
-                ),
-                40.0,
-                |ui| controls::toggle(ui, &mut first, name).changed(),
-            );
-            if changed {
-                state.set_favorites_first(first);
-            }
         });
     }
 
     ui.add_space(GROUP_GAP);
     controls::card_heading(ui, studio::text(state, "Tus expansiones", "Your expansions", "Ang iyong mga expansion", "आपके विस्तार"));
     controls::card(ui, |ui| {
-        let export = studio::text(state, "Exportar…", "Export…", "I-export…", "निर्यात…");
-        let import = studio::text(state, "Importar…", "Import…", "I-import…", "आयात…");
+        let export = studio::text(state, "Exportar", "Export", "I-export", "निर्यात");
+        let import = studio::text(state, "Importar", "Import", "I-import", "आयात");
         let width = controls::button_width(ui, export) + controls::GAP + controls::button_width(ui, import);
         let about = studio::text(
             state,
@@ -402,17 +426,6 @@ fn sections(ui: &mut egui::Ui, state: &mut AppState) {
             ui.add(egui::Label::new(egui::RichText::new(format!("Espanso {espanso}")).small().color(quiet)).wrap());
         }
     });
-}
-
-/// The row that puts the prefix on the expansions you already have; Tips names it the same.
-pub(crate) fn apply_title(state: &AppState) -> &'static str {
-    studio::text(
-        state,
-        "Usarlo en las que ya tienes",
-        "Use it on the ones you have",
-        "Gamitin sa mga mayroon ka na",
-        "मौजूदा विस्तारों पर लगाएँ",
-    )
 }
 
 fn open_apps_id() -> egui::Id {
@@ -513,9 +526,6 @@ fn excluded_apps(ui: &mut egui::Ui, state: &mut AppState) {
     }
 }
 
-/// Room a drop-down keeps beside its words for the arrow.
-const LANGUAGE_ARROW: f32 = 28.0;
-
 fn prefix_other_id() -> egui::Id {
     egui::Id::new("settings_prefix_other")
 }
@@ -544,6 +554,7 @@ fn prefix_row(ui: &mut egui::Ui, state: &mut AppState) {
             } else {
                 ui.data_mut(|d| d.remove::<bool>(prefix_other_id()));
                 state.set_prefix(PREFIX_SUGGESTIONS[picked].to_string());
+                state.offer_prefix_rename();
             }
         }
         let open = ui.data(|d| d.get_temp::<bool>(prefix_other_id())).unwrap_or(false) || chosen.is_none();
@@ -614,6 +625,8 @@ fn custom_prefix(ui: &mut egui::Ui, state: &mut AppState) {
         // prefix — including when that was changed from the row of suggestions just beside it.
         if response.lost_focus() {
             ui.data_mut(|d| d.remove::<String>(buffer_id));
+            // Asked once the prefix is finished, not at every key of it.
+            state.offer_prefix_rename();
         }
     });
 }
@@ -851,39 +864,24 @@ pub fn show_folder_picker(ctx: &egui::Context, state: &mut AppState) {
 mod tests {
     use super::*;
 
-    /// The theme row never cuts a word, in any language, with or without the hidden theme: the
-    /// names it would draw, measured in the faces the app really uses, against the narrowest the
-    /// dialog's contents get (the full width less the scroll bar's column, which opens on a short
-    /// window, less the room `segmented` keeps for itself).
+    /// One click at a time, the button visits every theme once and comes back to the first; the
+    /// hidden one only once it has been found.
     #[test]
-    fn the_theme_row_fits_in_every_language() {
-        const ROOM: f32 = WIDEST - 10.0 - 8.0 - 2.0 * controls::CARD_PAD_X - 2.0;
-        let ctx = egui::Context::default();
-        crate::fonts::install(&ctx, true);
-        ctx.all_styles_mut(|s| {
-            s.text_styles.insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
-        });
-        // The first pass is what makes the font atlas exist.
-        for pass in 0..2 {
-            let mut out = ctx.run_ui(Default::default(), |ui| {
-                if pass == 0 {
-                    return;
+    fn the_theme_button_walks_every_theme_and_back() {
+        for found in [false, true] {
+            let mut mode = ThemeMode::System;
+            let mut seen = Vec::new();
+            loop {
+                seen.push(mode);
+                mode = next_theme(mode, found);
+                if mode == ThemeMode::System {
+                    break;
                 }
-                for lang in Lang::ALL {
-                    let t = lang.strings();
-                    let width = |modes: &[ThemeMode]| {
-                        let full: Vec<&str> = modes.iter().map(|m| theme_name(t, *m, false)).collect();
-                        let short: Vec<&str> = modes.iter().map(|m| theme_name(t, *m, true)).collect();
-                        controls::segmented_natural_width(ui, &full).min(controls::segmented_natural_width(ui, &short))
-                    };
-                    let offered = ThemeMode::ALL.to_vec();
-                    let mut found = offered.clone();
-                    found.push(ThemeMode::Khipu);
-                    assert!(width(&offered) <= ROOM, "{lang:?}: {}", width(&offered));
-                    assert!(width(&found) <= ROOM, "{lang:?}: {} > {ROOM}", width(&found));
-                }
-            });
-            out.textures_delta.clear();
+            }
+            assert_eq!(seen.len(), if found { 5 } else { 4 });
+            assert_eq!(seen.contains(&ThemeMode::Khipu), found);
         }
+        // Wearing the hidden theme after it was forgotten still leads somewhere.
+        assert_eq!(next_theme(ThemeMode::Khipu, false), ThemeMode::Light);
     }
 }

@@ -791,9 +791,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
                 if edit.editing_index.is_some() {
                     right += controls::GAP_SECTION + gap + controls::button_width(ui, t.delete);
                 }
-                let room = span - right - controls::FIELD_HEIGHT - 3.0 * gap - controls::GAP_SECTION;
-                let each = (room * 0.5).clamp(controls::FIELD_HEIGHT, EXTRA_MAX_WIDTH);
-                extras(ui, state, &mut edit, each);
+                let room = span - right - controls::FIELD_HEIGHT - 2.0 * gap - controls::GAP_SECTION;
+                extras(ui, state, &mut edit, room.max(controls::FIELD_HEIGHT * 2.0));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let saving = controls::button(ui, t.save, Tone::Primary, can_save);
                     save = match &problem {
@@ -2416,10 +2415,10 @@ fn preview_pair(ui: &mut egui::Ui, state: &AppState, edit: &EditState, max_heigh
                         ui.label(controls::muted(
                             studio::text(
                                 state,
-                                "Tu texto aparecerá aquí…",
-                                "Your text will appear here…",
-                                "Lalabas ang teksto mo rito…",
-                                "आपका टेक्स्ट यहाँ दिखेगा…",
+                                "Tu texto aparecerá aquí",
+                                "Your text will appear here",
+                                "Lalabas ang teksto mo rito",
+                                "आपका टेक्स्ट यहाँ दिखेगा",
                             ),
                             is_light,
                         ));
@@ -2579,24 +2578,27 @@ fn try_answers(ui: &mut egui::Ui, spec: &FormSpec, answers: &mut [String], lang:
     }
 }
 
-/// The widest a folder's or a name's words get at the foot before they are cut with «…».
+/// The widest a folder's name gets at the foot before it is cut with «…».
 const EXTRA_MAX_WIDTH: f32 = 180.0;
-/// How wide the folder and name flyouts open.
+/// How wide the name's box is at the foot, when there is room.
+const NAME_WIDTH: f32 = 220.0;
+/// How wide the folder flyout opens.
 const EXTRA_MENU_WIDTH: f32 = 260.0;
 /// How tall the folders in the folder flyout grow before they scroll.
 const EXTRA_FOLDERS_MAX_HEIGHT: f32 = 240.0;
 
-/// The box for a new folder's name, so «Nueva carpeta…» can put the cursor in it.
+/// The box for a new folder's name, so «Nueva carpeta» can put the cursor in it.
 fn new_folder_field_id() -> egui::Id {
     egui::Id::new("edit-new-folder-name")
 }
 
 /// The star, the folder and the name: the three things an expansion may have that change nothing
-/// about what it does. They wait at the foot, opposite Guardar, as quiet buttons, so making an
-/// expansion asks for two answers and not five; what each one is for is said on hover. Each button
-/// shows what it holds, so an expansion that has a folder or a name says so without being opened up.
-/// `each` is the most the folder and the name may take, so the row never runs into Guardar.
-fn extras(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, each: f32) {
+/// about what it does. They wait at the foot, opposite Guardar, as quietly as they can: the star
+/// and the folder are one icon each until they hold something, and the name is a word that becomes
+/// a box when typed in. Making an expansion asks for two answers, and what each extra is for is
+/// said on hover. `room` is all the folder and the name may take, so the row never runs into
+/// Guardar.
+fn extras(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, room: f32) {
     let star_tip = studio::text(
         state,
         "Favorita: sale primero en la lista y en el buscador",
@@ -2615,26 +2617,25 @@ fn extras(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, each: f32) 
         "Folder: para mahanap ito rito. Pareho ang gana ng expansion sa kahit anong folder",
         "फ़ोल्डर: इसे यहाँ खोजने के लिए। विस्तार किसी भी फ़ोल्डर में एक जैसा काम करता है",
     );
-    let folder_word = studio::text(state, "Carpeta", "Folder", "Folder", "फ़ोल्डर");
-    let shown = edit.folder.clone().unwrap_or_else(|| folder_word.to_owned());
-    let button = controls::tool_button(ui, Glyph::Folder, &shown, edit.folder.is_some(), each, folder_tip);
+    let start = ui.cursor().left();
+    let shown = edit.folder.clone().unwrap_or_default();
+    let button = controls::tool_button(ui, Glyph::Folder, &shown, edit.folder.is_some(), EXTRA_MAX_WIDTH.min(room * 0.5), folder_tip);
     folder_menu(ui, state, edit, &button);
 
+    // Typed where it stands: a name is a few words, not a reason to open anything. Its hint is the
+    // one word that says what it is, so it needs no icon.
     let name_tip = studio::text(
         state,
-        "Nombre: para reconocerla en la lista y encontrarla en el buscador",
-        "Name: to recognise it in the list and find it in search",
-        "Pangalan: para makilala ito sa listahan at mahanap sa paghahanap",
-        "नाम: ताकि सूची में इसे पहचान सकें और खोज में ढूँढ सकें",
+        "Nombre (opcional): para reconocerla en la lista y encontrarla en el buscador",
+        "Name (optional): to recognise it in the list and find it in search",
+        "Pangalan (opsyonal): para makilala ito sa listahan at mahanap sa paghahanap",
+        "नाम (वैकल्पिक): ताकि सूची में इसे पहचान सकें और खोज में ढूँढ सकें",
     );
-    let named = !edit.name.trim().is_empty();
-    let shown = if named {
-        edit.name.trim().to_owned()
-    } else {
-        studio::text(state, "Nombre", "Name", "Pangalan", "नाम").to_owned()
-    };
-    let button = controls::tool_button(ui, Glyph::Tag, &shown, named, each, name_tip);
-    name_menu(state, edit, &button);
+    let word = studio::text(state, "Nombre", "Name", "Pangalan", "नाम");
+    let left = room - (ui.cursor().left() - start) - controls::GAP_ROW;
+    let field = controls::quiet_field(ui, egui::Id::new("edit-name"), &mut edit.name, word, NAME_WIDTH.min(left))
+        .on_hover_text(name_tip);
+    controls::say_as(&field, word);
 }
 
 /// The folder flyout: no folder, every folder, and a new one named in place. A folder named here
@@ -2654,7 +2655,7 @@ fn folder_menu(ui: &egui::Ui, state: &AppState, edit: &mut EditState, button: &e
         folder_names.push(pending.clone());
         folder_names.sort_by_key(|f| f.to_lowercase());
     }
-    let new_folder = format!("{}…", t.add_new_folder.trim_start_matches(['+', ' ']).trim_end_matches('…'));
+    let new_folder = t.new_folder;
     let by_keyboard = button.clicked() && button.has_focus();
     egui::Popup::menu(button)
         // Choosing a folder closes it (see [`controls::menu_check_item`]); typing a new one must not.
@@ -2689,7 +2690,7 @@ fn folder_menu(ui: &egui::Ui, state: &AppState, edit: &mut EditState, button: &e
                     ui,
                     controls::text_field(&mut edit.new_folder_input)
                         .id(new_folder_field_id())
-                        .hint_text(t.new_folder_placeholder),
+                        .hint_text(t.new_folder),
                 );
                 let name = edit.new_folder_input.trim().to_string();
                 if field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !name.is_empty() {
@@ -2732,35 +2733,6 @@ fn menu_field(ui: &mut egui::Ui, field: egui::TextEdit<'_>) -> egui::Response {
         }
     }
     response
-}
-
-/// The name flyout: one box, with the cursor already in it. Enter puts it away.
-fn name_menu(state: &AppState, edit: &mut EditState, button: &egui::Response) {
-    if button.clicked() {
-        button.ctx.data_mut(|d| d.insert_temp(focus_due_key(), true));
-    }
-    egui::Popup::menu(button)
-        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-        .align(egui::RectAlign::TOP_START)
-        .gap(controls::GAP_TIGHT)
-        .width(EXTRA_MENU_WIDTH)
-        .show(|ui| {
-            let field = menu_field(
-                ui,
-                controls::text_field(&mut edit.name)
-                    .hint_text(studio::text(
-                        state,
-                        "Por ejemplo: Firma del correo",
-                        "For example: Email signature",
-                        "Halimbawa: Pirma sa email",
-                        "उदाहरण: ईमेल हस्ताक्षर",
-                    )),
-            );
-            controls::say_as(&field, studio::text(state, "Nombre", "Name", "Pangalan", "नाम"));
-            if field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                ui.close();
-            }
-        });
 }
 
 /// The form itself: two numbered questions — what you type and what appears. The title sits above

@@ -17,28 +17,26 @@
  * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//! The "start with Windows" checkbox, which is one value under `HKCU\...\CurrentVersion\Run`
-//! and one veto over it under `...\Explorer\StartupApproved\Run`.
+//! Starting with Windows: on from the first run, and off only where Windows keeps its own switch
+//! for it (Settings › Apps › Startup, or Task Manager). Khipu has no switch of its own: an expander
+//! that is not running does nothing, and one more setting is one more thing to read.
 //!
-//! Registered with `--tray`, so the copy Windows starts at login comes up hidden beside the clock
-//! instead of throwing a window at somebody who was trying to log in.
+//! The portable copy writes one value under `HKCU\...\CurrentVersion\Run`, which Windows can veto
+//! under `...\Explorer\StartupApproved\Run`. Registered with `--tray`, so the copy Windows starts at
+//! login comes up hidden beside the clock instead of throwing a window at somebody who was trying
+//! to log in.
 //!
-//! The state is read live from the registry every time it is asked for, never cached in
-//! `settings.json`. Two things own this bit — us and whatever else can edit that key, including the
-//! person themselves — and a cached copy would let the checkbox and the machine disagree with no
-//! way to tell which one is lying.
+//! Whether it is on is read live from the registry every time it is asked, never cached in
+//! `settings.json`: Windows' switch owns the answer, and a cached copy would disagree with it.
 //!
 //! "Enabled" here means *this* executable actually starts at login, which is a stricter question
 //! than "is there a value with our name on it". A value naming a copy of the app in a folder that
 //! has since been moved or renamed starts nothing; so does a value Windows has been told to ignore.
-//! Both used to read as enabled, which turned a switch into a decoration — and neither can be
-//! detected by looking at the Run value alone.
 //!
 //! The installed copy (see `install`) cannot use any of that: a packaged process writing to `HKCU`
 //! writes into a private copy Windows never reads at login. It has a startup task instead, declared
-//! in the package manifest as `AutoStart`, and the same two questions go to that. The user can veto
-//! it in Settings › Apps › Startup, and that veto, unlike the registry one, cannot be lifted from
-//! here — only reported.
+//! in the package manifest as `AutoStart`, and the same questions go to that. A veto from Windows'
+//! Settings, unlike the registry one, cannot be lifted from here — only reported.
 
 use std::path::Path;
 use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE};
@@ -58,8 +56,8 @@ const LEGACY_VALUE_NAME: &str = "Espanso Manager";
 ///
 /// An unquoted path containing spaces cannot be told apart from a path plus arguments, and Windows
 /// itself guesses at that. We always write the quoted form, so the unquoted branch only ever reads
-/// somebody else's writing; guessing wrong there costs a switch that reads off until it is pressed,
-/// not a broken entry.
+/// somebody else's writing; guessing wrong there costs a start-up that reads off, not a broken
+/// entry.
 fn registered_exe(command: &str) -> &str {
     let command = command.trim();
     match command.strip_prefix('"') {
@@ -96,8 +94,8 @@ fn is_approved() -> bool {
     }
 }
 
-/// Reads live from the registry rather than a cached setting, so the checkbox never drifts from
-/// reality if someone edits the Run key by hand.
+/// Reads live from the registry rather than a cached setting, so the answer never drifts from what
+/// Windows will do if someone edits the Run key by hand.
 pub fn is_enabled(exe_path: &Path) -> bool {
     if crate::install::is_packaged() {
         return packaged::is_enabled();
@@ -111,24 +109,18 @@ pub fn is_enabled(exe_path: &Path) -> bool {
     }
 }
 
-pub fn set_enabled(enabled: bool, exe_path: &Path) -> std::io::Result<()> {
+/// Starts this copy with Windows from now on.
+pub fn enable(exe_path: &Path) -> std::io::Result<()> {
     if crate::install::is_packaged() {
-        return packaged::set_enabled(enabled);
+        return packaged::enable();
     }
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let (key, _) = hkcu.create_subkey(RUN_KEY)?;
-    if enabled {
-        let command = format!("\"{}\" --tray", exe_path.display());
-        key.set_value(VALUE_NAME, &command)?;
-    } else {
-        // Not being registered at all is not an error.
-        let _ = key.delete_value(VALUE_NAME);
-    }
-    // The veto goes either way, and its absence is what Windows reads as approval. Turning the
-    // switch on has to clear a previous "off" or it would write a value that never runs and then
-    // report success; turning it off leaves no note about a value that no longer exists. Failing to
-    // reach the key is not worth a banner: the Run value, which is the part that starts anything,
-    // is already written.
+    let command = format!("\"{}\" --tray", exe_path.display());
+    key.set_value(VALUE_NAME, &command)?;
+    // A previous "off" has to go too, or this would write a value that never runs and then report
+    // success: its absence is what Windows reads as approval. Failing to reach the key is not worth
+    // a banner: the Run value, which is the part that starts anything, is already written.
     if let Ok(approved) = hkcu.open_subkey_with_flags(APPROVED_KEY, KEY_SET_VALUE) {
         let _ = approved.delete_value(VALUE_NAME);
     }
@@ -155,7 +147,7 @@ pub fn adopt_legacy(exe_path: &Path) {
     let veto = hkcu.open_subkey_with_flags(APPROVED_KEY, KEY_READ | KEY_SET_VALUE).ok();
     let record = veto.as_ref().and_then(|key| key.get_raw_value(LEGACY_VALUE_NAME).ok());
     if approved(record.as_ref().map(|value| &value.bytes[..])) {
-        let _ = set_enabled(true, exe_path);
+        let _ = enable(exe_path);
     }
     let _ = run.delete_value(LEGACY_VALUE_NAME);
     if let Some(veto) = veto {
@@ -163,7 +155,7 @@ pub fn adopt_legacy(exe_path: &Path) {
     }
 }
 
-/// The installed copy's switch: the package's startup task.
+/// The installed copy's way: the package's startup task.
 mod packaged {
     use windows::core::HSTRING;
     use windows::ApplicationModel::{StartupTask, StartupTaskState};
@@ -186,12 +178,9 @@ mod packaged {
     /// A veto from the user or from policy comes back as `PermissionDenied`, which the caller turns
     /// into a sentence that says where to lift it. Windows asks nothing when a desktop app enables
     /// its task, so the answer is immediate either way.
-    pub fn set_enabled(enabled: bool) -> std::io::Result<()> {
+    pub fn enable() -> std::io::Result<()> {
         let io = |e: windows::core::Error| std::io::Error::other(e.message());
         let task = task().map_err(io)?;
-        if !enabled {
-            return task.Disable().map_err(io);
-        }
         let state = task.RequestEnableAsync().and_then(|op| op.join()).map_err(io)?;
         if on(state) {
             Ok(())
@@ -212,16 +201,15 @@ mod tests {
         assert_eq!(registered_exe("\"C:\\Mis Cosas\\Khipu.exe\" --tray"), "C:\\Mis Cosas\\Khipu.exe");
         assert_eq!(registered_exe("C:\\Espanso\\espansod.exe --tray"), "C:\\Espanso\\espansod.exe");
         assert_eq!(registered_exe("  C:\\Espanso\\espansod.exe  "), "C:\\Espanso\\espansod.exe");
-        // A folder with a space, written by hand without quotes, is the guess that goes wrong: the
-        // switch reads off until it is pressed, as the doc above says, and pressing it writes the
-        // quotes.
+        // A folder with a space, written by hand without quotes, is the guess that goes wrong: it
+        // reads off, as the doc above says.
         assert_eq!(registered_exe("C:\\Mis Cosas\\Khipu.exe --tray"), "C:\\Mis");
         assert_eq!(registered_exe(""), "");
         assert_eq!(registered_exe("\""), "");
     }
 
-    /// A folder that moved leaves the old path behind. The switch has to say off, because off is
-    /// what it is — and pressing it then writes the path that works.
+    /// A folder that moved leaves the old path behind. It has to read off, because off is what
+    /// it is.
     #[test]
     fn a_command_pointing_somewhere_else_is_not_enabled() {
         let ours = Path::new("C:\\Espanso\\Khipu.exe");
