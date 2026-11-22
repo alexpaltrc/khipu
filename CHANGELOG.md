@@ -11,6 +11,9 @@ was published.
   LF line endings, which plain Windows text boxes show as nothing, so the paragraphs came out
   glued together. Texts and form results now reach espanso with CRLF; the editor still shows
   them the same.
+- **The caret stays right after the last word.** A line break at the very end of a text or a
+  form's result is dropped, so an expansion no longer leaves the caret on a new line. Trailing
+  spaces are kept.
 
 ### Store
 

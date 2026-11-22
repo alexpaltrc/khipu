@@ -21,6 +21,9 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
   detalle en todos los sitios que muestran lo mismo, sin esperar a que Alex lo note.
 - Mica (transparencia) se descartó por ahora (2026-11-14): cuesta optimización y se ve peor con
   fondos llamativos. No proponerlo de nuevo salvo que Alex lo pida.
+- Expansiones con formato (negritas, listas) se probaron y se descartaron (2026-11-22): mucho
+  trabajo y una experiencia que no se puede asegurar. El porqué, en `docs/roadmap.md` («Decidido:
+  expansiones sin formato»). No proponerlo de nuevo salvo que Alex lo pida.
 - Código, comentarios y commits en inglés; documentación en español; la app en cuatro idiomas.
 
 ## Estado

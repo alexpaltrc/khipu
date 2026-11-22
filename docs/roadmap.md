@@ -195,6 +195,32 @@ Registrar si completan la tarea sin ayuda, dónde dudan, errores y tiempo observ
 
 No priorizaría cuentas, nube propia, generación por IA, estadísticas de productividad, rachas, un editor de texto enriquecido o una reescritura del framework. Pueden tener valor en otro contexto, pero ahora añaden mantenimiento y decisiones antes de resolver los problemas centrales. Una sincronización futura necesita diseñar conflictos y recuperación; compartir archivos es un primer paso más acotado.
 
+## Decidido: expansiones sin formato (2026-11-22)
+
+Se probó en un experimento (21 y 22 de noviembre de 2026) que una expansión llevara negritas,
+cursivas y listas, escritas como `**así**`, `*así*` y `- `, y que pegar en el editor un texto
+copiado de Word, Google Docs o Teams conservara ese formato. **Alex decidió no hacerlo**: mucho
+trabajo y no se puede asegurar una buena experiencia. Si vuelve la idea, esto es lo que se aprendió:
+
+- **espanso decide el resultado, no Khipu.** Con formato, espanso siempre pega (nunca escribe
+  tecla por tecla) y pone en el portapapeles dos versiones: con formato y sin él. La versión sin
+  formato la arma espanso y quita viñetas, números y negritas, y añade líneas en blanco alrededor
+  de cada lista. WhatsApp, por ejemplo, recibió esa.
+- **Cada aplicación lo muestra distinto.** Google Docs aceptaba negritas y listas; Gemini quitaba
+  la negrita y el espacio entre párrafos; WhatsApp recibía el texto plano sin viñetas. El
+  subrayado no tiene forma de escribirse.
+- **Leer lo que se pega es frágil.** Word, Google Docs y Teams copian el formato cada uno a su
+  manera (Docs, por ejemplo, mete cada elemento de lista en su propio párrafo), y cada caso
+  necesita su arreglo.
+- **Los asteriscos chocan con el uso real**: `*8374` (número censurado) tenía que seguir siendo un
+  asterisco, y cada símbolo que el formato interpreta (`_`, `#`, `<`…) obligaba a protegerlo.
+- **La única salida completa era cambiar espanso** (que la versión sin formato conserve viñetas y
+  números), con nuestra propia copia o mandándoles el cambio. espanso sí tiene mantenimiento
+  (2.4.1, septiembre de 2026) y comparte la licencia GPL-3 de Khipu.
+
+Lo que sí se quedó: las líneas en blanco entre párrafos se respetan al usar la expansión, y el
+cursor termina justo después de la última palabra.
+
 ## Referencias de la revisión local
 
 Base consultada: commit local `bebb488`, Cargo `0.0.6`. No se modificó el código de la aplicación para elaborar esta propuesta.

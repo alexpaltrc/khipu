@@ -290,8 +290,11 @@ fn classify(value: &Value) -> MatchEntry {
 /// the text on the clipboard byte for byte, and a lone LF shows as nothing in plain Win32 edit
 /// boxes, gluing paragraphs together; when it types, it splits on CRLF just the same. Khipu reads
 /// the file back with plain LF, which is what its editor and the launcher work with.
+///
+/// A line break at the very end goes: it would leave the caret on a new line below the text
+/// instead of right after its last word. Trailing spaces stay; those are the user's to choose.
 pub fn windows_lines(text: &str) -> String {
-    text.replace("\r\n", "\n").replace('\n', "\r\n")
+    text.trim_end_matches(['\r', '\n']).replace("\r\n", "\n").replace('\n', "\r\n")
 }
 
 fn to_value(entry: &MatchEntry) -> Value {
@@ -624,13 +627,15 @@ mod tests {
         let mut mf = MatchFile::default();
         mf.entries.push(MatchEntry::Simple(SimpleMatch {
             trigger: ":p".into(),
-            replace: "Uno.\n\nDos.\r\nTres.".into(),
+            replace: "Uno.\n\nDos.\r\nTres.\n\r\n".into(),
             vars: Vec::new(),
             label: None,
         }));
         let text = mf.to_string_with_banner().unwrap();
         let raw: Value = serde_norway::from_str(&text).unwrap();
+        // The breaks at the end go, so the caret stays right after the last word.
         assert_eq!(raw["matches"][0]["replace"].as_str(), Some("Uno.\r\n\r\nDos.\r\nTres."));
+        assert_eq!(windows_lines("Hola \n"), "Hola ");
         match &MatchFile::from_str(&text).unwrap().entries[0] {
             MatchEntry::Simple(m) => assert_eq!(m.replace, "Uno.\n\nDos.\nTres."),
             MatchEntry::Advanced(_) => panic!("should stay simple"),
