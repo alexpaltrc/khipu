@@ -875,7 +875,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             let page = ui.max_rect();
             let foot = egui::pos2(page.center().x, page.bottom() - NEW_BUTTON_LIFT);
             let room = page.width() - 2.0 * f32::from(controls::page_margin(page.width()));
-            crate::ui::island::show(ui, state, Source::Window(foot), room);
+            crate::ui::island::show(ui, state, Source::Window(foot), room, false);
         }
         _ => {
             header(ui, state, is_light);
@@ -901,7 +901,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
                 library(ui, state, &list, visible, active.as_deref(), is_light);
             });
             // After the list, so it is drawn over the rows and answers the click before them.
-            new_button(ui, state, list_rect);
+            dock(ui, state, &list, visible, list_rect);
             if let Some((rect, trigger)) = side {
                 ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
                     inspector(ui, state, &trigger, true, is_light);
@@ -1472,120 +1472,6 @@ fn drop_targets(ui: &mut egui::Ui, state: &mut AppState, list: &ListCache, at: e
     }
 }
 
-// --- Choosing several ---------------------------------------------------------------------------
-
-/// What you can do to several expansions at once. Present and greyed with nothing ticked, rather
-/// than absent: an action that disappears takes the explanation of itself with it.
-fn bulk_bar(ui: &mut egui::Ui, state: &mut AppState, list: &ListCache, visible: &[usize]) {
-    let t = state.t();
-    let lang = state.settings.lang;
-    let count = state.selected.len();
-    let any = count > 0;
-    let all_ticked = !visible.is_empty()
-        && visible
-            .iter()
-            .all(|&i| state.selected.contains(&list.rows[i].trigger));
-
-    let mut select_all = false;
-    let mut clear = false;
-    let mut move_them = false;
-    let mut unfile = false;
-    let mut delete = false;
-    let mut done = false;
-    let mut switch_to: Option<bool> = None;
-    // One button, worded for what it would do: with every ticked expansion already off it turns
-    // them on, and with any of them on it turns them all off.
-    let all_off = any && state.selected.iter().all(|t| state.match_file.is_off(t));
-
-    controls::inset_frame(ui).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = egui::vec2(controls::GAP, controls::GAP);
-            ui.label(controls::h3(fill(t.selected_count, &[("n", &count.to_string())])));
-
-            let label = if all_ticked {
-                studio::text(state, "Quitar selección", "Clear selection", "Alisin ang pinili", "चयन हटाएँ")
-            } else {
-                studio::text(state, "Seleccionar todas", "Select all", "Piliin lahat", "सभी चुनें")
-            };
-            if controls::button(ui, label, Tone::Quiet, !visible.is_empty()).clicked() {
-                if all_ticked {
-                    clear = true;
-                } else {
-                    select_all = true;
-                }
-            }
-            let move_label = studio::text(state, "Mover a carpeta", "Move to folder", "Ilipat sa folder", "फ़ोल्डर में ले जाएँ");
-            if controls::button(ui, move_label, Tone::Normal, any).clicked() {
-                move_them = true;
-            }
-            if controls::button(ui, t.remove_from_folder, Tone::Normal, any && state.selection_has_foldered())
-                .clicked()
-            {
-                unfile = true;
-            }
-            let switch_label = if all_off {
-                studio::text(state, "Encender", "Turn on", "Buksan", "चालू करें")
-            } else {
-                studio::text(state, "Apagar", "Turn off", "Patayin", "बंद करें")
-            };
-            if controls::button(ui, switch_label, Tone::Normal, any).clicked() {
-                switch_to = Some(!all_off);
-            }
-            let delete_tip = keys::tip(t.delete_selected, keys::DELETE, lang);
-            if controls::button(ui, t.delete_selected, Tone::Danger, any)
-                .on_hover_text(delete_tip)
-                .clicked()
-            {
-                delete = true;
-            }
-            let stop = keys::tip(
-                studio::text(state, "Terminar selección", "Stop selecting", "Tapusin ang pagpili", "चयन समाप्त करें"),
-                keys::BACK,
-                lang,
-            );
-            if controls::icon_button(ui, Glyph::Close, &stop, true).clicked() {
-                done = true;
-            }
-        });
-    });
-
-    if select_all {
-        // "Todas" means every expansion the filter is showing, and nothing else. Anything hidden by
-        // the folder or by the search is not on this screen and cannot be acted on from it.
-        for &i in visible {
-            state.selected.insert(list.rows[i].trigger.clone());
-        }
-        state.selection_anchor = visible.first().map(|&i| list.rows[i].trigger.clone());
-    }
-    if clear {
-        state.clear_selection();
-    }
-    if move_them {
-        ask_to_move(ui.ctx(), state.selected.iter().cloned().collect());
-    }
-    if unfile {
-        let triggers: Vec<String> = state
-            .selected
-            .iter()
-            .filter(|t| state.settings.folder_of(t).is_some())
-            .cloned()
-            .collect();
-        state.assign_folder_to_triggers(&triggers, None);
-    }
-    if let Some(off) = switch_to {
-        let triggers: Vec<String> = state.selected.iter().cloned().collect();
-        state.set_off(&triggers, off);
-    }
-    if delete {
-        state.request_delete_selected();
-    }
-    if done {
-        set_select_mode(ui.ctx(), false);
-        state.clear_selection();
-    }
-}
-
 // --- The keyboard -------------------------------------------------------------------------------
 
 /// Every key the library answers to, read once at the end of the frame. The table of which keys
@@ -1745,10 +1631,6 @@ fn library(
     is_light: bool,
 ) {
     let picking = select_mode(ui.ctx());
-    if picking {
-        bulk_bar(ui, state, list, visible);
-        ui.add_space(controls::GAP);
-    }
     let list_top = ui.available_rect_before_wrap();
     drop_targets(ui, state, list, list_top);
     let fade = list_fade(ui.ctx());
@@ -2353,13 +2235,22 @@ fn ease_out_back(x: f32) -> f32 {
     1.0 + c3 * (x - 1.0).powi(3) + c1 * (x - 1.0).powi(2)
 }
 
-/// A new expansion: a circle in the accent, at the foot of the list and in the middle of it, over
-/// the rows. It is the one thing on this screen that makes something, so it is the one thing in
-/// colour. It rises into place whenever the screen appears — from another screen, or from the
-/// tray — and [`NEW_BUTTON_ROOM`] after the last row lets the list scroll clear of it.
-fn new_button(ui: &mut egui::Ui, state: &mut AppState, area: egui::Rect) {
+/// The «+» beside a pill: as tall as the pill, so the two read as one row.
+const SIDE_PLUS: f32 = crate::ui::island::ISLAND_HEIGHT;
+
+/// How far the «+» has stepped aside for a pill: 0 is alone in the middle, 1 beside it.
+fn aside_id() -> egui::Id {
+    egui::Id::new("new-button-aside")
+}
+
+/// The foot of the list: the round «+» for a new expansion, and what takes its place for a while —
+/// the island saying what was just done, or the selection island while several are being chosen.
+/// Neither keeps the «+» from being pressed: as the pill grows out of it, a smaller «+» buds from
+/// the pill's right end and the two settle side by side, the row centred; as the pill closes back
+/// into the circle, the «+» slides back into it. Messages said while choosing rise above the row,
+/// and one that began there stays there until it ends, so no message ever jumps from place to place.
+fn dock(ui: &mut egui::Ui, state: &mut AppState, list: &ListCache, visible: &[usize], area: egui::Rect) {
     let ctx = ui.ctx().clone();
-    let is_light = !ui.visuals().dark_mode;
     let now = ctx.input(|i| i.time);
     let frame = ctx.cumulative_frame_nr();
     // A frame without the list in between means the screen has just appeared: rise again.
@@ -2371,11 +2262,8 @@ fn new_button(ui: &mut egui::Ui, state: &mut AppState, area: egui::Rect) {
         d.insert_temp(rise_id(), Rise { since, frame });
         since
     });
-    let progress = if crate::theme::animations_enabled() {
-        ((now - since - RISE_DELAY) / RISE).clamp(0.0, 1.0) as f32
-    } else {
-        1.0
-    };
+    let motion = crate::theme::animations_enabled();
+    let progress = if motion { ((now - since - RISE_DELAY) / RISE).clamp(0.0, 1.0) as f32 } else { 1.0 };
     if progress < 1.0 {
         ctx.request_repaint();
     }
@@ -2387,20 +2275,118 @@ fn new_button(ui: &mut egui::Ui, state: &mut AppState, area: egui::Rect) {
     // Starts wholly below the window, shadow and all, so it comes in rather than fading up.
     let window = ctx.content_rect();
     let travel = window.bottom() + controls::GAP_SECTION - rest.top();
-    let rect = rest.translate(egui::vec2(0.0, travel * (1.0 - ease_out_back(progress))));
+    let circle = rest.translate(egui::vec2(0.0, travel * (1.0 - ease_out_back(progress))));
 
-    // While there is something to say about what was just done, the button is the island that says it.
-    let room = area.width() - 2.0 * f32::from(controls::page_margin(area.width()));
-    if crate::ui::island::show(ui, state, Source::Plus(rect), room) {
-        return;
+    // The row is centred: the pill moves left by half of what the «+» beside it takes.
+    let mut aside: crate::ui::island::Spring =
+        ctx.data(|d| d.get_temp(aside_id())).unwrap_or(crate::ui::island::Spring::new(0.0, 300.0, 31.0));
+    let step = controls::GAP + SIDE_PLUS;
+    let shifted = circle.translate(egui::vec2(-aside.x * step * 0.5, 0.0));
+    let room = area.width() - 2.0 * f32::from(controls::page_margin(area.width())) - step;
+
+    // Who holds the «+»'s place. Choosing several, the selection island; otherwise the message.
+    let picking = select_mode(&ctx);
+    let over_foot = egui::pos2(rest.center().x, rest.bottom() - crate::ui::island::ISLAND_HEIGHT - controls::GAP);
+    let over = picking || crate::ui::island::alive(&ctx, Source::Over(over_foot));
+    let choosing = picking || crate::ui::selection_island::alive(&ctx);
+    let message = crate::ui::island::show(ui, state, Source::Plus(shifted), room, over || choosing);
+    let mut held = message;
+    if message.is_none() {
+        let all_ticked = !visible.is_empty() && visible.iter().all(|&i| state.selected.contains(&list.rows[i].trigger));
+        let sel = crate::ui::selection_island::Selection {
+            count: state.selected.len(),
+            all_ticked,
+            any_visible: !visible.is_empty(),
+            all_off: !state.selected.is_empty() && state.selected.iter().all(|t| state.match_file.is_off(t)),
+        };
+        let (pill, pressed) = crate::ui::selection_island::show(ui, state, shifted, picking, &sel);
+        held = pill;
+        act_on_selection(&ctx, state, list, visible, pressed);
+    }
+    if over {
+        crate::ui::island::show(ui, state, Source::Over(over_foot), room + step, false);
     }
 
+    aside.to = if held.is_some_and(|(_, open)| open) { 1.0 } else { 0.0 };
+    if motion {
+        aside.step(ctx.input(|i| i.stable_dt).min(0.05));
+    } else {
+        aside.snap();
+    }
+    if (aside.x - aside.to).abs() > 0.001 || aside.v.abs() > 0.01 {
+        ctx.request_repaint();
+    }
+    ctx.data_mut(|d| d.insert_temp(aside_id(), aside));
+
+    match held {
+        // Beside the pill: budding out of its round right end, settling a gap away, and going back
+        // into the same end, where the accent it is made of is the colour the closing pill turns.
+        Some((pill, _)) => {
+            let bud = aside.x.clamp(0.0, 1.2);
+            let size = SIDE_PLUS * bud.min(1.0);
+            if size > 1.0 {
+                let center = egui::pos2(
+                    pill.right() - pill.height() * 0.5 + (controls::GAP + SIDE_PLUS) * bud,
+                    pill.center().y,
+                );
+                plus_button(ui, state, egui::Rect::from_center_size(center, egui::Vec2::splat(size)), bud > 0.6);
+            }
+        }
+        None => plus_button(ui, state, circle, true),
+    }
+}
+
+/// What the selection island's buttons do to the selection.
+fn act_on_selection(
+    ctx: &egui::Context,
+    state: &mut AppState,
+    list: &ListCache,
+    visible: &[usize],
+    pressed: crate::ui::selection_island::Pressed,
+) {
+    if pressed.select_all {
+        // "Todas" means every expansion the filter is showing, and nothing else. Anything hidden by
+        // the folder or by the search is not on this screen and cannot be acted on from it.
+        for &i in visible {
+            state.selected.insert(list.rows[i].trigger.clone());
+        }
+        state.selection_anchor = visible.first().map(|&i| list.rows[i].trigger.clone());
+    }
+    if pressed.clear {
+        state.clear_selection();
+    }
+    if pressed.move_them {
+        // The dialog offers «Sin carpeta» too, so taking them out of a folder is moving them.
+        ask_to_move(ctx, state.selected.iter().cloned().collect());
+    }
+    if let Some(off) = pressed.switch_off {
+        let triggers: Vec<String> = state.selected.iter().cloned().collect();
+        state.set_off(&triggers, off);
+    }
+    if pressed.delete {
+        state.request_delete_selected();
+    }
+    if pressed.done {
+        set_select_mode(ctx, false);
+        state.clear_selection();
+    }
+}
+
+/// A new expansion: a circle in the accent. It is the one thing on this screen that makes
+/// something, so it is the one thing in colour. Alone it sits at the foot of the list, in the
+/// middle, over the rows, and [`NEW_BUTTON_ROOM`] after the last row lets the list scroll clear of
+/// it; beside a pill it is smaller. `ready` is false while it is still budding, too small to aim at.
+fn plus_button(ui: &mut egui::Ui, state: &mut AppState, rect: egui::Rect, ready: bool) {
+    let ctx = ui.ctx().clone();
+    let is_light = !ui.visuals().dark_mode;
     let t = state.t();
     let tip = keys::tip(t.new_expansion, keys::NEW, state.settings.lang);
-    let response = ui.interact(rect, egui::Id::new("new-expansion-button"), egui::Sense::click());
-    let response = response.on_hover_text(&tip);
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &tip));
-    if response.hovered() {
+    // Drags are taken and dropped, so a press here never starts the box that picks rows beneath.
+    let sense = if ready { egui::Sense::click_and_drag() } else { egui::Sense::drag() };
+    let response = ui.interact(rect, egui::Id::new("new-expansion-button"), sense);
+    let response = if ready { response.on_hover_text(&tip) } else { response };
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ready, &tip));
+    if ready && response.hovered() {
         ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
     }
 
@@ -2423,42 +2409,35 @@ fn new_button(ui: &mut egui::Ui, state: &mut AppState, area: egui::Rect) {
     // row under it never shows through.
     let (fill, ink) = crate::app::accent_fill(ui.visuals());
     let page = crate::app::win_background_for(is_light);
-    let (fill, ink) = if response.is_pointer_button_down_on() {
+    let (fill, ink) = if ready && response.is_pointer_button_down_on() {
         (fill.lerp_to_gamma(page, 0.2), ink.lerp_to_gamma(fill, 0.25))
-    } else if response.hovered() {
+    } else if ready && response.hovered() {
         (fill.lerp_to_gamma(page, 0.1), ink)
     } else {
         (fill, ink)
     };
 
-    let painter = ui.painter().with_clip_rect(window);
+    let mut painter = ui.painter().with_clip_rect(ctx.content_rect());
+    // A bud too small to be a button is not drawn as a dot on the pill: it fades in as it grows.
+    painter.multiply_opacity(((rect.width() - 18.0) / 14.0).clamp(0.0, 1.0));
     lift(&painter, rect, is_light);
     painter.circle_filled(rect.center(), rect.width() * 0.5, fill);
     if crate::app::contrast().is_some() {
         painter.circle_stroke(rect.center(), rect.width() * 0.5 - 0.5, egui::Stroke::new(1.0, ink));
     }
     let bar = |size: egui::Vec2| {
-        painter.rect_filled(
-            egui::Rect::from_center_size(rect.center(), size),
-            PLUS_STROKE * 0.5,
-            ink,
-        );
+        painter.rect_filled(egui::Rect::from_center_size(rect.center(), size), PLUS_STROKE * 0.5, ink);
     };
     bar(egui::vec2(PLUS_ARM * scale, PLUS_STROKE));
     bar(egui::vec2(PLUS_STROKE, PLUS_ARM * scale));
     if response.has_focus() {
-        painter.circle_stroke(
-            rect.center(),
-            NEW_BUTTON * 0.5 + 3.0,
-            egui::Stroke::new(2.0, ui.visuals().strong_text_color()),
-        );
+        painter.circle_stroke(rect.center(), rect.width() * 0.5 + 3.0, egui::Stroke::new(2.0, ui.visuals().strong_text_color()));
     }
 
-    if response.clicked() {
+    if ready && response.clicked() {
         studio::create_expansion(&ctx, state);
     }
 }
-
 /// Two shadows under what floats over the list, as Fluent lifts it: a soft wide one, and a tight
 /// one at its foot. None in a contrast theme, which draws an edge instead.
 pub(crate) fn lift(painter: &egui::Painter, rect: egui::Rect, is_light: bool) {

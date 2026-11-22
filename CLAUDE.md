@@ -179,7 +179,8 @@ solo el índice para saber cuál abrir.
 | `folder_view.rs` | Las opciones de una carpeta: renombrar, borrar |
 | `search_view.rs` · `controls.rs` | El launcher de expansiones; los controles compartidos |
 | `form_view.rs` | La ventana que abre un formulario (`Khipu.exe --form`): sus campos y el texto resultante |
-| `island.rs` | La píldora del pie: cada mensaje de Khipu, con Deshacer o con ✕; sale del «+» o sube desde el borde de Ajustes |
+| `island.rs` | La píldora del pie: cada mensaje de Khipu, con Deshacer o con ✕; sale del «+» (que se queda al lado) o sube desde el borde de Ajustes |
+| `selection_island.rs` | La píldora de elegir varias: casilla con el número, y las acciones sobre lo elegido |
 | `whats_new_view.rs` | «Novedades»: la tarjeta que sale una vez tras actualizar; no es el changelog |
 | `studio.rs` · `glide.rs` | Piezas compartidas (iconos dibujados, filtro de carpetas); el resaltado que se desliza entre controles |
 | `keys.rs` · `glyphs.rs` | Todos los atajos de teclado en una tabla; los iconos Segoe Fluent |

@@ -1255,15 +1255,6 @@ impl AppState {
         self.selection_anchor = None;
     }
 
-    /// Whether the current selection contains at least one expansion that actually sits in a
-    /// folder — the "Quitar de su carpeta" action is meaningless (and so stays hidden) otherwise.
-    /// Cheap: at most one map lookup per selected item, and the selection is small by nature.
-    pub fn selection_has_foldered(&self) -> bool {
-        self.selected
-            .iter()
-            .any(|t| self.settings.folder_of(t).is_some())
-    }
-
     /// The list's look: comfortable rows, compact rows, or, with `grid`, the grid of cards.
     pub fn set_list_view(&mut self, compact: bool, grid: bool) {
         if self.settings.compact_view == compact && self.settings.grid_view == grid {

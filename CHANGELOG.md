@@ -5,6 +5,17 @@ was published.
 
 ## Unreleased
 
+### Changed
+
+- **The «+» is always at hand.** When a message pill grows out of it (an expansion deleted,
+  switched off, moved…), a «+» buds from the pill's end and waits beside it, the two centred as
+  one row, and slides back in when the message ends.
+- **Choosing several has its own pill at the foot of the list**, grown out of the «+» like the
+  messages, with the «+» beside it: a checkbox with the count (no word, as in Gmail or Outlook;
+  the full phrase is in its tooltip and for screen readers), then select all, move, switch
+  on or off, delete and close. The bar above the list is gone. «Quitar de carpeta» went with
+  it: moving to «Sin carpeta» does the same. Messages said while choosing rise above the pill.
+
 ### Fixed
 
 - **Blank lines between paragraphs survive the expansion.** Espanso pasted long texts with bare

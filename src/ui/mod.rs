@@ -33,6 +33,7 @@ pub mod form_view;
 pub mod list_view;
 pub mod onboarding_view;
 pub mod search_view;
+pub mod selection_island;
 pub mod settings_view;
 pub mod tips_view;
 pub mod whats_new_view;

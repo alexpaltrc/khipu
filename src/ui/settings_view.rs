@@ -130,7 +130,7 @@ pub fn show(ctx: &egui::Context, state: &mut AppState) {
         // over the foot of the dialog, wherever the page is scrolled to.
         let page = ui.min_rect();
         let foot = egui::pos2(page.center().x, page.bottom() - controls::GAP_WIDE);
-        island::show(ui, state, island::Source::Settings(foot), page.width() - 2.0 * controls::GAP_WIDE);
+        island::show(ui, state, island::Source::Settings(foot), page.width() - 2.0 * controls::GAP_WIDE, false);
     });
 
     if close || modal.backdrop_response.clicked() {

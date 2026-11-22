@@ -21,8 +21,10 @@
 //!
 //! Every message posted while the list or Ajustes is on screen is said here, never in a box at the
 //! top of the window or at the foot of a page that has to be scrolled to. On the list the round
-//! «+» becomes it; over Ajustes, and over an expansion opened in place of the list, it rises from
-//! nothing at the foot. A message that needs nothing from anyone runs out by itself along a line of
+//! «+» becomes it, and the list keeps a smaller «+» beside it (`list_view`'s dock), so a new
+//! expansion never waits for a message to end; while several are being chosen, the selection
+//! island holds that place and messages rise above it. Over Ajustes, and over an expansion opened
+//! in place of the list, it rises from nothing at the foot. A message that needs nothing from anyone runs out by itself along a line of
 //! time at its foot; one that can be taken back offers «Deshacer»; an error stays, with its cross,
 //! until it is closed. The pointer on it stops its time.
 //!
@@ -44,21 +46,21 @@ use crate::ui::list_view::{lift, NEW_BUTTON, PLUS_ARM, PLUS_STROKE};
 // backwards.
 
 /// The island's height: a little less than the button's, so it reads as resting where it was.
-const ISLAND_HEIGHT: f32 = 44.0;
+pub(crate) const ISLAND_HEIGHT: f32 = 44.0;
 /// From the island's left end to the middle of its mark, and from there to the words.
-const ISLAND_ICON: f32 = 24.0;
+pub(crate) const ISLAND_ICON: f32 = 24.0;
 const ISLAND_AFTER_ICON: f32 = 18.0;
 /// Round the hairline between the words and «Deshacer», and how tall it is.
 const ISLAND_BEFORE_RULE: f32 = 10.0;
 const ISLAND_AFTER_RULE: f32 = 4.0;
-const ISLAND_RULE: f32 = 18.0;
+pub(crate) const ISLAND_RULE: f32 = 18.0;
 /// «Deshacer»'s own rounded patch: from its sides to the word, its height, and from it to the
 /// island's right end. The cross's patch is round, as tall as this one.
 const CHIP_PAD: f32 = 12.0;
-const CHIP_HEIGHT: f32 = 30.0;
+pub(crate) const CHIP_HEIGHT: f32 = 30.0;
 const ISLAND_END: f32 = 6.0;
 /// Half the cross's arms.
-const CROSS: f32 = 4.5;
+pub(crate) const CROSS: f32 = 4.5;
 /// The right end when there is nothing after the words.
 const ISLAND_PAD: f32 = 18.0;
 /// The most lines a message takes before it ends in «…»: an error's reason is worth reading whole.
@@ -74,7 +76,7 @@ const RISE_DROP: f32 = 14.0;
 const RISE_STRETCH: f32 = 0.55;
 /// One letter to the next, and how long one takes to arrive; leaving is quicker, from the end.
 const LETTER_STAGGER: f64 = 0.013;
-const LETTER_IN: f64 = 0.24;
+pub(crate) const LETTER_IN: f64 = 0.24;
 const LETTER_OUT: f64 = 0.15;
 const LETTER_OUT_STAGGER: f64 = 0.006;
 /// However long the message, its letters are all on their way out within this, as «Expansión
@@ -86,7 +88,7 @@ fn out_stagger(n: usize) -> f64 {
     LETTER_OUT_STAGGER.min(LETTER_OUT_SPAN / n.max(1) as f64)
 }
 /// How far a letter rises as it arrives, and as it leaves.
-const LETTER_RISE: f32 = 5.0;
+pub(crate) const LETTER_RISE: f32 = 5.0;
 /// After the words, the hairline, then «Deshacer» or the cross.
 const RULE_AFTER: f64 = 0.02;
 const RULE_GROW: f64 = 0.3;
@@ -95,7 +97,7 @@ const ACTION_AFTER: f64 = 0.06;
 const SWAP_DELAY: f64 = 0.17;
 const UNDONE_STAY: f64 = 1.5;
 /// From the words leaving to the pill closing.
-const CLOSE_DELAY: f64 = 0.15;
+pub(crate) const CLOSE_DELAY: f64 = 0.15;
 /// The line of time draws itself in this long after the words begin, and fades when done.
 const BAR_DELAY: f64 = 0.37;
 const BAR_IN: f64 = 0.36;
@@ -114,13 +116,15 @@ pub enum Source {
     Window(egui::Pos2),
     /// Nothing, with its foot here, over Ajustes: what Ajustes' own buttons did.
     Settings(egui::Pos2),
+    /// Nothing, with its foot here, above the selection island: what was done while choosing.
+    Over(egui::Pos2),
 }
 
 impl Source {
     fn foot(self) -> egui::Pos2 {
         match self {
             Source::Plus(circle) => circle.center_bottom(),
-            Source::Window(foot) | Source::Settings(foot) => foot,
+            Source::Window(foot) | Source::Settings(foot) | Source::Over(foot) => foot,
         }
     }
 
@@ -133,8 +137,17 @@ impl Source {
     }
 
     fn id(self) -> egui::Id {
-        egui::Id::new(if self.settings() { "settings-island" } else { "island" })
+        egui::Id::new(match self {
+            Source::Settings(_) => "settings-island",
+            Source::Over(_) => "island-over",
+            Source::Plus(_) | Source::Window(_) => "island",
+        })
     }
+}
+
+/// Whether the island from `source` is on screen, saying something or on its way out.
+pub fn alive(ctx: &egui::Context, source: Source) -> bool {
+    ctx.data(|d| d.get_temp::<Island>(source.id()).is_some())
 }
 
 /// Lets go of the island over Ajustes, so the next time the dialog opens it starts afresh.
@@ -151,21 +164,21 @@ fn island_words(message: &str) -> String {
 /// A spring: where it is, how fast it moves, where it is going. Stiffness and damping are its
 /// character; the ones here are a little under-damped, so they pass their mark and settle.
 #[derive(Clone, Copy)]
-struct Spring {
-    x: f32,
-    v: f32,
-    to: f32,
+pub(crate) struct Spring {
+    pub(crate) x: f32,
+    pub(crate) v: f32,
+    pub(crate) to: f32,
     k: f32,
     c: f32,
 }
 
 impl Spring {
-    const fn new(x: f32, k: f32, c: f32) -> Self {
+    pub(crate) const fn new(x: f32, k: f32, c: f32) -> Self {
         Self { x, v: 0.0, to: x, k, c }
     }
 
     /// Four small steps a frame keep a stiff spring steady at any frame rate.
-    fn step(&mut self, dt: f32) {
+    pub(crate) fn step(&mut self, dt: f32) {
         let h = dt / 4.0;
         for _ in 0..4 {
             let a = -self.k * (self.x - self.to) - self.c * self.v;
@@ -174,7 +187,7 @@ impl Spring {
         }
     }
 
-    fn snap(&mut self) {
+    pub(crate) fn snap(&mut self) {
         self.x = self.to;
         self.v = 0.0;
     }
@@ -304,7 +317,7 @@ impl Island {
     }
 }
 
-fn ease_out(p: f64) -> f32 {
+pub(crate) fn ease_out(p: f64) -> f32 {
     let p = p.clamp(0.0, 1.0) as f32;
     1.0 - (1.0 - p).powi(3)
 }
@@ -418,11 +431,17 @@ fn paint_letters(
     }
 }
 
-/// The island, while there is one. Returns false when there is nothing to draw — for the «+», that
-/// it is to draw itself. `room` is the widest it may grow.
-///
-/// While it is up the «+» is not there to be pressed, though Ctrl+N still is.
-pub fn show(ui: &mut egui::Ui, state: &mut AppState, source: Source, room: f32) -> bool {
+/// The island, while there is one: where the pill is this frame, and whether it is open rather than
+/// on its way back. `None` when there is nothing to draw — for the «+», that it is to draw itself.
+/// `room` is the widest it may grow. Told to `step_aside`, it lets the message go as if it had
+/// ended, so another island can say it.
+pub fn show(
+    ui: &mut egui::Ui,
+    state: &mut AppState,
+    source: Source,
+    room: f32,
+    step_aside: bool,
+) -> Option<(egui::Rect, bool)> {
     let ctx = ui.ctx().clone();
     let id = source.id();
     let settings = source.settings();
@@ -433,9 +452,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState, source: Source, room: f32) 
     let t = state.t();
 
     // Where the island is going follows from what there is to say.
-    let note = state
-        .note(settings)
-        .map(|n| (island_words(n.message), n.kind == BannerKind::Error, n.undo, n.left, n.key));
+    let note = if step_aside { None } else { state.note(settings) }.map(|n| (island_words(n.message), n.kind == BannerKind::Error, n.undo, n.left, n.key));
     let mut island: Option<Island> = ctx.data(|d| d.get_temp(id));
     if let Some((text, error, undo, left, key)) = note {
         let act = if undo {
@@ -477,7 +494,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState, source: Source, room: f32) 
             isl.bar_out.get_or_insert(later(0.0));
         }
     }
-    let Some(mut isl) = island else { return false };
+    let mut isl = island?;
 
     let is_light = !ui.visuals().dark_mode;
     let (fill, plus_ink) = crate::app::accent_fill(ui.visuals());
@@ -548,7 +565,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState, source: Source, room: f32) 
     };
     if isl.phase == Phase::Closing && !open && gone {
         ctx.data_mut(|d| d.remove::<Island>(id));
-        return false;
+        return None;
     }
     if (isl.morph.to == 0.0 && isl.morph.x < 0.5) || (isl.appear.to == 0.0 && isl.appear.x < 0.5) {
         isl.landed = None;
@@ -588,7 +605,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState, source: Source, room: f32) 
 
     // Being pointed at and pressed.
     let live = isl.phase == Phase::Open && isl.morph.x > 0.5 && isl.appear.x > 0.5;
-    let held = ui.interact(rect, id.with("body"), egui::Sense::hover());
+    // Presses and drags are taken too, and dropped: one let through to the list under it would
+    // start the box that picks rows.
+    let held = ui.interact(rect, id.with("body"), egui::Sense::click_and_drag());
     held.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &isl.words.text));
     let act = isl.words.act;
     let action = chip.map(|chip| {
@@ -793,5 +812,5 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState, source: Source, room: f32) 
 
     ctx.data_mut(|d| d.insert_temp(id, isl));
     ctx.request_repaint();
-    true
+    Some((rect, open))
 }
