@@ -129,7 +129,12 @@ pub fn text_scale(work_height_points: f32) -> f32 {
 /// to about two lines above Guardar; at 540 it has room for about five. (540 was first chosen for
 /// a second row of folder chips that pushed a footer off the bottom. Both are gone; the number
 /// stays for the editor.)
-pub const DEFAULT_SIZE: [f32; 2] = [1180.0, 780.0];
+///
+/// The default is wide enough for the editor to keep its preview beside the form rather than under
+/// it (a test in `ui::edit_form` holds it to that), and on a screen too small for it the window
+/// opens at most 94% of the screen instead. Once the person resizes it, eframe remembers their size
+/// and this is never used again.
+pub const DEFAULT_SIZE: [f32; 2] = [1240.0, 840.0];
 pub const MIN_SIZE: [f32; 2] = [620.0, 540.0];
 
 /// The work area of the monitor a given window is actually on.

@@ -2740,6 +2740,12 @@ fn fit_window_to(window: &winit::window::Window, area: crate::display::WorkArea)
     // Measured and set in the same units. This used to read the *outer* size and then set the
     // *inner* one, so every correction quietly shaved off the title bar as well.
     let inner = window.inner_size().to_logical::<f32>(scale);
+    // A minimized window reports a client area of nothing at all. Read as a size, that is a window
+    // too small to use, and the floor below "repaired" it to the minimum — which eframe then saved
+    // as the size the person chose. Nothing to measure means nothing to correct.
+    if window.is_minimized() == Some(true) || inner.width < 1.0 || inner.height < 1.0 {
+        return;
+    }
 
     // A ceiling *and* a floor. Too big is a nuisance you can drag back; too small is not — below a
     // certain size the window has no edges left to grab and no buttons left to press, which is
@@ -3333,6 +3339,9 @@ impl KhipuApp {
             window.set_skip_taskbar(false);
         }
         window.set_visible(true);
+        // Restored before it is measured: minimized to the taskbar and then opened from the tray,
+        // it would otherwise be checked at the size of nothing.
+        window.set_minimized(false);
         if let Some(area) = work_area_for(window) {
             fit_window_to(window, area);
         }

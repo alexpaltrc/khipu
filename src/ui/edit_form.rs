@@ -2885,6 +2885,15 @@ fn show_form(
 mod tests {
     use super::*;
 
+    /// A window opened at its default size shows the preview beside the form, not under it: that
+    /// is what the default is for, and a smaller one would put a newcomer's first expansion in
+    /// the cramped layout.
+    #[test]
+    fn the_default_window_has_room_for_the_preview_beside_the_form() {
+        let body = crate::display::DEFAULT_SIZE[0] - 2.0 * f32::from(controls::PAGE_MARGIN);
+        assert!(columns(body).2.is_some());
+    }
+
     #[test]
     fn a_selection_that_plainly_answers_a_question_is_named_after_it() {
         let es = |p: &[&str]| guessed_question(p, Lang::Es);

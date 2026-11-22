@@ -31,6 +31,9 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
 - **Última versión publicada: 0.0.9** (etiqueta `v0.0.9`, GitHub Releases el 2026-11-14; el
   paquete de la Store lo sube Alex). Primera con su propia tarjeta de «Novedades» (la 0.0.8 salió
   con la de la 0.0.7; ver «Reglas permanentes»).
+- **Pendiente de Alex**: cómo se crean la fecha y la hora dentro de una expansión (un solo sistema
+  de «elementos»). Maquetas en `docs/disenos/elementos.html`, contexto en `docs/roadmap.md`. No
+  construir hasta que decida; recordárselo cuando venga al caso.
 - **En curso: `0.0.10-dev`**. Sin publicar hasta que Alex lo pida. El
   `-dev` se quita en el commit que publica, y ese commit lleva la etiqueta de la versión.
 - **Microsoft Store**: Store ID `9NXXV15RJ94T`, `https://apps.microsoft.com/detail/9NXXV15RJ94T`.
@@ -102,7 +105,7 @@ Vibecode\Khipu\          este repo (solo código y documentos)
 ├─ assets/khipu/         el paquete de identidad, tal cual se entregó
 ├─ vendor/               eframe y epaint con un cambio cada uno (vendor/README.md)
 ├─ packaging/            MSIX (Store y Dev), certificado Dev, actualizar Dev, avisos de terceros
-├─ docs/                 capturas del README, roadmap y ficha/guía de la Store (docs/store/)
+├─ docs/                 capturas del README, roadmap, maquetas pendientes (docs/disenos/) y Store (docs/store/)
 ├─ web/                  el sitio de presentación, estático (web/README.md)
 └─ .github/ .claude/ .cargo/   CI, arranque en la nube, alias `cargo wcheck`
 ```

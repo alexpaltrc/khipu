@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elementos · diseños pendientes</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{--surface-2:#fff;--bg-neutral:#f1efe8;--bg-accent:#eeedfe;--text-primary:#1f1e1d;--text-secondary:#5f5e5a;--text-muted:#888780;--text-accent:#534ab7;--border:rgba(0,0,0,.12);--border-strong:rgba(0,0,0,.22);--border-stronger:rgba(0,0,0,.4);--border-accent:#7f77dd;--radius:8px;--font-sans:"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--surface-2:#2b2b2b;--bg-neutral:#1f1f1f;--bg-accent:#3c3489;--text-primary:#f1efe8;--text-secondary:#b4b2a9;--text-muted:#888780;--text-accent:#cecbf6;--border:rgba(255,255,255,.12);--border-strong:rgba(255,255,255,.22);--border-stronger:rgba(255,255,255,.4);--border-accent:#afa9ec}}
+body{margin:0 auto;max-width:720px;padding:24px 16px;background:var(--surface-2);color:var(--text-primary);font-family:var(--font-sans);line-height:1.6}
+h1{font-size:22px;font-weight:500;margin:0 0 4px}h2{font-size:18px;font-weight:500;margin:32px 0 12px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.intro{color:var(--text-secondary);margin:0 0 8px}
+</style>
+</head>
+<body>
+<h1>Elementos: fecha, hora y pregunta</h1>
+<p class="intro">Diseños guardados para cuando Alex decida (2026-11-22). La idea: una expansión es normal o lleva elementos (una pregunta, la fecha, la hora o varios), como un solo sistema. El contexto está en <code>docs/roadmap.md</code>, «Pendiente: un solo sistema de elementos».</p>
+<h2>Tres opciones para crear una fecha u hora</h2>
+<h2 class="sr-only">Tres maquetas de cómo crear una expansión de fecha u hora en Khipu: botones que insertan una píldora en el texto, elegir entre ejemplos con la fecha real de hoy, y escribir la fecha de ejemplo para que Khipu la reconozca.</h2>
+<style>
+.k{background:var(--bg-neutral);border-radius:12px;padding:16px;margin:0 0 14px}
+.w{background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:14px 16px}
+.lb{font-size:12px;color:var(--text-secondary);margin:0 0 6px}
+.f{border:0.5px solid var(--border-strong);border-radius:var(--radius);padding:9px 12px;font-size:14px;line-height:1.9}
+.p{display:inline-flex;align-items:center;gap:4px;background:var(--bg-accent);color:var(--text-accent);border-radius:999px;padding:1px 9px;font-size:13px}
+.c{display:inline-flex;align-items:center;gap:5px;border:0.5px solid var(--border-strong);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--text-secondary)}
+.t{font-size:14px;font-weight:500;margin:0 0 10px}
+.o{border:0.5px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-size:13px}
+.s{border:1.5px solid var(--border-accent)}
+.m{font-size:11px;color:var(--text-muted)}
+</style>
+<div class="k">
+<p class="t">A · Botones que insertan una píldora</p>
+<div class="w">
+<p class="lb">Texto</p>
+<div class="f">Hola, te escribo el <span class="p"><i class="ti ti-clock" aria-hidden="true"></i>22/11/2026</span> a las <span class="p"><i class="ti ti-clock" aria-hidden="true"></i>03:10</span></div>
+<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><span class="c"><i class="ti ti-calendar" aria-hidden="true"></i>Fecha</span><span class="c"><i class="ti ti-clock" aria-hidden="true"></i>Hora</span><span class="c"><i class="ti ti-forms" aria-hidden="true"></i>Campo</span></div>
+<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"><span class="o s">22/11/2026</span><span class="o">22 nov 2026</span><span class="o">domingo, 22 de noviembre</span><span class="o">Personalizar…</span></div>
+<p class="m" style="margin:6px 0 0">Al tocar una píldora salen sus formatos, escritos con la fecha de hoy.</p>
+</div></div>
+<div class="k">
+<p class="t">B · Elegir entre ejemplos reales</p>
+<div class="w">
+<p class="lb">¿Qué debe escribir?</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
+<div class="o s"><div>22/11/2026</div><div class="m">Fecha corta</div></div>
+<div class="o"><div>domingo, 22 de noviembre de 2026</div><div class="m">Fecha larga</div></div>
+<div class="o"><div>03:10</div><div class="m">Hora</div></div>
+<div class="o"><div>22/11/2026 03:10</div><div class="m">Fecha y hora</div></div>
+</div>
+<div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px"><span style="color:var(--text-secondary)">Día</span><span class="c" style="color:var(--text-accent);border-color:var(--border-accent)">Hoy</span><span class="c">Mañana</span><span class="c">En 7 días</span></div>
+</div></div>
+<div class="k">
+<p class="t">C · Escribirla como la quieres</p>
+<div class="w">
+<p class="lb">Texto</p>
+<div class="f">Entregado el 22/11/2026</div>
+<div style="display:flex;align-items:center;gap:10px;margin-top:8px;font-size:13px;flex-wrap:wrap"><i class="ti ti-clock" style="font-size:16px;color:var(--text-accent)" aria-hidden="true"></i><span>¿Que «22/11/2026» sea siempre la fecha de hoy?</span><span class="c" style="color:var(--text-accent);border-color:var(--border-accent)">Sí</span><span class="c">No</span></div>
+<p class="m" style="margin:6px 0 0">Khipu reconoce la fecha o la hora que escribiste y la vuelve viva con un toque.</p>
+</div></div>
+<h2>Opción A a detalle: Personalizar, y fecha con hora</h2>
+<style>
+.k{background:var(--bg-neutral);border-radius:12px;padding:16px;margin-bottom:14px}
+.st{font-size:13px;color:var(--text-secondary);margin:0 0 8px}
+.ed{background:var(--surface-2);border:0.5px solid var(--border);border-radius:8px;padding:12px 14px;font-size:15px;line-height:2}
+.p{display:inline-flex;align-items:center;gap:5px;padding:1px 9px;border-radius:999px;background:#EEEDFE;color:#3C3489;font-size:14px;line-height:1.6;vertical-align:1px}
+.p.on{outline:2px solid #7F77DD}
+.bar{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.b{font-size:13px;padding:4px 10px;border-radius:999px;border:0.5px solid var(--border-strong);color:var(--text-primary);display:inline-flex;gap:5px;align-items:center}
+.pop{background:var(--surface-2);border:0.5px solid var(--border-strong);border-radius:10px;padding:10px;margin:6px 0 0 60px;width:270px;font-size:13px}
+.opt{padding:6px 8px;border-radius:6px;display:flex;justify-content:space-between}
+.opt.sel{background:#EEEDFE;color:#3C3489}
+.blk{display:inline-block;padding:3px 9px;border-radius:6px;background:#EEEDFE;color:#3C3489;font-size:13px;margin:2px}
+.add{display:inline-block;padding:3px 9px;border-radius:6px;border:0.5px dashed var(--border-stronger);color:var(--text-secondary);font-size:13px;margin:2px}
+.lb{font-size:12px;color:var(--text-muted);margin:8px 0 4px}
+</style>
+<h2 class="sr-only">Mockup de la opción A: insertar una fecha, abrir Personalizar y combinar fecha con hora.</h2>
+
+<div class="k">
+<p class="st">1 · Escribes, y donde quieras algo que cambie, tocas un botón</p>
+<div class="ed">Hola, te escribo el <span class="p on"><i class="ti ti-calendar" aria-hidden="true"></i>22/11/2026</span></div>
+<div class="bar"><span class="b"><i class="ti ti-help-circle" aria-hidden="true"></i>Pregunta</span><span class="b"><i class="ti ti-calendar" aria-hidden="true"></i>Fecha</span><span class="b"><i class="ti ti-clock" aria-hidden="true"></i>Hora</span></div>
+<div class="pop">
+<div class="opt sel"><span>22/11/2026</span><i class="ti ti-check" aria-hidden="true"></i></div>
+<div class="opt"><span>domingo, 22 de noviembre</span></div>
+<div class="opt"><span>22 nov 2026</span></div>
+<div class="opt" style="border-top:0.5px solid var(--border);margin-top:4px;border-radius:0;color:var(--text-accent)"><span>Personalizar</span><i class="ti ti-chevron-right" aria-hidden="true"></i></div>
+</div>
+</div>
+
+<div class="k">
+<p class="st">2 · Personalizar: la misma píldora se abre en bloques que arrastras o quitas</p>
+<div class="ed" style="line-height:1.6">
+<div class="lb">Así saldrá</div>
+<div style="font-size:16px">domingo 22 de noviembre, 03:51</div>
+<div class="lb">Bloques</div>
+<span class="blk">domingo</span><span class="blk">22</span><span class="blk">de</span><span class="blk">noviembre</span><span class="blk">,</span><span class="blk">03</span><span class="blk">:</span><span class="blk">51</span>
+<div class="lb">Añadir</div>
+<span class="add">+ Día</span><span class="add">+ Mes</span><span class="add">+ Año</span><span class="add">+ Día de la semana</span><span class="add">+ Hora</span><span class="add">+ Minutos</span><span class="add">+ Texto</span>
+</div>
+</div>
+
+<div class="k">
+<p class="st">3 · Fecha con hora: dos maneras, el mismo resultado</p>
+<div class="ed">Nos vemos el <span class="p"><i class="ti ti-calendar" aria-hidden="true"></i>22/11/2026</span> a las <span class="p"><i class="ti ti-clock" aria-hidden="true"></i>03:51</span></div>
+<p class="st" style="margin:6px 0 12px">Dos píldoras juntas: lo de en medio es texto normal. Nada que aprender.</p>
+<div class="ed">Enviado: <span class="p"><i class="ti ti-calendar" aria-hidden="true"></i>22/11/2026 · 03:51</span></div>
+<p class="st" style="margin:6px 0 0">Una sola píldora, armada en Personalizar con bloques de fecha y de hora.</p>
+</div>
+
+</body>
+</html>

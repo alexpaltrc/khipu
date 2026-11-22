@@ -221,6 +221,21 @@ trabajo y no se puede asegurar una buena experiencia. Si vuelve la idea, esto es
 Lo que sí se quedó: las líneas en blanco entre párrafos se respetan al usar la expansión, y el
 cursor termina justo después de la última palabra.
 
+## Pendiente: un solo sistema de elementos (2026-11-22)
+
+Alex quiere que una expansión se entienda como **normal o con elementos**: una pregunta (campo
+de formulario), la fecha, la hora o una combinación, en vez de tres sistemas distintos. Falta
+decidir cómo se crean la fecha y la hora. Las maquetas están en `docs/disenos/elementos.html`:
+
+- **A · Botones que insertan una píldora** (Pregunta, Fecha, Hora). Al tocar la píldora salen sus
+  formatos con la fecha de hoy y «Personalizar», que la abre en bloques. Fecha con hora: dos
+  píldoras juntas («el [fecha] a las [hora]») o una sola armada en Personalizar. Es la que más
+  le gusta a Alex por compacta, y la que mejor empuja la idea de un solo sistema.
+- **B · Elegir entre ejemplos reales** (fecha corta, larga, hora, fecha y hora). Más clara.
+- **C · Escribirla como la quieres** y que Khipu la reconozca.
+
+No construir nada de esto hasta que Alex decida.
+
 ## Referencias de la revisión local
 
 Base consultada: commit local `bebb488`, Cargo `0.0.6`. No se modificó el código de la aplicación para elaborar esta propuesta.

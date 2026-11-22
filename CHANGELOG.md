@@ -7,6 +7,9 @@ was published.
 
 ### Changed
 
+- **A roomier window on first open.** Khipu now opens at 1240 × 840 (or 94% of a smaller
+  screen), wide enough for the editor to keep its preview on the right. Any size you give it is
+  kept.
 - **A new «Novedades» card for 0.0.10.** Dates you can see, undo and redo, choosing several in
   sight, and texts pasted just as they were written.
 - **The «+» is always at hand.** When a message pill grows out of it (an expansion deleted,
@@ -38,6 +41,8 @@ was published.
 - **No more busy cursor flicker when Khipu starts or saves.** Every espanso command Khipu ran
   (five or six at start, more after each save) made Windows show its "app starting" cursor for a
   moment. They now launch with launch feedback turned off.
+- **Your window size is no longer lost.** Opening Khipu from the tray while it was minimized
+  measured it as zero, "repaired" it to the smallest size and saved that as yours.
 
 ### Store
 
