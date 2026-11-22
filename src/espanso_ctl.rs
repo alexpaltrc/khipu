@@ -24,6 +24,12 @@
 //! on the desktop. Expansions instead go down espanso's own named pipe,
 //! `\.\pipe\espansoworkerv2`, which saves the ~50 ms of starting a process.
 //!
+//! The child is started by hand with `CreateProcessW` rather than `std::process::Command`, for one
+//! flag std keeps unstable: `STARTF_FORCEOFFFEEDBACK`. A process started by the window in front
+//! puts Windows' "app starting" cursor on screen until it settles, and starting espanso is five or
+//! six espansods in a second — the pointer blinked busy at every one of them, on every launch and
+//! every save.
+//!
 //! **Every function here blocks the thread that calls it, and that thread is the one drawing the
 //! interface** — all but the restart after a save, which `reload` runs on a thread of its own. So
 //! nothing runs without a deadline: `CTL_TIMEOUT` caps a single call, and the waiting loops carve
@@ -41,16 +47,22 @@
 //! `git show 58753f7:LAUNCHER-BACKUP.txt`.
 
 use crate::i18n::{fill, Strings};
+use std::ffi::OsString;
+use std::fs::File;
 use std::io::Read;
-use std::os::windows::io::AsRawHandle;
-use std::os::windows::process::CommandExt;
+use std::os::windows::ffi::OsStrExt;
+use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
-use windows::Win32::Foundation::HANDLE;
-use windows::Win32::System::Threading::WaitForSingleObject;
-
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+use windows::Win32::Foundation::{SetHandleInformation, HANDLE, HANDLE_FLAGS, HANDLE_FLAG_INHERIT, WAIT_OBJECT_0};
+use windows::Win32::Security::SECURITY_ATTRIBUTES;
+use windows::Win32::System::Pipes::CreatePipe;
+use windows::Win32::System::Threading::{
+    CreateProcessW, GetExitCodeProcess, TerminateProcess, WaitForSingleObject, CREATE_NO_WINDOW,
+    CREATE_UNICODE_ENVIRONMENT, INFINITE, PROCESS_INFORMATION, STARTF_FORCEOFFFEEDBACK,
+    STARTF_USESTDHANDLES, STARTUPINFOW,
+};
+use windows::core::{PCWSTR, PWSTR};
 
 /// Upper bound on how long we'll ever wait on an espansod subprocess before giving up on it and
 /// killing it. Nothing in this app may block the GUI thread longer than this, no matter what
@@ -88,6 +100,23 @@ mod studio_tests {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::quote;
+
+    #[test]
+    fn arguments_reach_espansod_as_they_were_written() {
+        let q = |s: &str| quote(s.as_ref()).into_string().unwrap();
+        assert_eq!(q("status"), "status");
+        assert_eq!(q(r"C:\Program Files\espansod.exe"), r#""C:\Program Files\espansod.exe""#);
+        assert_eq!(q(""), r#""""#);
+        assert_eq!(q(r#";say "hi""#), r#"";say \"hi\"""#);
+        assert_eq!(q(r#"a\"b"#), r#""a\\\"b""#);
+        assert_eq!(q(r"end\ "), r#""end\ ""#);
+        assert_eq!(q(r"a b\"), r#""a b\\""#);
+    }
+}
+
 impl CtlResult {
     /// The technical detail worth showing (collapsed) alongside a friendly error banner.
     pub fn detail(&self) -> String {
@@ -97,6 +126,42 @@ impl CtlResult {
             self.stdout.trim().to_string()
         }
     }
+}
+
+/// A started espansod: the process, and the reading ends of its output when they were asked for.
+struct Launched {
+    process: OwnedHandle,
+    stdout: Option<File>,
+    stderr: Option<File>,
+}
+
+/// One argument as a Windows command line spells it, by the rules programs built with the C
+/// runtime read it back with — espansod among them: quoted when it has a space, a tab or a quote
+/// in it (or nothing at all), each quote escaped, and the backslashes right before a quote doubled.
+/// A trigger can be anything the user typed, so this is not optional.
+fn quote(arg: &std::ffi::OsStr) -> OsString {
+    let text = arg.to_string_lossy();
+    if !text.is_empty() && !text.contains([' ', '\t', '"']) {
+        return arg.to_owned();
+    }
+    let mut quoted = String::from('"');
+    let mut backslashes = 0;
+    for c in text.chars() {
+        match c {
+            '\\' => backslashes += 1,
+            // The backslashes before it are already written once; this writes them again, and one
+            // more for the quote itself.
+            '"' => {
+                quoted.extend(std::iter::repeat_n('\\', backslashes + 1));
+                backslashes = 0;
+            }
+            _ => backslashes = 0,
+        }
+        quoted.push(c);
+    }
+    quoted.extend(std::iter::repeat_n('\\', backslashes));
+    quoted.push('"');
+    quoted.into()
 }
 
 /// The pipe espanso's worker listens on, named exactly as espanso names it itself.
@@ -150,25 +215,15 @@ impl EspansoCtl {
         t: &'static Strings,
     ) -> std::io::Result<CtlResult> {
         if crate::EXPERIMENTAL { return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "Studio: engine commands are disabled")); }
-        let mut child = Command::new(&self.exe_path)
-            .args(args)
-            // The portable daemon locates its `.espanso`/`.espanso-runtime` folders relative to
-            // its own working directory, so always run it from its own folder.
-            .current_dir(self.working_dir())
-            .envs(self.env.iter().map(|(k, v)| (k, v)))
-            .creation_flags(CREATE_NO_WINDOW)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+        let child = self.launch(args, true)?;
 
         // The pipes are drained on a thread of their own, and this is not tidiness — it is the
         // difference between a slow command and a frozen program.
         //
         // Waiting for the child was already bounded. Reading its output was not, and that is the
         // half that could hang: `read_to_string` returns at end of file, and a Windows pipe only
-        // reaches end of file once *every* handle to its writing end is shut. `Command::spawn`
-        // hands those handles to the child, the child hands them to anything it starts, and a
+        // reaches end of file once *every* handle to its writing end is shut. `launch` hands
+        // those handles to the child, the child hands them to anything it starts, and a
         // grandchild that outlives its parent keeps the pipe open with nobody left to write to it.
         // Read on this thread, that is a wait with no end, taken with the graphical thread — and
         // the tray icon's window belongs to that same thread, which is why the icon would stay on
@@ -178,8 +233,8 @@ impl EspansoCtl {
         // On this side of the channel every path now ends, and a reader left holding a pipe that
         // nobody will ever close is one parked thread rather than an application that will not shut
         // down.
-        let mut stdout_pipe = child.stdout.take();
-        let mut stderr_pipe = child.stderr.take();
+        let Launched { process, stdout: mut stdout_pipe, stderr: mut stderr_pipe } = child;
+        let process = HANDLE(process.as_raw_handle());
         let (output_tx, output_rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
             let mut stdout = String::new();
@@ -206,47 +261,130 @@ impl EspansoCtl {
         };
 
         loop {
-            if let Some(status) = child.try_wait()? {
+            // Woken by the child's exit itself, not by a clock. This used to sleep 30 ms between
+            // looks, and Windows rounds a sleep up to its 15.6 ms tick, so a command that took
+            // 35 ms was seen at the second look: a `service status` measured 67 ms, most of it
+            // waiting to notice. Now 37–39.
+            let left = deadline.saturating_duration_since(Instant::now());
+            let millis = left.as_millis().min(u32::MAX as u128 - 1) as u32;
+            if unsafe { WaitForSingleObject(process, millis) } == WAIT_OBJECT_0 {
+                let mut code = 1;
+                let _ = unsafe { GetExitCodeProcess(process, &mut code) };
                 // The command is done; the last of its output may still be in flight. Whatever
                 // budget is left is what it gets, and an empty result is better than never
                 // returning.
                 let remaining = deadline.saturating_duration_since(Instant::now());
                 let (stdout, stderr) = output_rx.recv_timeout(remaining).unwrap_or_default();
-                return Ok(CtlResult {
-                    success: status.success(),
-                    stdout,
-                    stderr,
-                });
+                return Ok(CtlResult { success: code == 0, stdout, stderr });
             }
-            let left = deadline.saturating_duration_since(Instant::now());
-            if left.is_zero() {
-                let _ = child.kill();
-                let _ = child.wait();
+            if Instant::now() >= deadline {
+                unsafe {
+                    let _ = TerminateProcess(process, 1);
+                    WaitForSingleObject(process, INFINITE);
+                }
                 return Ok(timed_out(t));
             }
-            // Woken by the child's exit itself, not by a clock. This used to sleep 30 ms between
-            // looks, and Windows rounds a sleep up to its 15.6 ms tick, so a command that took
-            // 35 ms was seen at the second look: a `service status` measured 67 ms, most of it
-            // waiting to notice. Now 37–39.
-            let handle = HANDLE(child.as_raw_handle());
-            let millis = left.as_millis().clamp(1, u32::MAX as u128 - 1) as u32;
-            unsafe { WaitForSingleObject(handle, millis) };
         }
     }
 
     /// Launches an espansod subcommand detached, without waiting for it to exit.
     fn spawn_detached(&self, args: &[&str]) -> std::io::Result<()> {
         if crate::EXPERIMENTAL { return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "Studio: process launch is disabled")); }
-        Command::new(&self.exe_path)
-            .args(args)
-            .current_dir(self.working_dir())
-            .envs(self.env.iter().map(|(k, v)| (k, v)))
-            .creation_flags(CREATE_NO_WINDOW)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()?;
-        Ok(())
+        self.launch(args, false).map(drop)
+    }
+
+    /// Starts espansod with `args`, with no window and no busy cursor (see the module notes), from
+    /// its own folder — the portable daemon finds its `.espanso`/`.espanso-runtime` folders
+    /// relative to its working directory. With `capture`, its output comes back as two pipes;
+    /// without, it has no standard handles at all.
+    fn launch(&self, args: &[&str], capture: bool) -> std::io::Result<Launched> {
+        // Only one launch at a time hands out inheritable handles, so no child takes home another
+        // child's pipe — the lock std's own `Command` holds for the same reason.
+        static LAUNCHING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _one_at_a_time = LAUNCHING.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        let wide = |s: &std::ffi::OsStr| s.encode_wide().chain([0]).collect::<Vec<u16>>();
+        let mut line = quote(self.exe_path.as_os_str());
+        for arg in args {
+            line.push(" ");
+            line.push(quote(arg.as_ref()));
+        }
+        let mut line = wide(&line);
+
+        // The pipes' writing ends are made to be inherited; their reading ends are kept here.
+        let (mut out, mut err) = (None, None);
+        let mut startup = STARTUPINFOW {
+            cb: std::mem::size_of::<STARTUPINFOW>() as u32,
+            dwFlags: STARTF_FORCEOFFFEEDBACK,
+            ..Default::default()
+        };
+        if capture {
+            let pipe = || -> std::io::Result<(File, OwnedHandle)> {
+                let inherit = SECURITY_ATTRIBUTES {
+                    nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
+                    bInheritHandle: true.into(),
+                    ..Default::default()
+                };
+                let (mut read, mut write) = (HANDLE::default(), HANDLE::default());
+                unsafe {
+                    CreatePipe(&mut read, &mut write, Some(&inherit), 0)?;
+                    let pair = (File::from_raw_handle(read.0), OwnedHandle::from_raw_handle(write.0));
+                    SetHandleInformation(read, HANDLE_FLAG_INHERIT.0, HANDLE_FLAGS(0))?;
+                    Ok(pair)
+                }
+            };
+            let (out_read, out_write) = pipe()?;
+            let (err_read, err_write) = pipe()?;
+            startup.dwFlags |= STARTF_USESTDHANDLES;
+            startup.hStdOutput = HANDLE(out_write.as_raw_handle());
+            startup.hStdError = HANDLE(err_write.as_raw_handle());
+            out = Some((out_read, out_write));
+            err = Some((err_read, err_write));
+        }
+
+        let environment = self.environment();
+        let mut info = PROCESS_INFORMATION::default();
+        unsafe {
+            CreateProcessW(
+                PCWSTR(wide(self.exe_path.as_os_str()).as_ptr()),
+                Some(PWSTR(line.as_mut_ptr())),
+                None,
+                None,
+                capture,
+                CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT,
+                environment.as_ref().map(|block| block.as_ptr().cast()),
+                PCWSTR(wide(self.working_dir().as_os_str()).as_ptr()),
+                &startup,
+                &mut info,
+            )?;
+            drop(OwnedHandle::from_raw_handle(info.hThread.0));
+            Ok(Launched {
+                process: OwnedHandle::from_raw_handle(info.hProcess.0),
+                // The writing ends close here, so the child holds the only ones.
+                stdout: out.map(|(read, _)| read),
+                stderr: err.map(|(read, _)| read),
+            })
+        }
+    }
+
+    /// Our own environment with [`Self::env`] laid over it, as the block `CreateProcessW` takes:
+    /// sorted by name, one `NAME=value` after another. `None` when there is nothing to add, which
+    /// hands the child ours unchanged.
+    fn environment(&self) -> Option<Vec<u16>> {
+        if self.env.is_empty() {
+            return None;
+        }
+        let mut vars: Vec<(OsString, OsString)> = std::env::vars_os()
+            .filter(|(name, _)| !self.env.iter().any(|(ours, _)| name.eq_ignore_ascii_case(ours)))
+            .chain(self.env.iter().map(|(name, value)| (name.into(), value.into())))
+            .collect();
+        vars.sort_by_key(|(name, _)| name.to_ascii_uppercase());
+        let mut block = Vec::new();
+        for (name, value) in vars {
+            block.extend(name.encode_wide().chain([u16::from(b'=')]).chain(value.encode_wide()).chain([0]));
+        }
+        block.push(0);
+        Some(block)
     }
 
     pub fn is_running(&self, t: &'static Strings) -> bool {

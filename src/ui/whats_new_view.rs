@@ -37,7 +37,7 @@ use crate::ui::glyphs::{self, Glyph};
 use crate::ui::studio::in_lang;
 
 /// The release these notes are for. Changing it is what shows the card again, to everyone.
-pub const RELEASE: &str = "0.0.9";
+pub const RELEASE: &str = "0.0.10";
 
 /// The widest the card's contents get.
 const WIDEST: f32 = 400.0;
@@ -75,54 +75,48 @@ fn items(state: &AppState) -> Vec<Item> {
     let s = |es, en, fil, hi| in_lang(lang, es, en, fil, hi).to_string();
     vec![
         Item {
-            icon: Glyph::Rename,
-            title: s("Expansiones que preguntan", "Expansions that ask", "Mga expansion na nagtatanong", "पूछने वाले विस्तार"),
+            icon: Glyph::Calendar,
+            title: s("Fechas que se ven", "Dates you can see", "Mga petsang nakikita", "दिखने वाली तारीखें"),
             line: s(
-                "Selecciona una palabra del texto y conviértela en pregunta: Khipu te la hace cada vez que uses la expansión, y hasta adivina cómo llamarla. Para verlo con un ejemplo:",
-                "Select a word in the text and turn it into a question: Khipu asks it each time you use the expansion, and even guesses what to call it. To see it with an example:",
-                "Pumili ng salita sa teksto at gawin itong tanong: itatanong ito ng Khipu tuwing gagamitin mo ang expansion, at hinuhulaan pa nito ang itatawag dito. Para makita sa isang halimbawa:",
-                "टेक्स्ट में कोई शब्द चुनें और उसे सवाल बना दें: हर बार विस्तार उपयोग करने पर Khipu वह पूछता है, और उसका नाम भी खुद सोच लेता है। एक उदाहरण से देखने के लिए:",
-            ),
-            path: vec![
-                icon(Glyph::Add),
-                named(None, in_lang(lang, "Ver un ejemplo", "See an example", "Tingnan ang halimbawa", "उदाहरण देखें")),
-            ],
-        },
-        Item {
-            icon: Glyph::Edit,
-            title: s("Clic derecho", "Right-click", "Right-click", "राइट-क्लिक"),
-            line: s(
-                "Sobre una expansión: editarla, cambiar su disparador, moverla a una carpeta o borrarla, sin abrirla. Sobre su texto: cortar, copiar y pegar.",
-                "On an expansion: edit it, change its trigger, move it to a folder or delete it, without opening it. On its text: cut, copy and paste.",
-                "Sa isang expansion: i-edit, palitan ang trigger, ilipat sa folder o burahin, nang hindi ito binubuksan. Sa teksto nito: i-cut, kopyahin at i-paste.",
-                "किसी विस्तार पर: उसे खोले बिना संपादित करें, ट्रिगर बदलें, फ़ोल्डर में ले जाएँ या हटाएँ। उसके टेक्स्ट पर: काटें, कॉपी करें और चिपकाएँ।",
+                "Las expansiones con fecha u hora muestran la de hoy, tal como saldrá al escribirlas.",
+                "Expansions with a date or time show today's, just as it will come out when you type them.",
+                "Ipinapakita ng mga expansion na may petsa o oras ang sa ngayon, gaya ng lalabas kapag tinype mo.",
+                "तारीख या समय वाले विस्तार आज का मान दिखाते हैं, ठीक वैसा जैसा टाइप करने पर आएगा।",
             ),
             path: vec![],
+        },
+        Item {
+            icon: Glyph::Undo,
+            title: s("Deshacer y rehacer", "Undo and redo", "I-undo at i-redo", "पूर्ववत और फिर से करें"),
+            line: s(
+                "Ctrl+Z deshace tu último cambio y Ctrl+Y lo rehace, paso a paso. Por eso borrar ya no pregunta: si te equivocas, se deshace.",
+                "Ctrl+Z undoes your last change and Ctrl+Y redoes it, step by step. That is why deleting no longer asks: if you slip, undo it.",
+                "Ina-undo ng Ctrl+Z ang huli mong binago at ibinabalik ito ng Ctrl+Y, isa-isa. Kaya hindi na nagtatanong ang pagbura: kapag nagkamali ka, i-undo lang.",
+                "Ctrl+Z आपका पिछला बदलाव पूर्ववत करता है और Ctrl+Y उसे फिर से करता है, एक-एक कदम। इसलिए हटाना अब पूछता नहीं: गलती हो तो पूर्ववत कर दें।",
+            ),
+            path: vec![icon(Glyph::More), named(Some(Glyph::Undo), t.undo)],
         },
         Item {
             icon: Glyph::MultiSelect,
-            title: s("Varias de un tirón", "Several at once", "Marami nang sabay-sabay", "एक साथ कई"),
+            title: s("Varias, a la vista", "Several, in sight", "Marami, kita agad", "कई, नज़र के सामने"),
             line: s(
-                "Arrastra sobre el espacio vacío de la lista, como en el Explorador: cada expansión que toque el recuadro queda elegida, lista para moverla o borrarla.",
-                "Drag across empty space in the list, as in File Explorer: every expansion the box touches is picked, ready to move or delete.",
-                "I-drag sa bakanteng bahagi ng listahan, gaya ng sa File Explorer: mapipili ang bawat expansion na madaanan ng kahon, handang ilipat o burahin.",
-                "सूची की खाली जगह पर खींचें, जैसे फ़ाइल एक्सप्लोरर में: बॉक्स जिस भी विस्तार को छूता है वह चुना जाता है, ले जाने या हटाने के लिए तैयार।",
+                "Al elegir varias, una píldora abajo las cuenta y tiene a mano moverlas o borrarlas.",
+                "Pick several and a pill below counts them, with moving or deleting them at hand.",
+                "Kapag pumili ka ng ilan, binibilang sila ng pill sa ibaba, handang ilipat o burahin.",
+                "कई विस्तार चुनने पर नीचे एक पिल गिनती दिखाती है और उन्हें ले जाना या हटाना पास रखती है।",
             ),
             path: vec![],
         },
         Item {
-            icon: Glyph::Pause,
-            title: s("No expandir en…", "Don't expand in…", "Huwag mag-expand sa…", "इनमें विस्तार न करें…"),
+            icon: Glyph::Paste,
+            title: s("Tal como lo escribiste", "Just as you wrote it", "Gaya ng isinulat mo", "जैसा आपने लिखा"),
             line: s(
-                "Tus expansiones se quedan quietas en los programas que elijas, como un juego o una terminal. En todos los demás siguen igual.",
-                "Your expansions stay quiet in the programs you choose, such as a game or a terminal. Everywhere else they work as always.",
-                "Tahimik ang mga expansion mo sa mga program na pipiliin mo, gaya ng laro o terminal. Sa iba, gumagana pa rin sila gaya ng dati.",
-                "आपके विस्तार आपके चुने हुए प्रोग्राम में शांत रहते हैं, जैसे कोई गेम या टर्मिनल। बाकी हर जगह वे पहले जैसे काम करते हैं।",
+                "Las líneas en blanco entre párrafos llegan intactas, y el cursor queda justo después de la última palabra, listo para seguir.",
+                "Blank lines between paragraphs arrive intact, and the cursor lands right after the last word, ready to carry on.",
+                "Buo ang mga blangkong linya sa pagitan ng mga talata, at napupunta ang cursor sa dulo ng huling salita.",
+                "अनुच्छेदों के बीच की खाली पंक्तियाँ ज्यों की त्यों पहुँचती हैं, और कर्सर ठीक आखिरी शब्द के बाद रुकता है, आगे लिखने को तैयार।",
             ),
-            path: vec![
-                named(Some(Glyph::Settings), t.settings_title),
-                named(None, in_lang(lang, "No expandir en", "Don't expand in", "Huwag mag-expand sa", "इनमें विस्तार न करें")),
-            ],
+            path: vec![],
         },
     ]
 }

@@ -7,6 +7,8 @@ was published.
 
 ### Changed
 
+- **A new «Novedades» card for 0.0.10.** Dates you can see, undo and redo, choosing several in
+  sight, and texts pasted just as they were written.
 - **The «+» is always at hand.** When a message pill grows out of it (an expansion deleted,
   switched off, moved…), a «+» buds from the pill's end and waits beside it, the two centred as
   one row, and slides back in when the message ends.
@@ -33,6 +35,9 @@ was published.
 - **The caret stays right after the last word.** A line break at the very end of a text or a
   form's result is dropped, so an expansion no longer leaves the caret on a new line. Trailing
   spaces are kept.
+- **No more busy cursor flicker when Khipu starts or saves.** Every espanso command Khipu ran
+  (five or six at start, more after each save) made Windows show its "app starting" cursor for a
+  moment. They now launch with launch feedback turned off.
 
 ### Store
 
