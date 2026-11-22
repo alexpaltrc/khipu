@@ -39,7 +39,8 @@ use super::glyphs::{self, Glyph};
 
 /// One task: a heading you can open, with the steps inside.
 ///
-/// Closed by default and unindented, so the answer starts at the same left edge as the question.
+/// Closed by default; opened, the answer starts under the question's words, not under its chevron,
+/// so the eye drops straight from the one to the other.
 /// The rule goes *between* topics, never above the first or below the last: a line with nothing
 /// under it reads as an item that failed to draw.
 fn topic(ui: &mut egui::Ui, first: bool, title: &str, contents: impl FnOnce(&mut egui::Ui)) {
@@ -79,7 +80,10 @@ fn topic(ui: &mut egui::Ui, first: bool, title: &str, contents: impl FnOnce(&mut
     }
     open.show_body_unindented(ui, |ui| {
         ui.add_space(controls::GAP);
-        contents(ui);
+        ui.horizontal_top(|ui| {
+            ui.add_space(controls::GAP + CHEVRON + controls::GAP_ROW);
+            ui.vertical(|ui| contents(ui));
+        });
         ui.add_space(controls::GAP_TIGHT);
     });
 }
@@ -173,17 +177,27 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
     }
     controls::page_scroll(ui, "quick-guide", |ui| {
             // Prose sets badly in a very wide column; past this the line becomes hard to track back.
-            // A cap, not a width: `set_max_width` takes the number as given.
-            ui.set_max_width(ui.available_width().min(820.0));
-            lead(ui, state);
-            ui.add_space(28.0);
-            tasks(ui, state);
-            // Where the work underneath comes from, once, at the end of the page that explains it.
-            ui.add_space(28.0);
-            let is_light = !ui.visuals().dark_mode;
-            ui.add(egui::Label::new(controls::small_muted(t.credits_espanso, is_light)).wrap());
-            // The window's own gutter is drawn around the scroll area, not inside it.
-            ui.add_space(controls::GAP_STACK);
+            // A cap, not a width: `set_max_width` takes the number as given. Centred under the
+            // page's name, which is centred: pinned to the left, the column and its title read as
+            // two things that missed each other.
+            let width = ui.available_width().min(820.0);
+            let side = ((ui.available_width() - width) * 0.5).max(0.0);
+            let column = egui::Rect::from_min_size(
+                ui.cursor().min + egui::vec2(side, 0.0),
+                egui::vec2(width, ui.available_height()),
+            );
+            ui.scope_builder(egui::UiBuilder::new().max_rect(column), |ui| {
+                ui.set_max_width(width);
+                lead(ui, state);
+                ui.add_space(28.0);
+                tasks(ui, state);
+                // Where the work underneath comes from, once, at the end of the page that explains it.
+                ui.add_space(28.0);
+                let is_light = !ui.visuals().dark_mode;
+                ui.add(egui::Label::new(controls::small_muted(t.credits_espanso, is_light)).wrap());
+                // The window's own gutter is drawn around the scroll area, not inside it.
+                ui.add_space(controls::GAP_STACK);
+            });
         });
 }
 
@@ -243,22 +257,23 @@ fn lead(ui: &mut egui::Ui, state: &mut AppState) {
             // The trigger and the arrow sit in a box one text line tall, centred, so they share the
             // middle of the first line of what appears rather than riding above it.
             let line = ui.text_style_height(&egui::TextStyle::Body);
-            let on_the_line = |ui: &mut egui::Ui, text: egui::RichText| {
-                let width = controls::widget_line(ui, text.clone(), egui::TextStyle::Body).size().x;
-                ui.allocate_ui_with_layout(
-                    egui::vec2(width, line),
-                    egui::Layout::left_to_right(egui::Align::Center),
-                    |ui| ui.label(text),
-                );
+            // Centred and then moved onto the words' baseline: Cascadia, centred alone, stood a few
+            // points above the sentence it turns into. See [`controls::baseline_drop`].
+            let drop = controls::baseline_drop(ui, egui::RichText::new("x"), egui::RichText::new("x").monospace());
+            let on_the_line = |ui: &mut egui::Ui, text: egui::RichText, mono: bool| {
+                let words = controls::widget_line(ui, text, egui::TextStyle::Body);
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(words.size().x, line), egui::Sense::hover());
+                let top = rect.center().y - words.size().y * 0.5 + if mono { drop } else { 0.0 };
+                ui.painter().galley(egui::pos2(rect.left(), top), words, egui::Color32::PLACEHOLDER);
             };
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.label(controls::small_muted(typed_caption, is_light));
-                    on_the_line(ui, written);
+                    on_the_line(ui, written, true);
                 });
                 ui.vertical(|ui| {
                     ui.label(controls::small_muted(" ", is_light));
-                    on_the_line(ui, arrow);
+                    on_the_line(ui, arrow, false);
                 });
                 ui.vertical(|ui| {
                     ui.set_max_width(ui.available_width());
@@ -399,10 +414,10 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
             |ui| {
                 para(ui, text(
                     state,
-                    "Al crear una expansión elige Fecha en lugar de Texto. Hay cuatro formatos listos y uno que armas por bloques, con su idioma y su zona horaria. La vista previa es un ejemplo: la fecha se calcula cada vez que escribes el activador, no cuando lo guardas.",
-                    "When you create an expansion, choose Date instead of Text. There are four ready-made formats and one you build from blocks, with its own language and time zone. The preview is an example: the date is worked out each time you type the trigger, not when you save it.",
-                    "Kapag gumagawa ng expansion, piliin ang Petsa sa halip na Teksto. May apat na handang format at isa na binubuo mo sa mga block, may sariling wika at time zone. Halimbawa lang ang preview: kinakalkula ang petsa sa tuwing iti-type mo ang trigger, hindi kapag nag-save ka.",
-                    "विस्तार बनाते समय टेक्स्ट के बजाय तारीख़ चुनें। चार तैयार प्रारूप हैं और एक जिसे आप ब्लॉक से बनाते हैं, अपनी भाषा और समय क्षेत्र के साथ। पूर्वावलोकन एक उदाहरण है: तारीख़ हर बार ट्रिगर लिखने पर बनती है, सहेजते समय नहीं।",
+                    "En el editor, pulsa Fecha debajo del texto, y la fecha entra donde está el cursor. En su burbuja eliges cómo se escribe: hay cuatro formatos listos y uno que armas por bloques, con el idioma de los meses. En la lista ves la de hoy, y al usar la expansión se escribe la de ese momento.",
+                    "In the editor, press Date under the text, and the date goes in where the cursor is. In its bubble you choose how it is written: there are four ready-made formats and one you build from blocks, with the language of the months. The list shows today's, and using the expansion writes the one of that moment.",
+                    "Sa editor, pindutin ang Petsa sa ilalim ng teksto, at papasok ang petsa kung nasaan ang cursor. Sa bubble nito pipiliin mo kung paano ito isusulat: may apat na handang format at isa na binubuo mo sa mga block, kasama ang wika ng mga buwan. Ang ngayon ang makikita sa listahan, at ang sa sandaling iyon ang isusulat kapag ginamit mo ang expansion.",
+                    "संपादक में, टेक्स्ट के नीचे दिनांक दबाएँ, और तारीख़ वहीं आ जाती है जहाँ कर्सर है। उसके बबल में आप चुनते हैं कि वह कैसे लिखी जाए: चार तैयार प्रारूप हैं और एक जिसे आप ब्लॉक से बनाते हैं, महीनों की भाषा के साथ। सूची में आज की तारीख़ दिखती है, और विस्तार उपयोग करने पर उसी पल की लिखी जाती है।",
                 ));
             },
         );

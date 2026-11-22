@@ -283,6 +283,9 @@ pub fn preview_label(lang: Lang) -> &'static str {
 
 struct FormApp {
     title: String,
+    /// Whether the title is the trigger, for want of a name: then it is written the way a trigger
+    /// always is, in monospace, as the list and the detail panel write it.
+    title_is_trigger: bool,
     spec: FormSpec,
     answers: Vec<String>,
     /// What was last copied when the form opened, for the `{{...}}` that stands for it.
@@ -414,7 +417,11 @@ impl eframe::App for FormApp {
             .show(ui, |ui| {
                 egui::ScrollArea::vertical().auto_shrink([false, true]).show(ui, |ui| {
                     let top = ui.min_rect().top();
-                    ui.label(controls::h3(&self.title));
+                    ui.label(if self.title_is_trigger {
+                        egui::RichText::new(&self.title).monospace().size(16.0).color(ui.visuals().strong_text_color())
+                    } else {
+                        controls::h3(&self.title)
+                    });
                     ui.add_space(controls::GAP_TIGHT);
                     ui.label(controls::muted(
                         in_lang(
@@ -484,7 +491,9 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
     let lang = settings.lang;
     let theme_mode = settings.theme_mode;
     let outcome = Arc::new(Mutex::new(None));
-    let title = name.filter(|n| !n.trim().is_empty()).unwrap_or_else(|| trigger.clone());
+    let named = name.filter(|n| !n.trim().is_empty());
+    let title_is_trigger = named.is_none();
+    let title = named.unwrap_or_else(|| trigger.clone());
     let answers = initial_answers(&spec);
     // Read once, as the form opens: whatever is copied while it is up is not what was meant.
     let copied = if spec.copied.is_some() { crate::paste::copied_text() } else { String::new() };
@@ -542,6 +551,7 @@ pub fn run(layout: &crate::install::Layout, settings: &Settings, hex: &str) {
             let is_light = dress(cc, window.as_deref(), theme_mode, devanagari);
             Ok(Box::new(FormApp {
                 title,
+                title_is_trigger,
                 spec,
                 answers,
                 copied,

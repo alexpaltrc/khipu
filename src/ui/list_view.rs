@@ -977,9 +977,11 @@ fn status(ui: &mut egui::Ui, state: &AppState, is_light: bool) {
     let top = rect.center().y - galley.size().y * 0.5;
     // Centred on the letters, not on the line box: the box keeps room for descenders and line
     // spacing, so its middle sits above the word and a dot there looks pinned to the top. The
-    // letters' own middle is halfway between the baseline and the top of the capitals.
+    // letters' own middle is halfway between the baseline and the top of the capitals, which are
+    // drawn a lift above where they are laid out (see [`crate::fonts::TEXT_LIFT`]).
     let font_size = egui::TextStyle::Body.resolve(ui.style()).size;
-    let letters_middle = top + controls::baseline(&galley) - font_size * CAP_HEIGHT * 0.5;
+    let letters_middle =
+        top + controls::baseline(&galley) - crate::fonts::TEXT_LIFT - font_size * CAP_HEIGHT * 0.5;
     let centre = egui::pos2(rect.left() + STATUS_DOT * 0.5, letters_middle);
     if filled {
         ui.painter().circle_filled(centre, STATUS_DOT * 0.5, colour);
@@ -3076,28 +3078,43 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                 } else {
                     crate::app::secondary_text(is_light)
                 };
-                // A favourite wears its star at the far end, in the accent; the text stops short of
-                // it rather than running underneath.
-                let star_room = if row.favorite { ROW_STAR + spacing } else { 0.0 };
+                // A favourite wears its star at the far end, in the accent, and a form its mark
+                // just inside it, as in the comfortable rows; the text stops short of both rather
+                // than running underneath.
+                let marks = usize::from(row.favorite) + usize::from(row.form);
+                let marks_room = marks as f32 * (ROW_STAR + spacing);
                 let label = ui
                     .scope(|ui| {
-                        ui.set_max_width((ui.available_width() - star_room).max(1.0));
+                        ui.set_max_width((ui.available_width() - marks_room).max(1.0));
                         let text =
                             controls::named_text(ui, row.name.as_deref(), strong, &row.preview, row.live, quiet, pass.needle);
                         controls::label_with_pills(ui, text, is_light)
                     })
                     .inner;
+                let mut mark_right = ui.max_rect().right();
+                let mark_at = |right: f32| {
+                    egui::Rect::from_center_size(
+                        egui::pos2(right - ROW_STAR * 0.5, label.rect.center().y),
+                        egui::Vec2::splat(ROW_STAR),
+                    )
+                };
                 if row.favorite {
                     let ink = if row.off {
                         crate::app::disabled_text(is_light)
                     } else {
                         accent(ui.visuals())
                     };
-                    let star = egui::Rect::from_center_size(
-                        egui::pos2(ui.max_rect().right() - ROW_STAR * 0.5, label.rect.center().y),
-                        egui::Vec2::splat(ROW_STAR),
-                    );
+                    let star = mark_at(mark_right);
                     glyphs::paint(ui, star, Glyph::StarFilled, ROW_STAR, ink);
+                    mark_right = star.left() - controls::GAP;
+                }
+                if row.form {
+                    let mark = mark_at(mark_right);
+                    let ink = if row.off { strong } else { crate::app::secondary_text(is_light) };
+                    glyphs::paint(ui, mark, Glyph::Rename, ROW_STAR, ink);
+                    if pass.dragged_id.is_none() && ui.rect_contains_pointer(mark) {
+                        pointer_tip(ui, hover.id.with("form"), mark, pass.form_tip);
+                    }
                 }
             });
         });
@@ -3436,7 +3453,7 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
                     star_to = Some(!starred);
                 }
                 ui.spacing_mut().item_spacing.x = controls::GAP;
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
                     trigger_heading(ui, trigger);
                 });
             });
@@ -3649,14 +3666,29 @@ fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool,
     }
 }
 
+/// How tall Cascadia Mono's capitals stand, as a share of its size.
+const HEADING_CAP_HEIGHT: f32 = 0.7;
+
 /// An expansion's trigger as the inspector's heading: monospaced, a step up from the list, and
 /// wrapped whole however long it is.
+///
+/// Its first line shares the middle of the star and ✕ beside it, measured on the letters: laid out
+/// from the top, the larger line stood well above the icons' centre.
 fn trigger_heading(ui: &mut egui::Ui, trigger: &str) {
+    const SIZE: f32 = 18.0;
+    let first_line = ui.painter().layout_no_wrap(
+        "X".to_owned(),
+        egui::FontId::monospace(SIZE),
+        egui::Color32::PLACEHOLDER,
+    );
+    let letters_middle =
+        controls::baseline(&first_line) - crate::fonts::TEXT_LIFT - SIZE * HEADING_CAP_HEIGHT * 0.5;
+    ui.add_space((controls::FIELD_HEIGHT * 0.5 - letters_middle).max(0.0));
     ui.add(
         egui::Label::new(
             egui::RichText::new(trigger)
                 .monospace()
-                .size(18.0)
+                .size(SIZE)
                 .color(ui.visuals().strong_text_color()),
         )
         .wrap()

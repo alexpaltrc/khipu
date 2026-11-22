@@ -523,7 +523,7 @@ fn prefix_other_id() -> egui::Id {
 /// The suggested prefixes and «Otro», which opens a field beside them for any other. Wrapped, so on
 /// a narrow window the field drops under the row instead of running off the card.
 fn prefix_row(ui: &mut egui::Ui, state: &mut AppState) {
-    let mut labels: Vec<String> = PREFIX_SUGGESTIONS.iter().map(|p| format!("\"{p}\"")).collect();
+    let mut labels: Vec<String> = PREFIX_SUGGESTIONS.iter().map(|p| (*p).to_owned()).collect();
     labels.push(other_label(state).to_string());
     let other = PREFIX_SUGGESTIONS.len();
     let chosen = PREFIX_SUGGESTIONS.iter().position(|p| *p == state.settings.prefix);
@@ -533,7 +533,7 @@ fn prefix_row(ui: &mut egui::Ui, state: &mut AppState) {
     let selected = if asked || chosen.is_none() { other } else { chosen.unwrap_or(other) };
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(controls::GAP_WIDE, controls::GAP);
-        if let Some(picked) = controls::segmented(ui, "prefix", &labels, Some(selected)) {
+        if let Some(picked) = controls::segmented_codes(ui, "prefix", &labels, other, Some(selected)) {
             if picked == other {
                 // The field takes the keyboard once the click is over; see below.
                 ui.data_mut(|d| {

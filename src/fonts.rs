@@ -102,9 +102,22 @@ pub fn fluent_family() -> egui::FontFamily {
     egui::FontFamily::Name(FLUENT.into())
 }
 
-fn weight(wght: f32) -> egui::FontTweak {
+/// How far, in points, every text face is drawn above where egui lays it out.
+///
+/// egui centres a line's box, and Segoe UI's box keeps more room above the capitals than below the
+/// baseline, so its letters stood 1 to 1.5 points under the middle of every button, pill and row
+/// they were centred in — and every icon beside them, centred on the same box, looked lifted.
+/// Measured at 12, 13, 14, 20 and 28 points. Only the drawing moves: the layout, and so every
+/// baseline measured from it, stays where it was, which is why whatever centres a shape on the letters
+/// (the clock in a date pill, the status dot, the inspector's heading) takes this off. Every text face moves by the same amount, so text
+/// in two faces on one baseline stays on one baseline.
+pub const TEXT_LIFT: f32 = 1.0;
+
+/// A text face's tweak: lifted (see [`TEXT_LIFT`]) and, for a variable face, pinned to a weight.
+fn text_tweak(wght: Option<f32>) -> egui::FontTweak {
     egui::FontTweak {
-        coords: egui::epaint::text::VariationCoords::new([(b"wght", wght)]),
+        coords: wght.map_or_else(Default::default, |w| egui::epaint::text::VariationCoords::new([(b"wght", w)])),
+        y_offset: -TEXT_LIFT,
         ..Default::default()
     }
 }
@@ -223,12 +236,12 @@ pub fn install(ctx: &egui::Context, want_devanagari: bool) -> FontStatus {
     // system sets its own interface in.
     let (regular, semibold) = match cached_bytes(TEXT_VARIABLE) {
         Some(bytes) => (
-            Some(egui::FontData::from_static(bytes).tweak(weight(400.0))),
-            Some(egui::FontData::from_static(bytes).tweak(weight(600.0))),
+            Some(egui::FontData::from_static(bytes).tweak(text_tweak(Some(400.0)))),
+            Some(egui::FontData::from_static(bytes).tweak(text_tweak(Some(600.0)))),
         ),
         None => (
-            cached_bytes(TEXT_REGULAR).map(egui::FontData::from_static),
-            cached_bytes(TEXT_SEMIBOLD).map(egui::FontData::from_static),
+            cached_bytes(TEXT_REGULAR).map(|b| egui::FontData::from_static(b).tweak(text_tweak(None))),
+            cached_bytes(TEXT_SEMIBOLD).map(|b| egui::FontData::from_static(b).tweak(text_tweak(None))),
         ),
     };
     if let Some(face) = regular {
@@ -267,7 +280,7 @@ pub fn install(ctx: &egui::Context, want_devanagari: bool) -> FontStatus {
     // Both sit beside Segoe UI far better than the bundled Hack, which is drawn to another measure.
     if let Some((path, bytes)) = MONO.iter().find_map(|p| cached_bytes(p).map(|b| (p, b))) {
         let face = egui::FontData::from_static(bytes);
-        let face = if path.contains("Cascadia") { face.tweak(weight(400.0)) } else { face };
+        let face = face.tweak(text_tweak(path.contains("Cascadia").then_some(400.0)));
         fonts.font_data.insert("studio-mono".into(), std::sync::Arc::new(face));
         fonts
             .families
@@ -386,7 +399,7 @@ fn add_face(fonts: &mut egui::FontDefinitions, candidates: &[&'static str], plac
     };
     fonts.font_data.insert(
         name.clone(),
-        std::sync::Arc::new(egui::FontData::from_static(bytes)),
+        std::sync::Arc::new(egui::FontData::from_static(bytes).tweak(text_tweak(None))),
     );
     // A `Place::Last` face goes into the icon family as well. That family exists to keep Segoe UI
     // Symbol from winning the pencil — see [`install`] — not to keep whole *scripts* out, and a face
@@ -472,4 +485,3 @@ mod tests {
         });
     }
 }
-

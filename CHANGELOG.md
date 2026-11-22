@@ -49,6 +49,16 @@ was published.
   moment. They now launch with launch feedback turned off.
 - **Your window size is no longer lost.** Opening Khipu from the tray while it was minimized
   measured it as zero, "repaired" it to the smallest size and saved that as yours.
+- **Text sits in the middle of its buttons, pills and rows.** Segoe UI letters were drawn 1 to
+  1.5 pixels under the centre, so labels looked low and the icons beside them looked high. Every
+  text face is now drawn a pixel higher. Also lined up: the expansion's title in the detail panel
+  (it stood 9 pixels above the star and ✕), «;hola» in Consejos' example, and the editor's step
+  numbers.
+- **Smaller alignment fixes.** The compact view shows the form mark like the other views; the
+  editor's folder list starts where every field starts, with «+» after it; a form opened without
+  a name titles itself with its trigger in monospace; Consejos is centred under its title, an
+  opened tip starts under its words, and «Usar fechas» describes the «Fecha» button; Ajustes'
+  prefixes are written in monospace without quotes.
 
 ### Store
 

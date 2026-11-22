@@ -2657,7 +2657,7 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
             folder_names.push(pending.clone());
             folder_names.sort_by_key(|f| f.to_lowercase());
         }
-        // «Nueva carpeta» is the «+» before the list, and only that. Pressed, the list itself becomes
+        // «Nueva carpeta» is the «+» after the list, and only that. Pressed, the list itself becomes
         // the box for the new name — nothing opens below it — and «+» gives way to ✓ and ✗, which
         // are never on screen at the same time as it.
         let new_tip = t.add_new_folder.trim_start_matches(['+', ' ']).trim_end_matches('…');
@@ -2687,15 +2687,16 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
                 )
             };
             // «+» leaves in the first half of the move and ✓ ✗ arrive in the second, so the two never
-            // share a frame. Neither claims room of its own: the slot's width alone moves the box,
-            // so it glides the whole way instead of jumping when ✓ ✗ arrive.
+            // share a frame. Neither claims room of its own: the slot's width alone moves the box's
+            // end, so it glides the whole way instead of jumping when ✓ ✗ arrive. They sit after the
+            // list, not before it, so the list starts where every other field on the page does.
             if eased < 0.5 {
-                let mut lead_ui = place(ui, egui::Rect::from_min_size(row.min, egui::Vec2::splat(one)));
+                let mut lead_ui = place(ui, egui::Rect::from_min_size(egui::pos2(row.max.x - one, row.min.y), egui::Vec2::splat(one)));
                 lead_ui.set_opacity(1.0 - eased * 2.0);
                 add = controls::icon_button(&mut lead_ui, Glyph::Add, new_tip, !creating).clicked();
             } else {
                 let fade = eased * 2.0 - 1.0;
-                let from = row.min + egui::vec2(-6.0 * (1.0 - fade), 0.0);
+                let from = egui::pos2(row.max.x - two + 6.0 * (1.0 - fade), row.min.y);
                 let mut lead_ui = place(ui, egui::Rect::from_min_size(from, egui::vec2(two, one)));
                 lead_ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
                 lead_ui.set_opacity(fade);
@@ -2703,7 +2704,7 @@ fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_lig
                 confirm = controls::icon_button(&mut lead_ui, Glyph::Check, create_tip, ok).clicked();
                 cancel = controls::icon_button(&mut lead_ui, Glyph::Close, t.cancel, creating).clicked();
             }
-            let body = egui::Rect::from_min_max(egui::pos2(row.min.x + lead + controls::GAP_TIGHT, row.min.y), row.max);
+            let body = egui::Rect::from_min_max(row.min, egui::pos2(row.max.x - lead - controls::GAP_TIGHT, row.max.y));
             let rest = body.width();
             let ui = &mut place(ui, body);
             // The box arriving comes up out of the list it replaces rather than being swapped in.

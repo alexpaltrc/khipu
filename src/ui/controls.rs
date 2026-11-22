@@ -406,11 +406,12 @@ fn pill_shapes(ui: &egui::Ui, galley: &egui::Galley, origin: egui::Pos2, is_ligh
     }
     // After every pill, so a clock is never painted over by the pill it sits in. Centred on the
     // figures beside it, half a cap height over their baseline: the middle of the line box sits
-    // lower than a row of digits does, and a clock centred there floats above the date.
+    // lower than a row of digits does, and a clock centred there floats above the date. The figures
+    // are drawn a lift above their laid-out baseline (see [`crate::fonts::TEXT_LIFT`]).
     let ink = accent(ui.visuals());
     for row in &galley.rows {
         for (i, glyph) in row.glyphs.iter().enumerate().filter(|(_, g)| g.chr == CLOCK) {
-            let baseline = row.glyphs.get(i + 1).map_or(glyph.pos.y, |next| next.pos.y);
+            let baseline = row.glyphs.get(i + 1).map_or(glyph.pos.y, |next| next.pos.y) - crate::fonts::TEXT_LIFT;
             let center = origin
                 + row.pos.to_vec2()
                 + egui::vec2(glyph.pos.x + glyph.advance_width * 0.5, baseline - body * CAP_HEIGHT * 0.5);
@@ -1290,14 +1291,40 @@ pub fn segmented_marked<S: AsRef<str>>(
     let faces: Vec<_> = labels
         .iter()
         .map(|label| {
-            SegmentFace::Words(ui.painter().layout_no_wrap(
-                label.as_ref().to_owned(),
-                font.clone(),
-                egui::Color32::PLACEHOLDER,
-            ))
+            SegmentFace::Words(
+                ui.painter().layout_no_wrap(label.as_ref().to_owned(), font.clone(), egui::Color32::PLACEHOLDER),
+                0.0,
+            )
         })
         .collect();
     segmented_faces(ui, id_salt, faces, selected, mark)
+}
+
+/// [`segmented`] whose first `codes` options are things to type, written the way a trigger is: in
+/// monospace, with no quotes round them, on the same baseline as the words in the rest. Set in the
+/// interface face, a «;» or a «:» was a speck that needed quotes to be seen at all.
+pub fn segmented_codes<S: AsRef<str>>(
+    ui: &mut egui::Ui,
+    id_salt: impl std::hash::Hash + std::fmt::Debug,
+    labels: &[S],
+    codes: usize,
+    selected: Option<usize>,
+) -> Option<usize> {
+    let words = egui::TextStyle::Button.resolve(ui.style());
+    let mono = egui::TextStyle::Monospace.resolve(ui.style());
+    let drop = baseline_drop(ui, egui::RichText::new("x"), egui::RichText::new("x").monospace());
+    let faces = labels
+        .iter()
+        .enumerate()
+        .map(|(i, label)| {
+            let (font, dy) = if i < codes { (mono.clone(), drop) } else { (words.clone(), 0.0) };
+            SegmentFace::Words(
+                ui.painter().layout_no_wrap(label.as_ref().to_owned(), font, egui::Color32::PLACEHOLDER),
+                dy,
+            )
+        })
+        .collect();
+    segmented_faces(ui, id_salt, faces, selected, None)
 }
 
 /// [`segmented`] with a pictogram in each segment instead of words: for a choice whose options read
@@ -1325,14 +1352,15 @@ pub fn segmented_icons_width(count: usize) -> f32 {
 
 /// What a segment shows: its words, laid out, or a pictogram and the name it stands for.
 enum SegmentFace {
-    Words(std::sync::Arc<egui::Galley>),
+    /// The words, and how far below their box's centred place they sit so they share a baseline.
+    Words(std::sync::Arc<egui::Galley>, f32),
     Icon(Glyph, String),
 }
 
 impl SegmentFace {
     fn width(&self) -> f32 {
         match self {
-            SegmentFace::Words(galley) => segment_width(galley.size().x),
+            SegmentFace::Words(galley, _) => segment_width(galley.size().x),
             SegmentFace::Icon(..) => segment_width(glyphs::SIZE),
         }
     }
@@ -1428,8 +1456,8 @@ fn segmented_faces(
                             secondary_text(is_light)
                         };
                         match &face {
-                            SegmentFace::Words(galley) => {
-                                let at = rect.center() - galley.size() * 0.5;
+                            SegmentFace::Words(galley, dy) => {
+                                let at = rect.center() - galley.size() * 0.5 + egui::vec2(0.0, *dy);
                                 ui.painter()
                                     .with_clip_rect(rect.intersect(ui.clip_rect()))
                                     .galley(at, galley.clone(), ink);
@@ -1451,7 +1479,7 @@ fn segmented_faces(
                             });
                             response.on_hover_text(name)
                         }
-                        SegmentFace::Words(galley) => {
+                        SegmentFace::Words(galley, _) => {
                             response.widget_info(|| {
                                 egui::WidgetInfo::selected(egui::WidgetType::RadioButton, true, is_selected, galley.text())
                             });
