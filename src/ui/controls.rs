@@ -1643,6 +1643,54 @@ pub fn icon_button(ui: &mut egui::Ui, glyph: Glyph, tip: &str, enabled: bool) ->
     response
 }
 
+/// Space between a [`tool_button`]'s edge and what it holds, and between its icon and its words.
+const TOOL_PAD_X: f32 = 8.0;
+const TOOL_ICON_GAP: f32 = 6.0;
+
+/// A borderless button with an icon and a few words, no wider than `max_width`: words that do not
+/// fit are cut with «…» and read in full on hover. `set` says it holds something — a folder, a name
+/// — and gives its words the text colour; empty, they are muted, so it reads as an offer rather
+/// than as a field waiting to be filled.
+pub fn tool_button(ui: &mut egui::Ui, glyph: Glyph, label: &str, set: bool, max_width: f32, tip: &str) -> egui::Response {
+    let is_light = !ui.visuals().dark_mode;
+    let ink = if set { ui.visuals().text_color() } else { secondary_text(is_light) };
+    let room = (max_width - TOOL_PAD_X * 2.0 - glyphs::SIZE - TOOL_ICON_GAP).max(1.0);
+    let mut job = egui::text::LayoutJob::single_section(
+        label.to_owned(),
+        egui::TextFormat::simple(egui::TextStyle::Button.resolve(ui.style()), ink),
+    );
+    job.wrap = egui::text::TextWrapping {
+        max_width: room,
+        max_rows: 1,
+        break_anywhere: true,
+        overflow_character: Some('…'),
+    };
+    let words = ui.painter().layout_job(job);
+    let width = TOOL_PAD_X * 2.0 + glyphs::SIZE + TOOL_ICON_GAP + words.size().x;
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, FIELD_HEIGHT), egui::Sense::click());
+    let response = if set { response.on_hover_text(format!("{label}\n{tip}")) } else { response.on_hover_text(tip) };
+    subtle_wash(ui, &response, true);
+    if ui.is_rect_visible(rect) {
+        let icon = egui::Rect::from_min_size(
+            egui::pos2(rect.left() + TOOL_PAD_X, rect.center().y - glyphs::SIZE * 0.5),
+            egui::Vec2::splat(glyphs::SIZE),
+        );
+        // The icon keeps the text colour either way, like the star beside it; the words carry the state.
+        glyphs::paint(ui, icon, glyph, glyphs::SIZE, ui.visuals().text_color());
+        // Rounded down to the pixel, as egui places a button's words, so these share a line with
+        // Cancelar and Guardar across the foot instead of sitting a pixel below them.
+        let ppp = ui.ctx().pixels_per_point();
+        let top = ((rect.center().y - words.size().y * 0.5) * ppp).floor() / ppp;
+        ui.painter().galley(egui::pos2(icon.right() + TOOL_ICON_GAP, top), words, ink);
+    }
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+    focus_ring(ui, &response, f32::from(RADIUS_CONTROL));
+    response
+}
+
 /// How long a star's pop lasts, in seconds.
 const STAR_POP: f64 = 0.28;
 
@@ -1813,6 +1861,12 @@ pub fn menu_item(
     enabled: bool,
 ) -> egui::Response {
     menu_line(ui, glyph, label, keys, tone, enabled, false, true)
+}
+
+/// A [`menu_item`] that leaves its menu open, for a line that turns into something else in place —
+/// «Nueva carpeta…» becoming the box for the name.
+pub fn menu_item_staying(ui: &mut egui::Ui, glyph: Option<Glyph>, label: &str) -> egui::Response {
+    menu_line(ui, glyph, label, None, Tone::Normal, true, false, false)
 }
 
 /// A flyout line that marks one of several choices — a folder in the folder menu. The check stands

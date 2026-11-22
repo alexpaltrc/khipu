@@ -34,6 +34,11 @@ was published.
   takes it back), with no Guardar button; on and off is a switch that says how many are off; the
   prefix shows every trigger it would change before «Aplicar». An empty folder shows only its
   name and Eliminar.
+- **Making an expansion asks two questions, not three.** «¿Algo más?» is gone: the star, the
+  folder and the name wait as quiet buttons at the left of the editor's foot, opposite Cancelar
+  and Guardar. Each shows what it holds (the folder's name, the expansion's name, cut with «…»
+  when long) and says on hover what it is for. The folder opens a short list with «Nueva
+  carpeta…» at the end; the name opens a box with the cursor already in it, put away with Enter.
 
 ### Fixed
 

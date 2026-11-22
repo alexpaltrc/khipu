@@ -38,15 +38,16 @@
 //! deliberately does not warn about the pair the prefix box itself produces. Read its own comment
 //! before adding a case to it; espanso's matcher makes most of the pairs that look dangerous safe.
 //!
-//! ## Three questions, in order
+//! ## Two questions, in order
 //!
-//! Three numbered questions: **¿Qué vas a escribir?**, **¿Qué quieres que aparezca?** and **¿Algo
-//! más?**. A step whose previous one is still empty is drawn faint, never locked: the order is a
-//! suggestion, and anybody may fill them in any order. A question and the date are a
+//! Two numbered questions: **¿Qué vas a escribir?** and **¿Qué quieres que aparezca?**. The second
+//! is drawn faint while the first is still empty, never locked: the order is a suggestion, and
+//! anybody may fill them in any order. A question and the date are a
 //! button each under the text, whose right-click menu cuts, copies and pastes. What was last
 //! copied is still shown as a pill in texts that have it, but nothing offers it any more.
-//! The name, the folder and the star wait folded inside the third step, which is optional and
-//! says so. What the expansion will do is shown once, in the preview, and nothing on the form
+//! The star, the folder and the name change nothing about what an expansion does, so they are not
+//! questions: they wait as quiet buttons at the foot, opposite Guardar (decided by Alex,
+//! 2026-11-22). What the expansion will do is shown once, in the preview, and nothing on the form
 //! repeats it.
 //!
 //! ## Leaving is asked about only when there is something to lose
@@ -686,7 +687,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
     let View::Edit(edit) = &state.view else {
         return;
     };
-    let edit = edit.clone();
+    let mut edit = edit.clone();
     let t = state.t();
     let lang = state.settings.lang;
     let is_light = !ui.visuals().dark_mode;
@@ -709,9 +710,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             d.remove::<(String, u64)>(bubble_key());
             d.remove::<String>(naming_key());
             d.remove::<Vec<(String, String, String)>>(preview_answers_key());
-            d.remove::<bool>(more_open_key());
             d.remove::<bool>(step_touched_key(2));
-            d.remove::<bool>(step_touched_key(3));
         });
         // A new expansion starts at its word: the box that has the caret is the first step, and
         // nobody has to be told where to begin.
@@ -785,26 +784,37 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
                 ui.set_max_width(full - margin);
                 ui.add_space(margin);
                 ui.spacing_mut().item_spacing.x = controls::GAP_ROW;
-                let saving = controls::button(ui, t.save, Tone::Primary, can_save);
-                save = match &problem {
-                    // Says why it cannot be pressed at the moment somebody tries to press it, which
-                    // is a different moment from reading the form.
-                    Some(problem) => saving.on_disabled_hover_text(problem_text(state, t, problem)),
-                    None => saving.on_hover_text(keys::tip(t.save, keys::SAVE, lang)),
-                }
-                .clicked();
-                cancel = controls::button(ui, t.cancel, Tone::Normal, true)
-                    .on_hover_text(keys::tip(t.cancel, keys::BACK, lang))
-                    .clicked();
+                let gap = controls::GAP_ROW;
+                // The buttons on the right are measured first, so the folder and the name on the
+                // left know how much of the strip they may take.
+                let mut right = controls::button_width(ui, t.save) + gap + controls::button_width(ui, t.cancel);
                 if edit.editing_index.is_some() {
-                    // Across the strip from Guardar rather than beside it. It is the one action
-                    // here that cannot be taken back from this screen.
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    right += controls::GAP_SECTION + gap + controls::button_width(ui, t.delete);
+                }
+                let room = span - right - controls::FIELD_HEIGHT - 3.0 * gap - controls::GAP_SECTION;
+                let each = (room * 0.5).clamp(controls::FIELD_HEIGHT, EXTRA_MAX_WIDTH);
+                extras(ui, state, &mut edit, each);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let saving = controls::button(ui, t.save, Tone::Primary, can_save);
+                    save = match &problem {
+                        // Says why it cannot be pressed at the moment somebody tries to press it,
+                        // which is a different moment from reading the form.
+                        Some(problem) => saving.on_disabled_hover_text(problem_text(state, t, problem)),
+                        None => saving.on_hover_text(keys::tip(t.save, keys::SAVE, lang)),
+                    }
+                    .clicked();
+                    cancel = controls::button(ui, t.cancel, Tone::Normal, true)
+                        .on_hover_text(keys::tip(t.cancel, keys::BACK, lang))
+                        .clicked();
+                    if edit.editing_index.is_some() {
+                        // Set apart from Guardar: it is the one action here that cannot be taken
+                        // back from this screen.
+                        ui.add_space(controls::GAP_SECTION);
                         delete = controls::button(ui, t.delete, Tone::Danger, true)
                             .on_hover_text(t.delete_tip)
                             .clicked();
-                    });
-                }
+                    }
+                });
             });
         });
 
@@ -970,26 +980,11 @@ const STEP_INDENT: f32 = STEP_DOT + controls::GAP_WIDE;
 /// not so faint that it reads as switched off: it can still be filled in.
 const STEP_FAINT: f32 = 0.45;
 
-/// Open while «¿Algo más?» shows the name, the folder and the star.
-fn more_open_key() -> egui::Id {
-    egui::Id::new("editor-more-open")
-}
-
-/// A step's number in its disc and its question beside it. `trailing` is drawn after the question
-/// in the muted colour — «(opcional)» on the last step.
-fn step_heading(ui: &mut egui::Ui, number: usize, question: &str, trailing: Option<&str>, sense: egui::Sense) -> egui::Response {
-    let is_light = !ui.visuals().dark_mode;
+/// A step's number in its disc and its question beside it.
+fn step_heading(ui: &mut egui::Ui, number: usize, question: &str) {
     let (fill, ink) = crate::app::accent_fill(ui.visuals());
     let mut job = egui::text::LayoutJob::default();
     controls::h3(question).append_to(&mut job, ui.style(), egui::FontSelection::Default, egui::Align::Center);
-    if let Some(trailing) = trailing {
-        controls::muted(format!("  {trailing}"), is_light).append_to(
-            &mut job,
-            ui.style(),
-            egui::FontSelection::Default,
-            egui::Align::Center,
-        );
-    }
     job.wrap.max_width = (ui.available_width() - STEP_INDENT).max(1.0);
     let galley = ui.painter().layout_job(job);
     // The disc is centred on the question's first line, and a question that wraps hangs below it.
@@ -999,7 +994,7 @@ fn step_heading(ui: &mut egui::Ui, number: usize, question: &str, trailing: Opti
     let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), height), egui::Sense::hover());
     // Its own id rather than the next automatic one, which the faint scope around it can share with
     // the step before.
-    let response = ui.interact(rect, egui::Id::new(("editor-step-heading", number)), sense);
+    let response = ui.interact(rect, egui::Id::new(("editor-step-heading", number)), egui::Sense::hover());
     let center = egui::pos2(rect.left() + STEP_DOT * 0.5, rect.top() + line * 0.5);
     ui.painter().circle_filled(center, STEP_DOT * 0.5, fill);
     ui.painter().text(
@@ -1014,16 +1009,7 @@ fn step_heading(ui: &mut egui::Ui, number: usize, question: &str, trailing: Opti
         galley,
         ui.visuals().text_color(),
     );
-    if response.hovered() && sense.senses_click() {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-    }
-    let said = match trailing {
-        Some(trailing) => format!("{question} {trailing}"),
-        None => question.to_owned(),
-    };
-    let kind = if sense.senses_click() { egui::WidgetType::Button } else { egui::WidgetType::Label };
-    response.widget_info(|| egui::WidgetInfo::labeled(kind, true, &said));
-    response
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, question));
 }
 
 /// What a step holds, set in under its question, and as faint as the step is.
@@ -2593,206 +2579,192 @@ fn try_answers(ui: &mut egui::Ui, spec: &FormSpec, answers: &mut [String], lang:
     }
 }
 
-/// What it is called, if the trigger alone does not say. Laid out like the folder below it: both
-/// are optional, both are for finding it again, and neither changes what gets written.
-fn name_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
-    ui.vertical(|ui| {
-        ui.set_width(ui.available_width());
-        // «(opcional)» is said once, on the step these are under.
-        ui.label(controls::h3(studio::text(state, "Nombre", "Name", "Pangalan", "नाम")));
-        ui.add_space(controls::GAP_TIGHT);
-        ui.label(controls::muted(
-            studio::text(
-                state,
-                "Para reconocerla de un vistazo en la lista y encontrarla en el buscador.",
-                "To recognise it at a glance in the list and find it in the search window.",
-                "Para makilala ito agad sa listahan at mahanap sa paghahanap.",
-                "ताकि सूची में इसे एक नज़र में पहचान सकें और खोज में ढूँढ सकें।",
-            ),
-            is_light,
-        ));
-        ui.add_space(controls::GAP_ROW);
-        ui.add(
-            controls::text_field(&mut edit.name)
-                .desired_width(ui.available_width())
-                .hint_text(studio::text(
-                    state,
-                    "Por ejemplo: Firma del correo",
-                    "For example: Email signature",
-                    "Halimbawa: Pirma sa email",
-                    "उदाहरण: ईमेल हस्ताक्षर",
-                )),
-        );
-    });
-}
+/// The widest a folder's or a name's words get at the foot before they are cut with «…».
+const EXTRA_MAX_WIDTH: f32 = 180.0;
+/// How wide the folder and name flyouts open.
+const EXTRA_MENU_WIDTH: f32 = 260.0;
+/// How tall the folders in the folder flyout grow before they scroll.
+const EXTRA_FOLDERS_MAX_HEIGHT: f32 = 240.0;
 
-/// The box for a new folder's name, so the «+» beside the folder list can put the cursor in it.
+/// The box for a new folder's name, so «Nueva carpeta…» can put the cursor in it.
 fn new_folder_field_id() -> egui::Id {
     egui::Id::new("edit-new-folder-name")
 }
 
-/// Where this expansion is filed. It changes nothing about what espanso does.
-fn folder_card(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
-    let t = state.t();
-    ui.vertical(|ui| {
-        ui.set_width(ui.available_width());
-        ui.label(controls::h3(studio::text(state, "Carpeta", "Folder", "Folder", "फ़ोल्डर")));
-        ui.add_space(controls::GAP_TIGHT);
-        ui.label(controls::muted(
-            studio::text(
-                state,
-                "Solo sirve para encontrarla aquí: la expansión funciona igual en cualquier carpeta.",
-                "Only for finding it here: the expansion works the same in any folder.",
-                "Para lang mahanap ito rito: pareho ang gana ng expansion sa kahit anong folder.",
-                "यह केवल इसे यहाँ खोजने के लिए है: विस्तार किसी भी फ़ोल्डर में एक जैसा काम करता है।",
-            ),
-            is_light,
-        ));
-        ui.add_space(controls::GAP_ROW);
+/// The star, the folder and the name: the three things an expansion may have that change nothing
+/// about what it does. They wait at the foot, opposite Guardar, as quiet buttons, so making an
+/// expansion asks for two answers and not five; what each one is for is said on hover. Each button
+/// shows what it holds, so an expansion that has a folder or a name says so without being opened up.
+/// `each` is the most the folder and the name may take, so the row never runs into Guardar.
+fn extras(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, each: f32) {
+    let star_tip = studio::text(
+        state,
+        "Favorita: sale primero en la lista y en el buscador",
+        "Favorite: comes first in the list and in search",
+        "Paborito: nauuna sa listahan at sa paghahanap",
+        "पसंदीदा: सूची और खोज में सबसे पहले आता है",
+    );
+    if controls::star_button(ui, edit.favorite, star_tip).clicked() {
+        edit.favorite = !edit.favorite;
+    }
 
-        let mut folder_names = state.settings.all_folder_names();
-        // A folder named with ✓ exists only in this draft until Guardar, but it is the one chosen,
-        // so the list has to be able to show it as chosen.
-        if let Some(pending) = edit.folder.as_ref().filter(|f| !folder_names.contains(f)) {
-            folder_names.push(pending.clone());
-            folder_names.sort_by_key(|f| f.to_lowercase());
-        }
-        // «Nueva carpeta» is the «+» after the list, and only that. Pressed, the list itself becomes
-        // the box for the new name — nothing opens below it — and «+» gives way to ✓ and ✗, which
-        // are never on screen at the same time as it.
-        let new_tip = t.add_new_folder.trim_start_matches(['+', ' ']).trim_end_matches('…');
-        let create_tip = studio::text(state, "Crear carpeta", "Create folder", "Gumawa ng folder", "फ़ोल्डर बनाएँ");
-        let creating = edit.choosing_new_folder;
-        let shift = ui.ctx().animate_bool_with_time(egui::Id::new("edit-new-folder-shift"), creating, 0.22);
-        // Smoothstep, so the slot eases out of one shape and into the other instead of sliding at
-        // one speed and stopping dead.
-        let eased = shift * shift * (3.0 - 2.0 * shift);
-        let mut add = false;
-        let mut confirm = false;
-        let mut cancel = false;
-        let name = edit.new_folder_input.trim().to_string();
-        {
-            let one = controls::FIELD_HEIGHT;
-            let two = 2.0 * one + controls::GAP_TIGHT;
-            // The row is one field tall whatever is in it, and everything in it is placed rather than
-            // laid out: the list and the name box differ by a fraction of a point, and a row that
-            // took the taller of the two nudged «Favorita» below it on every change.
-            let (row, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), one), egui::Sense::hover());
-            let lead = egui::lerp(one..=two, eased);
-            let place = |ui: &mut egui::Ui, rect: egui::Rect| {
-                ui.new_child(
-                    egui::UiBuilder::new()
-                        .max_rect(rect)
-                        .layout(egui::Layout::left_to_right(egui::Align::Center)),
-                )
-            };
-            // «+» leaves in the first half of the move and ✓ ✗ arrive in the second, so the two never
-            // share a frame. Neither claims room of its own: the slot's width alone moves the box's
-            // end, so it glides the whole way instead of jumping when ✓ ✗ arrive. They sit after the
-            // list, not before it, so the list starts where every other field on the page does.
-            if eased < 0.5 {
-                let mut lead_ui = place(ui, egui::Rect::from_min_size(egui::pos2(row.max.x - one, row.min.y), egui::Vec2::splat(one)));
-                lead_ui.set_opacity(1.0 - eased * 2.0);
-                add = controls::icon_button(&mut lead_ui, Glyph::Add, new_tip, !creating).clicked();
-            } else {
-                let fade = eased * 2.0 - 1.0;
-                let from = egui::pos2(row.max.x - two + 6.0 * (1.0 - fade), row.min.y);
-                let mut lead_ui = place(ui, egui::Rect::from_min_size(from, egui::vec2(two, one)));
-                lead_ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
-                lead_ui.set_opacity(fade);
-                let ok = !name.is_empty() && creating;
-                confirm = controls::icon_button(&mut lead_ui, Glyph::Check, create_tip, ok).clicked();
-                cancel = controls::icon_button(&mut lead_ui, Glyph::Close, t.cancel, creating).clicked();
+    let folder_tip = studio::text(
+        state,
+        "Carpeta: para encontrarla aquí. La expansión funciona igual en cualquier carpeta",
+        "Folder: for finding it here. The expansion works the same in any folder",
+        "Folder: para mahanap ito rito. Pareho ang gana ng expansion sa kahit anong folder",
+        "फ़ोल्डर: इसे यहाँ खोजने के लिए। विस्तार किसी भी फ़ोल्डर में एक जैसा काम करता है",
+    );
+    let folder_word = studio::text(state, "Carpeta", "Folder", "Folder", "फ़ोल्डर");
+    let shown = edit.folder.clone().unwrap_or_else(|| folder_word.to_owned());
+    let button = controls::tool_button(ui, Glyph::Folder, &shown, edit.folder.is_some(), each, folder_tip);
+    folder_menu(ui, state, edit, &button);
+
+    let name_tip = studio::text(
+        state,
+        "Nombre: para reconocerla en la lista y encontrarla en el buscador",
+        "Name: to recognise it in the list and find it in search",
+        "Pangalan: para makilala ito sa listahan at mahanap sa paghahanap",
+        "नाम: ताकि सूची में इसे पहचान सकें और खोज में ढूँढ सकें",
+    );
+    let named = !edit.name.trim().is_empty();
+    let shown = if named {
+        edit.name.trim().to_owned()
+    } else {
+        studio::text(state, "Nombre", "Name", "Pangalan", "नाम").to_owned()
+    };
+    let button = controls::tool_button(ui, Glyph::Tag, &shown, named, each, name_tip);
+    name_menu(state, edit, &button);
+}
+
+/// The folder flyout: no folder, every folder, and a new one named in place. A folder named here
+/// exists only in this draft until Guardar, like any other change on the form.
+fn folder_menu(ui: &egui::Ui, state: &AppState, edit: &mut EditState, button: &egui::Response) {
+    let t = state.t();
+    let ctx = ui.ctx();
+    // Closed with a name half typed, the flyout opens next time on the list again.
+    if edit.choosing_new_folder && !egui::Popup::is_id_open(ctx, egui::Popup::default_response_id(button)) && !button.clicked() {
+        edit.choosing_new_folder = false;
+        edit.new_folder_input.clear();
+    }
+    let mut folder_names = state.settings.all_folder_names();
+    // A folder named in this draft is not in the settings yet, but it is the one chosen, so the
+    // list has to be able to show it as chosen.
+    if let Some(pending) = edit.folder.as_ref().filter(|f| !folder_names.contains(f)) {
+        folder_names.push(pending.clone());
+        folder_names.sort_by_key(|f| f.to_lowercase());
+    }
+    let new_folder = format!("{}…", t.add_new_folder.trim_start_matches(['+', ' ']).trim_end_matches('…'));
+    let by_keyboard = button.clicked() && button.has_focus();
+    egui::Popup::menu(button)
+        // Choosing a folder closes it (see [`controls::menu_check_item`]); typing a new one must not.
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .align(egui::RectAlign::TOP_START)
+        .gap(controls::GAP_TIGHT)
+        .width(EXTRA_MENU_WIDTH)
+        .show(|ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            let first = ui.next_auto_id();
+            if controls::menu_check_item(ui, t.no_folder, None, edit.folder.is_none()).clicked() {
+                edit.folder = None;
             }
-            let body = egui::Rect::from_min_max(row.min, egui::pos2(row.max.x - lead - controls::GAP_TIGHT, row.max.y));
-            let rest = body.width();
-            let ui = &mut place(ui, body);
-            // The box arriving comes up out of the list it replaces rather than being swapped in.
-            ui.set_opacity(if creating { 0.7 + 0.3 * eased } else { 1.0 - 0.3 * eased });
-            if creating {
-                // The box takes the list's place at the list's height, so the row does not jump: a
-                // field's own padding would make it four points taller than the list it replaces.
-                let field = ui.add_sized(
-                    [rest, one],
+            if by_keyboard {
+                ui.memory_mut(|m| m.request_focus(first));
+            }
+            egui::ScrollArea::vertical()
+                .id_salt("editor-folder-menu")
+                .max_height(EXTRA_FOLDERS_MAX_HEIGHT)
+                .show(ui, |ui| {
+                    for name in &folder_names {
+                        let chosen = edit.folder.as_deref() == Some(name.as_str());
+                        if controls::menu_check_item(ui, &crate::app::truncate(name, 32), None, chosen).clicked() {
+                            edit.folder = Some(name.clone());
+                        }
+                    }
+                });
+            controls::menu_separator(ui);
+            if edit.choosing_new_folder {
+                // The line becomes the box for the name, where it was.
+                let field = menu_field(
+                    ui,
                     controls::text_field(&mut edit.new_folder_input)
-                        .margin(egui::Margin::symmetric(12, 7))
                         .id(new_folder_field_id())
                         .hint_text(t.new_folder_placeholder),
                 );
+                let name = edit.new_folder_input.trim().to_string();
                 if field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !name.is_empty() {
-                    confirm = true;
+                    // An existing name typed again is that folder, chosen.
+                    let existing = folder_names.iter().find(|f| f.to_lowercase() == name.to_lowercase());
+                    edit.folder = Some(existing.cloned().unwrap_or(name));
+                    edit.choosing_new_folder = false;
+                    edit.new_folder_input.clear();
+                    ui.close();
                 }
-            } else {
-                let selected_text = edit.folder.clone().unwrap_or_else(|| t.no_folder.to_string());
-                // Truncating rather than extending: a long folder name may not push the control out
-                // past the edge of the card it is in.
-                let picker = egui::ComboBox::from_id_salt("edit_folder_combo")
-                    .selected_text(selected_text)
-                    .truncate()
-                    .width(rest)
-                    .icon(controls::dropdown_chevron)
-                    .show_ui(ui, |ui| {
-                        if controls::dropdown_choice(ui, t.no_folder, edit.folder.is_none()) {
-                            edit.folder = None;
-                        }
-                        for name in &folder_names {
-                            if controls::dropdown_choice(ui, name, edit.folder.as_deref() == Some(name.as_str())) {
-                                edit.folder = Some(name.clone());
-                            }
-                        }
-                    });
-                controls::say_as(&picker.response, studio::text(state, "Carpeta", "Folder", "Folder", "फ़ोल्डर"));
+            } else if controls::menu_item_staying(ui, Some(Glyph::Add), &new_folder).clicked() {
+                edit.choosing_new_folder = true;
+                edit.new_folder_input.clear();
+                ui.data_mut(|d| d.insert_temp(focus_due_key(), true));
             }
-        }
-        // Esc while naming a folder backs out of the naming, not out of the whole form.
-        if creating && !confirm && keys::pressed(ui.ctx(), keys::BACK) {
-            cancel = true;
-        }
-        if add {
-            edit.choosing_new_folder = true;
-            edit.new_folder_input.clear();
-            ui.memory_mut(|m| m.request_focus(new_folder_field_id()));
-        } else if confirm {
-            // An existing name typed again is that folder, chosen; a new one is made with Guardar.
-            let existing = folder_names.iter().find(|f| f.to_lowercase() == name.to_lowercase());
-            edit.folder = Some(existing.cloned().unwrap_or(name));
-            edit.choosing_new_folder = false;
-            edit.new_folder_input.clear();
-        } else if cancel {
-            edit.choosing_new_folder = false;
-            edit.new_folder_input.clear();
-        }
-    });
-}
-
-/// The star, as a switch with words beside it: on the edit screen there is room to say what it does.
-fn favorite_row(ui: &mut egui::Ui, state: &AppState, edit: &mut EditState, is_light: bool) {
-    ui.horizontal_top(|ui| {
-        ui.spacing_mut().item_spacing.x = controls::GAP_WIDE;
-        controls::toggle(ui, &mut edit.favorite, studio::text(state, "Favorita", "Favorite", "Paborito", "पसंदीदा"));
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = controls::GAP_TIGHT;
-            ui.label(controls::h3(studio::text(state, "Favorita", "Favorite", "Paborito", "पसंदीदा")));
-            ui.add(
-                egui::Label::new(controls::muted(
-                    studio::text(
-                        state,
-                        "Lleva una estrella y sale primero en la lista y en el buscador.",
-                        "It gets a star and comes first in the list and in search.",
-                        "May bituin ito at nauuna sa listahan at sa paghahanap.",
-                        "इसे एक तारा मिलता है और यह सूची व खोज में सबसे पहले आता है।",
-                    ),
-                    is_light,
-                ))
-                .wrap(),
-            );
         });
-    });
 }
 
-/// The form itself: the sentence that sums it up, then three numbered questions — what you type,
-/// what appears, and «¿Algo más?» with the name, the folder and the star folded under it. The title
-/// sits above it, outside the scroll.
+/// Set when a flyout's box should take the cursor, and cleared once it has it. Asked for on the
+/// frame of the click, the focus is lost again to that same click, so the box keeps asking until
+/// it holds it.
+fn focus_due_key() -> egui::Id {
+    egui::Id::new("editor-flyout-focus-due")
+}
+
+/// A box inside a flyout, drawn as boxes are everywhere else — a menu takes the borders off the
+/// widgets in it — and as wide as the flyout.
+fn menu_field(ui: &mut egui::Ui, field: egui::TextEdit<'_>) -> egui::Response {
+    let response = ui
+        .scope(|ui| {
+            ui.style_mut().visuals.widgets = ui.ctx().global_style().visuals.widgets.clone();
+            ui.add(field.desired_width(ui.available_width()))
+        })
+        .inner;
+    if ui.data(|d| d.get_temp::<bool>(focus_due_key())).unwrap_or(false) {
+        if response.has_focus() {
+            ui.data_mut(|d| d.remove::<bool>(focus_due_key()));
+        } else {
+            ui.memory_mut(|m| m.request_focus(response.id));
+        }
+    }
+    response
+}
+
+/// The name flyout: one box, with the cursor already in it. Enter puts it away.
+fn name_menu(state: &AppState, edit: &mut EditState, button: &egui::Response) {
+    if button.clicked() {
+        button.ctx.data_mut(|d| d.insert_temp(focus_due_key(), true));
+    }
+    egui::Popup::menu(button)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .align(egui::RectAlign::TOP_START)
+        .gap(controls::GAP_TIGHT)
+        .width(EXTRA_MENU_WIDTH)
+        .show(|ui| {
+            let field = menu_field(
+                ui,
+                controls::text_field(&mut edit.name)
+                    .hint_text(studio::text(
+                        state,
+                        "Por ejemplo: Firma del correo",
+                        "For example: Email signature",
+                        "Halimbawa: Pirma sa email",
+                        "उदाहरण: ईमेल हस्ताक्षर",
+                    )),
+            );
+            controls::say_as(&field, studio::text(state, "Nombre", "Name", "Pangalan", "नाम"));
+            if field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                ui.close();
+            }
+        });
+}
+
+/// The form itself: two numbered questions — what you type and what appears. The title sits above
+/// it, outside the scroll, and the star, the folder and the name wait at the foot.
 ///
 /// It takes `edit` by value and puts it back at the end, which is what lets the parts hold
 /// `&mut EditState` without the borrow checker having to reason about `state.view` at the same
@@ -2806,7 +2778,7 @@ fn show_form(
     is_light: bool,
 ) {
     let first = studio::text(state, "¿Qué vas a escribir?", "What will you type?", "Ano ang ita-type mo?", "आप क्या लिखेंगे?");
-    step_heading(ui, 1, first, None, egui::Sense::hover());
+    step_heading(ui, 1, first);
     ui.add_space(controls::GAP_ROW);
     step_body(ui, 1.0, |ui| when_you_type(ui, state, &mut edit, problem, is_light));
     ui.add_space(PART_GAP);
@@ -2824,54 +2796,11 @@ fn show_form(
     let top = ui.cursor().top();
     ui.scope(|ui| {
         ui.set_opacity(lit);
-        step_heading(ui, 2, second, None, egui::Sense::hover());
+        step_heading(ui, 2, second);
     });
     ui.add_space(controls::GAP_ROW);
     step_body(ui, lit, |ui| appears_here(ui, state, &mut edit, inline_preview, is_light));
     note_step_touch(ui, 2, egui::Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=ui.cursor().top()));
-    ui.add_space(PART_GAP);
-
-    let third = studio::text(state, "¿Algo más?", "Anything else?", "May iba pa?", "और कुछ?");
-    let optional = studio::text(state, "(opcional)", "(optional)", "(opsyonal)", "(वैकल्पिक)");
-    let something = !edit.replace.trim().is_empty();
-    // Open by default only on an expansion that already has one of the three, so what it has is
-    // in sight; a new one starts with them folded away.
-    let had_any = edit.editing_index.is_some() && (!edit.name.trim().is_empty() || edit.folder.is_some() || edit.favorite);
-    let open = ui.data(|d| d.get_temp::<bool>(more_open_key())).unwrap_or(had_any);
-    let lit = step_opacity(ui, 3, something || step_touched(ui, 3));
-    let top = ui.cursor().top();
-    let heading = ui
-        .scope(|ui| {
-            ui.set_opacity(lit);
-            step_heading(ui, 3, third, Some(optional), egui::Sense::click())
-        })
-        .inner;
-    if heading.clicked() {
-        ui.data_mut(|d| d.insert_temp(more_open_key(), !open));
-    }
-    ui.ctx().accesskit_node_builder(heading.id, |node| node.set_expanded(open));
-    ui.add_space(controls::GAP_ROW);
-    step_body(ui, lit, |ui| {
-        if !open {
-            let hint = studio::text(
-                state,
-                "Un nombre, una carpeta o marcarla como favorita.",
-                "A name, a folder, or marking it as a favorite.",
-                "Pangalan, folder, o gawin itong paborito.",
-                "एक नाम, एक फ़ोल्डर, या इसे पसंदीदा बनाना।",
-            );
-            if ui.add(egui::Label::new(controls::muted(hint, is_light)).sense(egui::Sense::click())).clicked() {
-                ui.data_mut(|d| d.insert_temp(more_open_key(), true));
-            }
-            return;
-        }
-        name_card(ui, state, &mut edit, is_light);
-        ui.add_space(PART_GAP);
-        folder_card(ui, state, &mut edit, is_light);
-        ui.add_space(PART_GAP);
-        favorite_row(ui, state, &mut edit, is_light);
-    });
-    note_step_touch(ui, 3, egui::Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=ui.cursor().top()));
     ui.add_space(controls::GAP);
 
     // The draft is its own state, and a change to it has to show up on the next frame rather than

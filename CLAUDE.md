@@ -31,8 +31,7 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
 - **Última versión publicada: 0.0.9** (etiqueta `v0.0.9`, GitHub Releases el 2026-11-14; el
   paquete de la Store lo sube Alex). Primera con su propia tarjeta de «Novedades» (la 0.0.8 salió
   con la de la 0.0.7; ver «Reglas permanentes»).
-- **Pendiente de Alex**: dónde van Nombre, Carpeta y Favorita al quitar «¿Algo más?» del editor
-  (tres ideas en `docs/disenos/algo-mas.html`). Y cómo se crean la fecha y la hora dentro de una expansión (un solo sistema
+- **Pendiente de Alex**: cómo se crean la fecha y la hora dentro de una expansión (un solo sistema
   de «elementos»). Maquetas en `docs/disenos/elementos.html`, contexto en `docs/roadmap.md`. No
   construir hasta que decida; recordárselo cuando venga al caso.
 - **En curso: `0.0.10-dev`**. Sin publicar hasta que Alex lo pida. El
