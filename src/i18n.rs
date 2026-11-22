@@ -283,9 +283,6 @@ pub struct Strings {
     pub moving_n: &'static str,
 
     // --- confirmation modal --------------------------------------------------------------
-    pub confirm_delete_folder_title: &'static str,
-    pub confirm_delete_folder_body: &'static str,
-    pub confirm_delete_selection_title: &'static str,
     pub see_more: &'static str,
 
     // --- edit form -----------------------------------------------------------------------
@@ -371,6 +368,11 @@ pub struct Strings {
     pub undo: &'static str,
     /// What the island says once its undo is done, before it turns back into «+».
     pub undone: &'static str,
+    /// What it says when Ctrl+Z or the ⋯ menu took a change back, or did it again: what the
+    /// island said about the change, after it.
+    pub undone_what: &'static str,
+    pub redone_what: &'static str,
+    pub redo: &'static str,
     pub autostart_error: &'static str,
     pub autostart_vetoed: &'static str,
     pub prefix_save_error: &'static str,
@@ -387,7 +389,6 @@ pub struct Strings {
     pub prefix_confirm_title: &'static str,
     pub prefix_confirm_body: &'static str,
     pub prefix_applied: &'static str,
-    pub delete_one_title: &'static str,
     pub expansion_deleted: &'static str,
     pub trigger_empty: &'static str,
     pub trigger_duplicate: &'static str,
@@ -404,7 +405,6 @@ pub struct Strings {
     pub turned_on: &'static str,
 
     // --- match previews ------------------------------------------------------------------
-    pub preview_date: &'static str,
     pub preview_advanced_vars: &'static str,
     pub preview_advanced: &'static str,
 
@@ -523,9 +523,6 @@ pub static EN: Strings = Strings {
     delete_selected: "Delete selected",
     moving_n: "Moving {n} expansions",
 
-    confirm_delete_folder_title: "Delete folder \"{name}\"",
-    confirm_delete_folder_body: "You are about to delete the folder \"{name}\" and everything inside it:",
-    confirm_delete_selection_title: "Delete {n} expansions",
     see_more: "Show {n} more",
 
     edit_title_new: "New expansion",
@@ -600,6 +597,9 @@ pub static EN: Strings = Strings {
     banner_close_tip: "Close",
     undo: "Undo",
     undone: "Undone",
+    undone_what: "Undone: {what}",
+    redone_what: "Redone: {what}",
+    redo: "Redo",
     autostart_error: "Could not change the Windows start-up setting. {err}",
     autostart_vetoed: "Windows has this app's start-up turned off. Turn it on in Settings › Apps › Startup.",
     prefix_save_error: "Could not save the prefix setting. {err}",
@@ -616,7 +616,6 @@ pub static EN: Strings = Strings {
     prefix_confirm_title: "Change the prefix of existing expansions",
     prefix_confirm_body: "{n} trigger will be renamed.|{n} triggers will be renamed.",
     prefix_applied: "Updated the prefix of {n} expansion.|Updated the prefix of {n} expansions.",
-    delete_one_title: "Delete expansion",
     expansion_deleted: "Expansion deleted.",
     trigger_empty: "The trigger cannot be empty.",
     trigger_duplicate: "Another expansion already uses the trigger \"{name}\".",
@@ -632,7 +631,6 @@ pub static EN: Strings = Strings {
     turned_off: "{n} expansion turned off.|{n} expansions turned off.",
     turned_on: "{n} expansion turned back on.|{n} expansions turned back on.",
 
-    preview_date: "Date/time — e.g. {example}",
     preview_advanced_vars: "Advanced (uses special variables) — edit it in the .yml file",
     preview_advanced: "Advanced — edit it in the .yml file",
 
@@ -737,9 +735,6 @@ pub static ES: Strings = Strings {
     delete_selected: "Eliminar seleccionadas",
     moving_n: "Moviendo {n} expansiones",
 
-    confirm_delete_folder_title: "Eliminar carpeta \"{name}\"",
-    confirm_delete_folder_body: "Vas a eliminar la carpeta \"{name}\" y todo lo que contiene:",
-    confirm_delete_selection_title: "Eliminar {n} expansiones",
     see_more: "Ver {n} más",
 
     edit_title_new: "Nueva expansión",
@@ -814,6 +809,9 @@ pub static ES: Strings = Strings {
     banner_close_tip: "Cerrar",
     undo: "Deshacer",
     undone: "Deshecho",
+    undone_what: "Deshecho: {what}",
+    redone_what: "Rehecho: {what}",
+    redo: "Rehacer",
     autostart_error: "No se pudo cambiar el inicio automático con Windows. {err}",
     autostart_vetoed: "Windows tiene apagado el inicio de esta app. Enciéndelo en Configuración › Aplicaciones › Inicio.",
     prefix_save_error: "No se pudo guardar el ajuste de prefijo. {err}",
@@ -830,7 +828,6 @@ pub static ES: Strings = Strings {
     prefix_confirm_title: "Cambiar prefijo de expansiones existentes",
     prefix_confirm_body: "Se va a renombrar {n} activador.|Se van a renombrar {n} activadores.",
     prefix_applied: "Se actualizó el prefijo de {n} expansión.|Se actualizó el prefijo de {n} expansiones.",
-    delete_one_title: "Eliminar expansión",
     expansion_deleted: "Expansión eliminada.",
     trigger_empty: "El activador no puede estar vacío.",
     trigger_duplicate: "Ya existe otra expansión con el activador \"{name}\".",
@@ -846,7 +843,6 @@ pub static ES: Strings = Strings {
     turned_off: "{n} expansión apagada.|{n} expansiones apagadas.",
     turned_on: "{n} expansión encendida de nuevo.|{n} expansiones encendidas de nuevo.",
 
-    preview_date: "Fecha/hora — ej. {example}",
     preview_advanced_vars: "Avanzado (usa variables especiales) — edítalo en el archivo .yml",
     preview_advanced: "Avanzado — edítalo en el archivo .yml",
 
@@ -951,9 +947,6 @@ pub static FIL: Strings = Strings {
     delete_selected: "Burahin ang mga napili",
     moving_n: "Inililipat ang {n} na expansion",
 
-    confirm_delete_folder_title: "Burahin ang folder na \"{name}\"",
-    confirm_delete_folder_body: "Buburahin mo ang folder na \"{name}\" at ang lahat ng nasa loob nito:",
-    confirm_delete_selection_title: "Burahin ang {n} expansion",
     see_more: "Ipakita ang {n} pa",
 
     edit_title_new: "Bagong expansion",
@@ -1028,6 +1021,9 @@ pub static FIL: Strings = Strings {
     banner_close_tip: "Isara",
     undo: "I-undo",
     undone: "Na-undo",
+    undone_what: "Na-undo: {what}",
+    redone_what: "Na-redo: {what}",
+    redo: "I-redo",
     autostart_error: "Hindi mabago ang setting ng pagsisimula sa Windows. {err}",
     autostart_vetoed: "Naka-off sa Windows ang pagsisimula ng app na ito. I-on ito sa Settings › Apps › Startup.",
     prefix_save_error: "Hindi ma-save ang setting ng prefix. {err}",
@@ -1044,7 +1040,6 @@ pub static FIL: Strings = Strings {
     prefix_confirm_title: "Palitan ang prefix ng mga umiiral na expansion",
     prefix_confirm_body: "Papalitan ang pangalan ng {n} trigger.|Papalitan ang pangalan ng {n} trigger.",
     prefix_applied: "Na-update ang prefix ng {n} expansion.|Na-update ang prefix ng {n} expansion.",
-    delete_one_title: "Burahin ang expansion",
     expansion_deleted: "Nabura ang expansion.",
     trigger_empty: "Hindi maaaring walang laman ang trigger.",
     trigger_duplicate: "May ibang expansion na gumagamit na ng trigger na \"{name}\".",
@@ -1060,7 +1055,6 @@ pub static FIL: Strings = Strings {
     turned_off: "Pinatay ang {n} expansion.|Pinatay ang {n} expansion.",
     turned_on: "Binuksan muli ang {n} expansion.|Binuksan muli ang {n} expansion.",
 
-    preview_date: "Petsa/oras — hal. {example}",
     preview_advanced_vars: "Advanced (gumagamit ng espesyal na variable) — i-edit ito sa .yml file",
     preview_advanced: "Advanced — i-edit ito sa .yml file",
 
@@ -1165,9 +1159,6 @@ pub static HI: Strings = Strings {
     delete_selected: "चयनित हटाएँ",
     moving_n: "{n} विस्तार ले जाए जा रहे हैं",
 
-    confirm_delete_folder_title: "फ़ोल्डर \"{name}\" हटाएँ",
-    confirm_delete_folder_body: "आप फ़ोल्डर \"{name}\" और उसमें मौजूद सब कुछ हटाने जा रहे हैं:",
-    confirm_delete_selection_title: "{n} विस्तार हटाएँ",
     see_more: "{n} और दिखाएँ",
 
     edit_title_new: "नया विस्तार",
@@ -1242,6 +1233,9 @@ pub static HI: Strings = Strings {
     banner_close_tip: "बंद करें",
     undo: "पूर्ववत करें",
     undone: "पूर्ववत किया गया",
+    undone_what: "पूर्ववत किया गया: {what}",
+    redone_what: "फिर से किया गया: {what}",
+    redo: "फिर से करें",
     autostart_error: "Windows स्टार्ट-अप सेटिंग नहीं बदली जा सकी। {err}",
     autostart_vetoed: "Windows ने इस ऐप का स्टार्ट-अप बंद कर रखा है। इसे सेटिंग्स › ऐप्स › स्टार्टअप में चालू करें।",
     prefix_save_error: "उपसर्ग सेटिंग सहेजी नहीं जा सकी। {err}",
@@ -1258,7 +1252,6 @@ pub static HI: Strings = Strings {
     prefix_confirm_title: "मौजूदा विस्तारों का उपसर्ग बदलें",
     prefix_confirm_body: "{n} ट्रिगर का नाम बदला जाएगा।|{n} ट्रिगरों के नाम बदले जाएँगे।",
     prefix_applied: "{n} विस्तार का उपसर्ग अपडेट किया गया।|{n} विस्तारों के उपसर्ग अपडेट किए गए।",
-    delete_one_title: "विस्तार हटाएँ",
     expansion_deleted: "विस्तार हटा दिया गया।",
     trigger_empty: "ट्रिगर खाली नहीं हो सकता।",
     trigger_duplicate: "ट्रिगर \"{name}\" का उपयोग पहले से ही कोई अन्य विस्तार कर रहा है।",
@@ -1274,7 +1267,6 @@ pub static HI: Strings = Strings {
     turned_off: "{n} विस्तार बंद किया गया।|{n} विस्तार बंद किए गए।",
     turned_on: "{n} विस्तार फिर से चालू किया गया।|{n} विस्तार फिर से चालू किए गए।",
 
-    preview_date: "दिनांक/समय — जैसे {example}",
     preview_advanced_vars: "उन्नत (विशेष वेरिएबल का उपयोग करता है) — इसे .yml फ़ाइल में संपादित करें",
     preview_advanced: "उन्नत — इसे .yml फ़ाइल में संपादित करें",
 

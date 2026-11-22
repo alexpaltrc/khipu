@@ -56,8 +56,12 @@ pub const FIND: Shortcut = ctrl(egui::Key::L);
 pub const FIND_ALT: Shortcut = ctrl(egui::Key::F);
 /// Rename the folder being looked at.
 pub const RENAME: Shortcut = bare(egui::Key::F2);
-/// Delete what is chosen — always through the confirmation.
+/// Delete what is chosen. Nothing asks first: Ctrl+Z takes it back.
 pub const DELETE: Shortcut = bare(egui::Key::Delete);
+/// Take back the last change to the list, or do again the last one taken back — outside a text box,
+/// which keeps both for its own text.
+pub const UNDO: Shortcut = ctrl(egui::Key::Z);
+pub const REDO: Shortcut = ctrl(egui::Key::Y);
 /// Open the chosen expansion in the editor.
 pub const OPEN: Shortcut = bare(egui::Key::Enter);
 /// Save in the editor.
@@ -168,7 +172,7 @@ mod tests {
 
     #[test]
     fn no_two_commands_share_keys() {
-        let all = [NEW, FIND, FIND_ALT, RENAME, DELETE, OPEN, SAVE, BACK, UP, DOWN, LEFT, RIGHT];
+        let all = [NEW, FIND, FIND_ALT, RENAME, DELETE, UNDO, REDO, OPEN, SAVE, BACK, UP, DOWN, LEFT, RIGHT];
         for (i, a) in all.iter().enumerate() {
             for b in &all[i + 1..] {
                 assert_ne!(a, b);

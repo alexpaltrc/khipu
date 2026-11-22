@@ -15,6 +15,14 @@ was published.
   the full phrase is in its tooltip and for screen readers), then select all, move, switch
   on or off, delete and close. The bar above the list is gone. «Quitar de carpeta» went with
   it: moving to «Sin carpeta» does the same. Messages said while choosing rise above the pill.
+- **Dates and times show today's value.** An expansion that writes the date or the time shows,
+  in the list and in the launcher, what it would type right now, in a small pill with a clock,
+  kept up to the minute; the old example date is gone.
+- **Deleting no longer asks.** An expansion, several, or a folder go at once, and the pill at
+  the foot says so with «Deshacer». Only renaming a prefix still asks first.
+- **Ctrl+Z undoes and Ctrl+Y redoes**, up to fifty steps: deleting, moving to a folder,
+  renaming or creating a folder, starring, switching on or off and changing a prefix. «Deshacer»
+  and «Rehacer» are also at the top of the «⋯» menu, with their shortcuts.
 
 ### Fixed
 

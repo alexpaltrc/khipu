@@ -204,15 +204,20 @@ impl MatchEntry {
         self.trigger_str().to_string()
     }
 
+    /// Whether this is a date expansion, whose [`preview`](Self::preview) is what it writes right
+    /// now and so changes as the clock does.
+    pub fn is_live(&self) -> bool {
+        matches!(self, MatchEntry::Simple(m) if m.is_only_date())
+    }
+
     pub fn preview(&self, t: &'static Strings) -> String {
         match self {
             MatchEntry::Simple(m) => {
                 if let Some(var) = m.as_date_var().filter(|_| m.is_only_date()) {
-                    // Shown as a worked example ("e.g. August 29, 2026") rather than as the
-                    // strftime pattern that produced it: the pattern is an implementation detail
-                    // that means nothing to the people this list is for.
-                    let example = super::presets::sample_of(var);
-                    crate::i18n::fill(t.preview_date, &[("example", &example)])
+                    // What it writes right now ("22/11/2026") rather than the strftime pattern
+                    // that produces it, which means nothing to the people this list is for. The
+                    // screens draw it as a pill led by a clock; see [`Self::is_live`].
+                    super::presets::sample_of(var)
                 } else if let Some(form) = m.as_form() {
                     // The text with its blanks showing, so a form reads as the message it writes.
                     form.template.chars().map(|c| if c == '\n' { ' ' } else { c }).collect()

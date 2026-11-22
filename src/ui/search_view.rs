@@ -89,6 +89,8 @@ pub struct Hit {
     /// The name the user gave it, if any: drawn ahead of the text and searched like the trigger.
     pub name: Option<String>,
     pub preview: String,
+    /// A date: `preview` is what it writes right now, drawn as a pill led by a clock.
+    pub live: bool,
 }
 
 fn viewport_id() -> egui::ViewportId {
@@ -761,6 +763,7 @@ fn row(
         hit.name.as_deref(),
         strong,
         &hit.preview,
+        hit.live,
         crate::app::secondary_text(is_light),
         needle,
     ))

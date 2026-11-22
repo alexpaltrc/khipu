@@ -793,7 +793,7 @@ pub fn show(
         match act {
             // Deshacer: the list goes back, the words say so, and the check turns once backwards.
             Act::Undo => {
-                state.undo_from_banner();
+                super::list_view::undo(ui.ctx(), state, true);
                 isl.say(later(0.0), Words { text: t.undone.to_owned(), act: Act::Quiet, at: later(SWAP_DELAY), out: None });
                 isl.phase = Phase::Undone;
                 isl.since = now;

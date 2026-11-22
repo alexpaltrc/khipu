@@ -838,6 +838,10 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
     }
 
     let list = state.list();
+    if list.live {
+        // A date row shows the time it is; it is redrawn when the minute turns, and not before.
+        ui.ctx().request_repaint_after(crate::app::seconds_to_next_minute());
+    }
     // Which rows the filter leaves, in the order the file has them. Borrowed from the cache's own
     // grouping, so a frame costs neither a scan of the expansions nor a copy of the indices.
     let visible: &[usize] = match active.as_deref() {
@@ -1083,8 +1087,19 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
     let mut toggle_picking = false;
     let mut pick_view: Option<usize> = None;
     let mut go: Option<View> = None;
+    let mut step: Option<bool> = None;
     let mut settings = false;
     menu(&more, width, |ui| {
+        let lang = state.settings.lang;
+        let undo_keys = keys::text(keys::UNDO, lang);
+        if controls::menu_item(ui, Some(Glyph::Undo), t.undo, Some(&undo_keys), Tone::Normal, state.can_undo()).clicked() {
+            step = Some(true);
+        }
+        let redo_keys = keys::text(keys::REDO, lang);
+        if controls::menu_item(ui, Some(Glyph::Redo), t.redo, Some(&redo_keys), Tone::Normal, state.can_redo()).clicked() {
+            step = Some(false);
+        }
+        controls::menu_separator(ui);
         let label = if picking {
             studio::text(state, "Terminar selección", "Stop selecting", "Tapusin ang pagpili", "चयन समाप्त करें")
         } else {
@@ -1114,6 +1129,11 @@ fn commands(ui: &mut egui::Ui, state: &mut AppState) {
             settings = true;
         }
     });
+    match step {
+        Some(true) => undo(ui.ctx(), state, false),
+        Some(false) => redo(ui.ctx(), state),
+        None => {}
+    }
     if toggle_picking {
         set_select_mode(ui.ctx(), !picking);
         if picking {
@@ -1536,6 +1556,14 @@ fn keyboard(
     if keys::typing(&ctx) {
         return;
     }
+    if keys::pressed(&ctx, keys::UNDO) {
+        undo(&ctx, state, false);
+        return;
+    }
+    if keys::pressed(&ctx, keys::REDO) {
+        redo(&ctx, state);
+        return;
+    }
     // A button or a menu line that has the keyboard owns Enter and the arrows; only a row, or
     // nothing, lets the list have them.
     let focused = ctx.memory(|m| m.focused());
@@ -1717,6 +1745,29 @@ fn begin_travel(ctx: &egui::Context, lifted: Option<egui::Id>, ghosts: Vec<egui:
 pub(super) fn start_travel(ctx: &egui::Context, trigger: &str) {
     if crate::theme::animations_enabled() {
         begin_travel(ctx, Some(row_id(trigger)), Vec::new());
+    }
+}
+
+/// Takes back the last change, from the keyboard or the ⋯ menu, the rows gliding to where it puts
+/// them. The island's own «Deshacer» comes here too, with `quiet`: see [`AppState::undo`].
+pub(super) fn undo(ctx: &egui::Context, state: &mut AppState, quiet: bool) {
+    if state.can_undo() {
+        start_shuffle(ctx);
+        state.undo(quiet);
+    }
+}
+
+pub(super) fn redo(ctx: &egui::Context, state: &mut AppState) {
+    if state.can_redo() {
+        start_shuffle(ctx);
+        state.redo();
+    }
+}
+
+/// Every row glides from where it was to where the change about to be made puts it. Called before it.
+fn start_shuffle(ctx: &egui::Context) {
+    if crate::theme::animations_enabled() {
+        begin_travel(ctx, None, Vec::new());
     }
 }
 
@@ -3032,7 +3083,7 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                     .scope(|ui| {
                         ui.set_max_width((ui.available_width() - star_room).max(1.0));
                         let text =
-                            controls::named_text(ui, row.name.as_deref(), strong, &row.preview, quiet, pass.needle);
+                            controls::named_text(ui, row.name.as_deref(), strong, &row.preview, row.live, quiet, pass.needle);
                         controls::label_with_pills(ui, text, is_light)
                     })
                     .inner;
@@ -3090,7 +3141,7 @@ fn comfortable_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selec
                     } else {
                         crate::app::secondary_text(is_light)
                     };
-                    let text = controls::named_text(ui, None, quiet, &row.preview, quiet, pass.needle);
+                    let text = controls::named_text(ui, None, quiet, &row.preview, row.live, quiet, pass.needle);
                     controls::label_with_pills(ui, text, is_light);
                 });
             });
@@ -3143,10 +3194,11 @@ fn grid_card(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: b
                         crate::app::secondary_text(is_light)
                     };
                     let width = ui.available_width().max(1.0);
-                    let mut job = controls::named_text(ui, None, quiet, &row.preview, quiet, pass.needle);
+                    let mut job = controls::named_text(ui, None, quiet, &row.preview, row.live, quiet, pass.needle);
                     job.wrap = egui::text::TextWrapping {
                         max_width: width,
-                        max_rows: GRID_PREVIEW_LINES,
+                        // A date is one pill, and a pill broken over two lines reads as two.
+                        max_rows: if row.live { 1 } else { GRID_PREVIEW_LINES },
                         break_anywhere: false,
                         overflow_character: Some('…'),
                     };
@@ -4093,43 +4145,16 @@ pub fn show_rename_modal(ctx: &egui::Context, state: &mut AppState) {
 /// question is always the same shape whether it is about one expansion or forty.
 const MODAL_WIDTH: f32 = 460.0;
 
-/// Horizontal padding inside the block that holds the affected expansions.
+/// Horizontal padding inside the block that holds the renames.
 const ITEM_BLOCK_PAD: i8 = 10;
-/// How many affected expansions the modal shows before it offers "ver más".
+/// How many renames the modal shows before it offers "ver más".
 const ITEMS_SHOWN: usize = 5;
-/// The tallest the list of affected expansions may get. Past this it scrolls in place, so a
-/// folder holding forty medicines still asks its question in a dialog rather than in a window
+/// The tallest the list of renames may get. Past this it scrolls in place, so a prefix applied
+/// to forty triggers still asks its question in a dialog rather than in a window
 /// taller than the screen. Eight rows: it has to be comfortably more than [`ITEMS_SHOWN`], or
 /// pressing "ver más" removes the button and shows nothing new, which is what 190.0 did when it
 /// turned out to be exactly five rows tall.
 const ITEM_LIST_MAX_HEIGHT: f32 = 300.0;
-
-/// One affected expansion in the confirmation modal, drawn the way the list itself draws a row:
-/// the trigger in the accent, the text after it as quiet supporting detail.
-///
-/// Both colours are passed in rather than fixed here. They used to be a single hard-coded blue
-/// (`120, 175, 235`), picked against the dark theme and then used on the light one too, where it
-/// sat pale on near-white.
-fn item_line(
-    ui: &mut egui::Ui,
-    trigger: &str,
-    preview: &str,
-    trigger_width: f32,
-    accent: egui::Color32,
-    quiet: egui::Color32,
-) {
-    ui.horizontal(|ui| {
-        // The trigger gets a column of its own, so the previews all start on one vertical line
-        // instead of stepping in and out with the length of the trigger beside them.
-        ui.scope(|ui| {
-            ui.set_min_width(trigger_width);
-            ui.label(egui::RichText::new(trigger).monospace().color(accent));
-        });
-        // Still capped at 34 characters, and also elided to whatever width is left: on a small
-        // window a long trigger beside a 34-character preview no longer fits the dialog.
-        ui.add(egui::Label::new(egui::RichText::new(truncate(preview, 34)).color(quiet)).truncate());
-    });
-}
 
 /// One rename in the prefix question: the trigger as it is now, quiet, and the one it becomes in
 /// the accent, because that is the one the user will be typing from now on.
@@ -4151,8 +4176,8 @@ fn rename_line(
     });
 }
 
-/// Width of that column: the widest trigger in the set, capped so that one absurdly long trigger
-/// cannot push every preview past the right edge of the modal.
+/// Width of the old names' column: the widest of them, capped so that one absurdly long trigger
+/// cannot push every new name past the right edge of the modal.
 fn trigger_column_width(ui: &egui::Ui, items: &[(String, String)]) -> f32 {
     let font = egui::TextStyle::Monospace.resolve(ui.style());
     items
@@ -4168,50 +4193,35 @@ fn trigger_column_width(ui: &egui::Ui, items: &[(String, String)]) -> f32 {
         + 10.0
 }
 
-/// In-app modal confirming a destructive action: one expansion, a whole folder, or a
-/// multi-selection. Also the question «Aplicar» asks in Ajustes before renaming every trigger to
-/// the new prefix, which was a native message box until 0.0.7.
+/// A deletion, on the frame after it was asked for (see [`crate::app::PendingConfirm`]); and the
+/// question «Aplicar» asks in Ajustes before renaming every trigger to the new prefix, in the
+/// app's own modal.
 ///
-/// All of them come through here — see [`crate::app::PendingConfirm`] for why the single one stopped
-/// raising a native dialog. The shape has to survive a list of any length without ever growing
-/// into a giant window, so the width is fixed, the list shows five with a "ver más" toggle for
-/// the rest, and past a certain height it scrolls in place.
+/// The question has to survive a list of any length without ever growing into a giant window, so
+/// the width is fixed, the list shows five with a "ver más" toggle for the rest, and past a
+/// certain height it scrolls in place.
 pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
+    if let Some(pending) = state.pending_confirm.as_mut().filter(|p| !matches!(p.kind, PendingConfirmKind::RenamePrefix)) {
+        // The list draws the rows once more this frame, keeping what they look like; the next
+        // one sees them off.
+        if !pending.seen {
+            pending.seen = true;
+            ctx.request_repaint();
+            return;
+        }
+        start_vanish(ctx);
+        state.confirm_pending();
+        return;
+    }
     let Some(pending) = &state.pending_confirm else {
         return;
     };
 
     let t = state.settings.t();
     let count = pending.items.len();
-    let n = count.to_string();
-    let title = match &pending.kind {
-        PendingConfirmKind::DeleteOne { .. } => t.delete_one_title.to_string(),
-        PendingConfirmKind::DeleteFolder { folder } => {
-            fill(t.confirm_delete_folder_title, &[("name", folder)])
-        }
-        // One ticked row asks exactly the same question as one clicked row — and "Eliminar 1
-        // expansiones" is not a sentence in any of the four languages.
-        PendingConfirmKind::DeleteSelection if count == 1 => t.delete_one_title.to_string(),
-        PendingConfirmKind::DeleteSelection => {
-            fill(t.confirm_delete_selection_title, &[("n", &n)])
-        }
-        PendingConfirmKind::RenamePrefix => t.prefix_confirm_title.to_string(),
-    };
-    let rename = matches!(pending.kind, PendingConfirmKind::RenamePrefix);
-    // Only the folder needs a sentence, because it is the one case where what disappears is more
-    // than what is listed below: the folder itself goes too. For the other two the title and the
-    // list already say everything, and a sentence repeating a count the title carries was this
-    // modal's own filler.
-    let intro = match &pending.kind {
-        PendingConfirmKind::DeleteFolder { folder } => {
-            Some(fill(t.confirm_delete_folder_body, &[("name", folder)]))
-        }
-        // The title names the action but not its size; the list below may be folded at five.
-        PendingConfirmKind::RenamePrefix => {
-            Some(crate::i18n::fill_count(t.prefix_confirm_body, count, &[]))
-        }
-        _ => None,
-    };
+    let title = t.prefix_confirm_title;
+    // The title names the action but not its size; the list below may be folded at five.
+    let intro = crate::i18n::fill_count(t.prefix_confirm_body, count, &[]);
     let expanded = pending.expanded;
 
     let mut confirm = false;
@@ -4228,19 +4238,10 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
         // its own longest line.
         let inner_width = ui.available_width().min(MODAL_WIDTH) - 2.0 * ITEM_BLOCK_PAD as f32;
 
-        // No mark beside the heading, by choice and not for want of a glyph. The first time this
-        // was decided the reason given was that `⚠` did not resolve — that was wrong, and it was
-        // egui's `has_glyph` that said so; see [`crate::fonts::can_draw`] for why it lies about
-        // every emoji. Both `⚠` and `❗` draw perfectly well. They are still left out: Windows 11
-        // does not put a warning glyph in its own dialogs, the red sentence below and the red
-        // button already say what kind of question this is, and a triangle on top of them is one
-        // alarm too many.
         ui.add(egui::Label::new(controls::h3(title)).wrap());
         ui.add_space(controls::GAP_ROW);
-        if let Some(intro) = intro {
-            ui.add(egui::Label::new(intro).wrap());
-            ui.add_space(controls::GAP_ROW);
-        }
+        ui.add(egui::Label::new(intro).wrap());
+        ui.add_space(controls::GAP_ROW);
 
         // The affected expansions in one contained block, so they read as a list of things rather
         // than as more of the sentence above them.
@@ -4270,12 +4271,8 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
                     // at the edge of the block, and reads as if it were slicing the text.
                     .auto_shrink([false, true])
                     .show(ui, |ui| {
-                        for (trigger, other) in pending.items.iter().take(shown) {
-                            if rename {
-                                rename_line(ui, trigger, other, trigger_width, accent_color, quiet);
-                            } else {
-                                item_line(ui, trigger, other, trigger_width, accent_color, quiet);
-                            }
+                        for (old, new) in pending.items.iter().take(shown) {
+                            rename_line(ui, old, new, trigger_width, accent_color, quiet);
                         }
                     });
                 if count > shown {
@@ -4296,16 +4293,9 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
             if controls::button(ui, t.cancel, Tone::Normal, true).clicked() {
                 cancel = true;
             }
-            // Red text on an ordinary button, which is how this app has always marked a
-            // destructive action. It used to be white text here, and on the light theme the light
-            // button swallowed it whole: what the user saw was a blank button next to "Cancelar".
-            // The rename says yes with the same word as the button that asked it, in Ajustes.
-            let (label, tone) = if rename {
-                (studio::text(state, "Aplicar", "Apply", "Ilapat", "लागू करें"), Tone::Primary)
-            } else {
-                (t.delete, Tone::Danger)
-            };
-            if controls::button(ui, label, tone, true).clicked() {
+            // Yes is said with the same word as the button that asked, in Ajustes.
+            let label = studio::text(state, "Aplicar", "Apply", "Ilapat", "लागू करें");
+            if controls::button(ui, label, Tone::Primary, true).clicked() {
                 confirm = true;
             }
         });
@@ -4320,10 +4310,7 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
         }
     }
     if confirm {
-        if !rename {
-            start_vanish(ctx);
-        }
-        state.confirm_pending_delete();
+        state.confirm_pending();
     } else if cancel {
         state.cancel_pending_confirm();
     }

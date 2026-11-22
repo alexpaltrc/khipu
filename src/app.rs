@@ -131,26 +131,25 @@ pub enum PendingConfirmKind {
     DeleteOne { index: usize },
     DeleteFolder { folder: String },
     DeleteSelection,
-    /// Not a deletion, but the same kind of question: «Aplicar» in Ajustes renaming every listed
-    /// trigger to the new prefix. The items are (old, new) pairs rather than (trigger, preview).
+    /// Not a deletion, and the one kind still asked: «Aplicar» in Ajustes renaming every listed
+    /// trigger to the new prefix, in the app's own modal. The items are (old, new) pairs.
     RenamePrefix,
 }
 
-/// A destructive action, or a rename of many triggers at once, awaiting confirmation in an in-app
-/// modal.
+/// A deletion about to happen, or a rename of many triggers at once awaiting an answer.
 ///
-/// All three kinds go through the same modal, including the single one. It used to raise a native
-/// task dialog instead, which is grey, always light whatever the theme, and looks nothing like the
-/// window that asked the question — the one surface in the app that did not match. The bulk kinds
-/// were never able to use a native dialog anyway: the list of affected expansions can be long, and
-/// a native dialog can neither scroll nor collapse to stay compact.
+/// A deletion is not asked about: it goes, and the island offers to take it back, as do Ctrl+Z
+/// and the ⋯ menu. It waits here for one frame all the same, so the list can draw the rows it
+/// takes once more and keep what they looked like — they shrink and fade where they stood while
+/// the rest close up, rather than vanishing between two frames.
 pub struct PendingConfirm {
     pub kind: PendingConfirmKind,
-    /// Snapshot of affected entries at the moment the action was requested, as (trigger, preview)
-    /// pairs — owned, so the confirmation stays stable even if the user somehow changes something
-    /// else first.
+    /// The affected triggers, as they were when asked — with, for the rename, the new name beside
+    /// each, and for a deletion nothing.
     pub items: Vec<(String, String)>,
     pub expanded: bool,
+    /// Whether a frame has gone by since: a deletion goes on the frame after it was asked for.
+    pub seen: bool,
 }
 
 /// Which half of a transfer the folder picker is standing in front of.
@@ -218,17 +217,36 @@ pub enum BannerKind {
     Error,
 }
 
-/// A change that the message announcing it can also take back.
+/// The changes that can be taken back, and the ones taken back that can be done again.
 ///
-/// Saving, deleting and dragging into a folder each say what they did in the island that the «+»
-/// becomes for a few seconds, with «Deshacer» beside it — so none of them needs to ask first
-/// whether it is wanted, and none of them is final the moment it is done.
-pub enum UndoAction {
-    /// Folder assignments exactly as they were before the move, as (trigger, previous folder).
-    FolderMove(Vec<(String, Option<String>)>),
-    /// Everything a save or a deletion can change, as it was before it.
-    Restore(Box<Snapshot>),
+/// Saving, deleting, starring, switching off and filing into folders each push a step here — so
+/// none of them needs to ask first whether it is wanted, and none of them is final the moment it is
+/// done: the island offers «Deshacer» for a few seconds, and Ctrl+Z and the ⋯ menu go on offering it
+/// after the island has gone.
+///
+/// Only while the list is as the last step left it. Anything that changes the list without a step
+/// (the file edited by hand, the prefix renamed in Ajustes) makes `revision` fall behind, and the
+/// history is let go of: putting back an old state would wipe out that change too, unseen.
+#[derive(Default)]
+pub struct History {
+    done: Vec<Step>,
+    undone: Vec<Step>,
+    revision: u64,
 }
+
+/// One step of the [`History`]: everything as it was on the other side of it.
+struct Step {
+    state: Snapshot,
+    /// Whether `base.yml` differs across it, so that taking it back must write the file and have
+    /// espanso restarted. Not for a star or a folder, which live in `settings.json` alone.
+    file: bool,
+    /// What the island said when it was done ("Expansión eliminada"), said again when it is undone.
+    said: String,
+}
+
+/// How many steps back Ctrl+Z reaches. Each holds a copy of the expansions, so the history cannot
+/// be endless; fifty is far more than anyone retraces, and small beside the expansions themselves.
+const HISTORY_DEPTH: usize = 50;
 
 /// The expansions, which of them are off, and the folders and stars filed against them — the
 /// whole of what a save or a deletion touches, and nothing of the window's own preferences.
@@ -238,26 +256,14 @@ pub struct Snapshot {
     folder_by_trigger: std::collections::BTreeMap<String, String>,
     folders: BTreeSet<String>,
     favorites: BTreeSet<String>,
-}
-
-impl Snapshot {
-    fn of(match_file: &MatchFile, settings: &Settings) -> Self {
-        Snapshot {
-            entries: match_file.entries.clone(),
-            off: match_file.off.clone(),
-            folder_by_trigger: settings.folder_by_trigger.clone(),
-            folders: settings.folders.clone(),
-            favorites: settings.favorites.clone(),
-        }
-    }
-}
-
-/// An undo on offer, and the list as it stood when it was offered: once anything else has changed
-/// it, putting back the old state would take that change away too, so the offer is withdrawn.
-pub struct Undo {
-    action: UndoAction,
+    /// The list's revision when it was taken: see [`AppState::record`].
     revision: u64,
+    /// The number the next message will take: one posted since is about the change made since.
+    posted: u64,
 }
+
+/// How many messages have been posted: each takes the next number as its key.
+static POSTED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// A message as the island shows it: what it says, whether it is an error and whether it can be
 /// taken back, the share of its time still to go (none for an error, which waits to be closed), and
@@ -273,9 +279,10 @@ pub struct Note<'a> {
 pub struct Banner {
     pub kind: BannerKind,
     pub message: String,
-    /// Set only on a message that announces a change; it is always said by the island, which
-    /// offers to take the change back.
-    pub undo: Option<Undo>,
+    /// Set only on a message that announces a change, to the list as that change left it; it is
+    /// always said by the island, which offers to take the change back — until anything else
+    /// changes the list, when the offer would take that away too and is withdrawn.
+    pub undo: Option<u64>,
     /// When it was posted: a plain message goes away by itself a few seconds after this.
     pub posted: Instant,
     /// Which message this is, counted from the start: the island tells one from the next by it.
@@ -318,6 +325,8 @@ pub struct ListRow {
     pub favorite: bool,
     /// A form: it asks for its blanks before it writes, so its card wears a quiet mark that says so.
     pub form: bool,
+    /// A date: `preview` is what it writes right now, drawn as a pill led by a clock.
+    pub live: bool,
 }
 
 /// Everything the list screen needs, derived once from the expansions and the folder assignments.
@@ -341,6 +350,8 @@ pub struct ListCache {
     /// Expansions in the file, including the ones this list never shows — so the screen can tell
     /// "you have none yet" apart from "your search matched none".
     pub total_entries: usize,
+    /// Whether any row is a date, whose text goes stale as the minutes pass; see [`clock_minute`].
+    pub live: bool,
 }
 
 /// What the cached list was built from. Anything that can change the list changes this, so a stale
@@ -354,6 +365,23 @@ struct ListCacheKey {
     /// revision, adding or removing an expansion or a folder assignment still invalidates the cache.
     entry_count: usize,
     folder_assignment_count: usize,
+    /// The minute it was built in, so a date row never shows a time already gone: see
+    /// [`clock_minute`].
+    minute: u64,
+}
+
+/// The minutes since 1970. The list is rebuilt when it turns, which keeps its date rows true: every
+/// time zone sits a whole number of minutes from UTC, so a local minute turns when this one does.
+/// One rebuild a minute, and only while frames are being drawn; the list screen asks for the frame
+/// when it shows a date, see [`seconds_to_next_minute`].
+fn clock_minute() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() / 60)
+}
+
+/// How long until [`clock_minute`] turns.
+pub fn seconds_to_next_minute() -> std::time::Duration {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    std::time::Duration::from_secs(60) - std::time::Duration::from_millis((now.as_millis() % 60_000) as u64)
 }
 
 /// Who Windows' own dialogs belong to.
@@ -475,6 +503,8 @@ pub struct AppState {
     /// (original name, current edit buffer) while a folder's name is being edited inline.
     pub renaming_folder: Option<(String, String)>,
     pub pending_confirm: Option<PendingConfirm>,
+    /// What Ctrl+Z and Ctrl+Y step through.
+    history: History,
     /// An export or import waiting for its folders to be chosen. See [`PendingTransfer`].
     pub pending_transfer: Option<PendingTransfer>,
     /// Set when the language changes; the owning app reloads fonts and tray labels next frame,
@@ -537,7 +567,6 @@ impl AppState {
 
     /// Where a message goes: the banner, or the dialog in front of it while Ajustes is open.
     fn post(&mut self, kind: BannerKind, message: String) {
-        static POSTED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let seq = POSTED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let banner = Some(Banner { kind, message, undo: None, posted: Instant::now(), seq });
         if self.settings_open {
@@ -680,6 +709,7 @@ impl AppState {
                         // A form reads as the message it writes, its questions drawn as pills
                         // the way the editor and the list draw them.
                         preview: entry.preview(t),
+                        live: entry.is_live(),
                     })
                 }
                 MatchEntry::Simple(_) => None,
@@ -699,6 +729,7 @@ impl AppState {
         if self.settings.is_favorite(trigger) == on {
             return;
         }
+        let before = self.snapshot();
         self.settings.set_favorite(trigger, on);
         self.touch_list();
         if let Err(e) = self.settings_store.save(&self.settings) {
@@ -711,6 +742,7 @@ impl AppState {
             ), &[("err", &crate::i18n::explain_io(self.t(), &e))]);
             self.set_error_banner(msg);
         }
+        self.record(before, false);
     }
 
     pub fn set_favorites_first(&mut self, on: bool) {
@@ -876,6 +908,8 @@ impl AppState {
             lang: self.settings.lang,
             entry_count: self.match_file.entries.len(),
             folder_assignment_count: self.settings.folder_by_trigger.len(),
+            // Only a list showing a date has a reason to be rebuilt as the minutes turn.
+            minute: if self.list_cache.as_ref().is_some_and(|c| c.live) { clock_minute() } else { 0 },
         };
         if self.list_cache_key.as_ref() != Some(&key) || self.list_cache.is_none() {
             self.list_cache = Some(Rc::new(self.build_list()));
@@ -909,6 +943,7 @@ impl AppState {
                 off: self.match_file.is_off(entry.trigger_str()),
                 favorite: self.settings.is_favorite(entry.trigger_str()),
                 form: matches!(entry, crate::yaml::model::MatchEntry::Simple(m) if m.as_form().is_some()),
+                live: entry.is_live(),
             });
         }
 
@@ -940,6 +975,7 @@ impl AppState {
         // The order the list is drawn in is one of `all`, `ungrouped` or a folder's bucket, picked
         // by the screen's filter. The one place that needs it as triggers builds it at the moment
         // it is asked for: `ui::list_view::visible_order`.
+        let rows_live = rows.iter().any(|row| row.live);
         ListCache {
             folder_names: self.settings.all_folder_names(),
             folders: crate::folders::summarize(&self.match_file.entries, &self.settings),
@@ -948,6 +984,7 @@ impl AppState {
             grouped: grouped.into_iter().collect(),
             ungrouped,
             total_entries: self.match_file.entries.len(),
+            live: rows_live,
         }
     }
 
@@ -1089,13 +1126,14 @@ impl AppState {
             kind: PendingConfirmKind::RenamePrefix,
             items: renamed,
             expanded: false,
+            seen: false,
         });
     }
 
     /// The renames the prefix question listed, once it has been answered yes.
     fn rename_to_prefix(&mut self, renamed: Vec<(String, String)>) {
         let t = self.t();
-        let before = Snapshot::of(&self.match_file, &self.settings);
+        let before = self.snapshot();
 
         // Exactly the renames the question listed: worked out again here, `:--` lost its symbols
         // to the prefix alone, a change nobody was shown and the collision check never saw.
@@ -1129,16 +1167,17 @@ impl AppState {
         }
     }
 
+    /// Deletes one expansion — on the next frame: see [`PendingConfirm`].
     pub fn request_delete(&mut self, index: usize) {
-        let t = self.t();
         let Some(entry) = self.match_file.entries.get(index) else {
             return;
         };
-        self.pending_confirm = Some(PendingConfirm {
-            kind: PendingConfirmKind::DeleteOne { index },
-            items: vec![(entry.trigger_label(), entry.preview(t))],
-            expanded: false,
-        });
+        let items = vec![(entry.trigger_label(), String::new())];
+        self.delete_soon(PendingConfirmKind::DeleteOne { index }, items);
+    }
+
+    fn delete_soon(&mut self, kind: PendingConfirmKind, items: Vec<(String, String)>) {
+        self.pending_confirm = Some(PendingConfirm { kind, items, expanded: false, seen: false });
     }
 
     /// Removes every entry whose trigger is in `triggers`, cleaning up their folder assignments
@@ -1272,63 +1311,46 @@ impl AppState {
         if self.selected.is_empty() {
             return;
         }
-        let t = self.t();
-        // Walked in list order, one pass, keeping whatever is ticked. Walking the selection
-        // instead needed a lookup table and still came out wrong: the selection is a set, so it
-        // iterates alphabetically, and two ticked rows would swap places between the list and the
-        // question asked about them.
+        // Every row of the list, in its order, that is ticked: the selection itself is a set, and
+        // holds names no row answers to while a rename is being followed.
         let items: Vec<(String, String)> = self
             .match_file
             .entries
             .iter()
-            .filter_map(|e| {
-                let trigger = e.trigger_label();
-                if self.selected.contains(&trigger) {
-                    Some((trigger, e.preview(t)))
-                } else {
-                    None
-                }
-            })
+            .map(MatchEntry::trigger_label)
+            .filter(|trigger| self.selected.contains(trigger))
+            .map(|trigger| (trigger, String::new()))
             .collect();
-        self.pending_confirm = Some(PendingConfirm {
-            kind: PendingConfirmKind::DeleteSelection,
-            items,
-            expanded: false,
-        });
+        self.delete_soon(PendingConfirmKind::DeleteSelection, items);
     }
 
     pub fn request_delete_folder(&mut self, folder: &str) {
-        let t = self.t();
         let items: Vec<(String, String)> = self
             .match_file
             .entries
             .iter()
-            .filter(|e| self.settings.folder_of(&e.trigger_label()) == Some(folder))
-            .map(|e| (e.trigger_label(), e.preview(t)))
+            .map(MatchEntry::trigger_label)
+            .filter(|trigger| self.settings.folder_of(trigger) == Some(folder))
+            .map(|trigger| (trigger, String::new()))
             .collect();
-        // An empty folder has nothing to warn about: the confirmation exists because deleting a
-        // folder deletes what is in it, and there is nothing in this one. Asking anyway would be a
-        // dialog whose honest body is "this will delete nothing".
+        // An empty folder has no rows to see off: it goes now.
         if items.is_empty() {
-            let message = crate::i18n::fill_count(t.folder_deleted, 0, &[("name", folder)]);
+            let before = self.snapshot();
+            let message = crate::i18n::fill_count(self.t().folder_deleted, 0, &[("name", folder)]);
             self.settings.forget_folder(folder);
             let _ = self.settings_store.save(&self.settings);
             self.touch_list();
             self.view = View::List;
             self.set_info_banner(message);
+            self.record(before, false);
             return;
         }
-        self.pending_confirm = Some(PendingConfirm {
-            kind: PendingConfirmKind::DeleteFolder {
-                folder: folder.to_string(),
-            },
-            items,
-            expanded: false,
-        });
+        self.delete_soon(PendingConfirmKind::DeleteFolder { folder: folder.to_string() }, items);
     }
 
     /// Makes a folder that holds nothing yet. Returns whether the name was free.
     pub fn create_folder(&mut self, name: &str) -> bool {
+        let before = self.snapshot();
         if !self.settings.create_folder(name) {
             let t = self.t();
             self.set_error_banner(fill(t.folder_name_taken, &[("name", name.trim())]));
@@ -1336,6 +1358,7 @@ impl AppState {
         }
         let _ = self.settings_store.save(&self.settings);
         self.touch_list();
+        self.record(before, false);
         true
     }
 
@@ -1343,7 +1366,7 @@ impl AppState {
         self.pending_confirm = None;
     }
 
-    pub fn confirm_pending_delete(&mut self) {
+    pub fn confirm_pending(&mut self) {
         let Some(pending) = self.pending_confirm.take() else {
             return;
         };
@@ -1357,7 +1380,7 @@ impl AppState {
                 self.delete_one_at(index, pending.items.first().map(|(t, _)| t.as_str()));
             }
             PendingConfirmKind::DeleteFolder { ref folder } => {
-                let before = Snapshot::of(&self.match_file, &self.settings);
+                let before = self.snapshot();
                 let message = crate::i18n::fill_count(t.folder_deleted, n, &[("name", folder)]);
                 self.remove_by_triggers(&triggers());
                 // The declaration goes with the contents. Left behind, the folder would come back
@@ -1370,18 +1393,18 @@ impl AppState {
                     self.view = View::List;
                 }
                 if self.save_and_reload(message) {
-                    self.offer_undo(UndoAction::Restore(Box::new(before)));
+                    self.record(before, true);
                 } else {
                     self.put_back(before);
                 }
             }
             PendingConfirmKind::DeleteSelection => {
-                let before = Snapshot::of(&self.match_file, &self.settings);
+                let before = self.snapshot();
                 let message = crate::i18n::fill_count(t.selection_deleted, n, &[]);
                 self.remove_by_triggers(&triggers());
                 self.clear_selection();
                 if self.save_and_reload(message) {
-                    self.offer_undo(UndoAction::Restore(Box::new(before)));
+                    self.record(before, true);
                 } else {
                     self.put_back(before);
                 }
@@ -1390,10 +1413,9 @@ impl AppState {
         }
     }
 
-    /// Deletes the entry at `index`, but only while that row still holds the trigger the
-    /// confirmation showed. Nothing can edit the list behind a modal, so this never fires in
-    /// practice — it is here so that an index kept across a frame can never delete the wrong
-    /// expansion if that ever stops being true.
+    /// Deletes the entry at `index`, but only while that row still holds the trigger it held when
+    /// the deletion was asked for: the index is kept across a frame, and must never delete the
+    /// wrong expansion.
     ///
     /// Unlike the bulk path this leaves the selection alone: deleting one row from the editor is
     /// no reason to forget what was ticked in the list.
@@ -1407,7 +1429,7 @@ impl AppState {
         if expected.is_some_and(|want| want != trigger) {
             return;
         }
-        let before = Snapshot::of(&self.match_file, &self.settings);
+        let before = self.snapshot();
         self.match_file.entries.remove(index);
         self.match_file.prune_off();
         self.settings.remove_trigger(&trigger);
@@ -1417,9 +1439,23 @@ impl AppState {
         self.view = View::List;
         let t = self.t();
         if self.save_and_reload(t.expansion_deleted) {
-            self.offer_undo(UndoAction::Restore(Box::new(before)));
+            self.record(before, true);
         } else {
             self.put_back(before);
+        }
+    }
+
+    /// Everything a change can touch, as it is now, for the [`History`] and for a change whose file
+    /// cannot be written to be taken back.
+    fn snapshot(&self) -> Snapshot {
+        Snapshot {
+            entries: self.match_file.entries.clone(),
+            off: self.match_file.off.clone(),
+            folder_by_trigger: self.settings.folder_by_trigger.clone(),
+            folders: self.settings.folders.clone(),
+            favorites: self.settings.favorites.clone(),
+            revision: self.list_revision,
+            posted: POSTED.load(std::sync::atomic::Ordering::Relaxed),
         }
     }
 
@@ -1427,7 +1463,7 @@ impl AppState {
     /// `base.yml`. A change whose file could not be written comes back through here: the red
     /// banner says why, and the list never hides a row that espanso still expands.
     fn put_back(&mut self, snapshot: Snapshot) {
-        let Snapshot { entries, off, folder_by_trigger, folders, favorites } = snapshot;
+        let Snapshot { entries, off, folder_by_trigger, folders, favorites, .. } = snapshot;
         self.match_file.entries = entries;
         self.match_file.off = off;
         self.settings.folder_by_trigger = folder_by_trigger;
@@ -1458,6 +1494,7 @@ impl AppState {
             self.set_error_banner(fill(t.folder_name_taken, &[("name", &new)]));
             return;
         }
+        let before = self.snapshot();
         for folder in self.settings.folder_by_trigger.values_mut() {
             if *folder == old {
                 *folder = new.clone();
@@ -1474,6 +1511,7 @@ impl AppState {
             self.view = View::FolderOptions(new.clone());
         }
         self.set_info_banner(fill(t.folder_renamed, &[("name", &new)]));
+        self.record(before, false);
     }
 
     /// Reconciles the folder map with the file, once, at startup.
@@ -1545,6 +1583,7 @@ impl AppState {
         let triggers: Vec<String> = previous.iter().map(|(t, _)| t.clone()).collect();
         let triggers = &triggers[..];
 
+        let before = self.snapshot();
         for trigger in triggers {
             self.settings.set_folder(trigger, folder.clone());
         }
@@ -1557,7 +1596,7 @@ impl AppState {
             Some(f) => self.set_info_banner(crate::i18n::fill_count(t.moved_to_folder, n, &[("name", f)])),
             None => self.set_info_banner(crate::i18n::fill_count(t.removed_from_folder, n, &[])),
         }
-        self.offer_undo(UndoAction::FolderMove(previous));
+        self.record(before, false);
     }
 
     /// Switches expansions off, or back on.
@@ -1582,8 +1621,7 @@ impl AppState {
             return;
         }
 
-        let previous_off = self.match_file.off.clone();
-        let previous_entries = self.match_file.entries.clone();
+        let before = self.snapshot();
         for trigger in &changing {
             if off {
                 self.match_file.off.insert(trigger.clone());
@@ -1606,11 +1644,11 @@ impl AppState {
         let t = self.t();
         let template = if off { t.turned_off } else { t.turned_on };
         let message = crate::i18n::fill_count(template, changing.len(), &[]);
-        if !self.save_and_reload(message) {
+        if self.save_and_reload(message) {
+            self.record(before, true);
+        } else {
             // Not on disk, so not on screen either: the red banner says why.
-            self.match_file.off = previous_off;
-            self.match_file.entries = previous_entries;
-            self.touch_list();
+            self.put_back(before);
         }
     }
 
@@ -1631,6 +1669,7 @@ impl AppState {
             Err(error) => { self.set_error_banner(ui::studio::prefix_error(self, &error)); return; }
         };
         if changes.is_empty() { self.set_info_banner(self.t().prefix_already_applied); return; }
+        let before = self.snapshot();
         let mut candidate = self.match_file.clone();
         let mut settings = self.settings.clone();
         for change in &changes {
@@ -1658,6 +1697,7 @@ impl AppState {
         let t = self.t();
         let message = crate::i18n::fill_count(t.prefix_applied, changes.len(), &[]);
         self.announce_and_reload(message, warnings.message(t));
+        self.record(before, true);
     }
 
     /// Writes the expansions the list shows out to a file the user picks.
@@ -1770,7 +1810,7 @@ impl AppState {
         let previous_entries = self.match_file.entries.clone();
         let previous_off = self.match_file.off.clone();
         let previous_settings = self.settings.clone();
-        let before = Snapshot::of(&self.match_file, &self.settings);
+        let before = self.snapshot();
         self.match_file.entries.extend(merged.added);
         self.match_file.off.extend(merged.off);
         for (trigger, folder) in &merged.folders {
@@ -1791,7 +1831,7 @@ impl AppState {
             )
         };
         if self.save_and_reload(message) {
-            self.offer_undo(UndoAction::Restore(Box::new(before)));
+            self.record(before, true);
         } else {
             self.match_file.entries = previous_entries;
             self.match_file.off = previous_off;
@@ -1832,17 +1872,37 @@ impl AppState {
         }
     }
 
-
-    /// Lets the message just posted take back what it announces. Only a plain one: a save that
-    /// came with a warning is in red, and the warning is the thing to read. Nor one said inside
-    /// Ajustes, which went to its own note and left whatever was in the banner there.
-    fn offer_undo(&mut self, action: UndoAction) {
+    /// Keeps a change just made in the [`History`], `before` being everything as it was, and lets
+    /// the message it posted take it back. Only a plain message: a save that came with a warning
+    /// is in red, and the warning is the thing to read. Nor one said inside Ajustes, which went to
+    /// its own note and left whatever was in the banner there. A change that said nothing — a star,
+    /// a new empty folder — is kept all the same, for Ctrl+Z.
+    fn record(&mut self, before: Snapshot, file: bool) {
+        // What the island said about it, said again when it is undone.
+        let said = self
+            .note_slot(self.settings_open)
+            .as_ref()
+            .filter(|b| b.seq >= before.posted)
+            .map(|b| b.message.clone())
+            .unwrap_or_default();
+        let posted = before.posted;
+        if before.revision != self.history.revision {
+            // Something changed the list since the last step without leaving one: the old steps
+            // would take that away too.
+            self.history = History::default();
+        }
+        self.history.done.push(Step { state: before, file, said });
+        if self.history.done.len() > HISTORY_DEPTH {
+            self.history.done.remove(0);
+        }
+        self.history.undone.clear();
+        self.history.revision = self.list_revision;
         let revision = self.list_revision;
         if self.settings_open {
             return;
         }
-        if let Some(banner) = self.banner.as_mut().filter(|b| b.kind == BannerKind::Info) {
-            banner.undo = Some(Undo { action, revision });
+        if let Some(banner) = self.banner.as_mut().filter(|b| b.kind == BannerKind::Info && b.seq >= posted) {
+            banner.undo = Some(revision);
         }
     }
 
@@ -1850,8 +1910,81 @@ impl AppState {
     fn undo_is_stale(&self) -> bool {
         self.banner
             .as_ref()
-            .and_then(|b| b.undo.as_ref())
-            .is_some_and(|u| u.revision != self.list_revision)
+            .and_then(|b| b.undo)
+            .is_some_and(|revision| revision != self.list_revision)
+    }
+
+    /// Whether Ctrl+Z has something to take back.
+    pub fn can_undo(&self) -> bool {
+        self.history.revision == self.list_revision && !self.history.done.is_empty()
+    }
+
+    /// Whether Ctrl+Y has something to do again.
+    pub fn can_redo(&self) -> bool {
+        self.history.revision == self.list_revision && !self.history.undone.is_empty()
+    }
+
+    /// Takes back the last change. `quiet` when the island's own «Deshacer» asked: the list going
+    /// back, and the island to «+», is the answer. From the keyboard or the menu the change may be
+    /// nowhere in sight, so the island says what was taken back.
+    pub fn undo(&mut self, quiet: bool) {
+        if self.can_undo() {
+            let step = self.history.done.pop().expect("can_undo saw one");
+            self.step_across(step, true, quiet);
+        }
+    }
+
+    /// Does again the last change taken back.
+    pub fn redo(&mut self) {
+        if self.can_redo() {
+            let step = self.history.undone.pop().expect("can_redo saw one");
+            self.step_across(step, false, false);
+        }
+    }
+
+    /// Puts back the state on the other side of `step`, and keeps where it came from as the step
+    /// that leads back: undone, it waits to be done again, and done again, to be undone.
+    fn step_across(&mut self, step: Step, undoing: bool, quiet: bool) {
+        let Step { state, file, said } = step;
+        let here = self.snapshot();
+        self.banner = None;
+        self.put_back(state);
+        self.clear_selection();
+        // Whatever was open was about an expansion that may no longer be there.
+        self.view = View::List;
+        let t = self.t();
+        if file {
+            match yaml_io::save(&self.match_file_path, &self.match_file, &self.backups_dir) {
+                Ok(warnings) => {
+                    if let Some(warning) = warnings.message(t) {
+                        self.set_error_banner(warning);
+                    }
+                    self.reload_note = None;
+                    self.reload.request(t);
+                }
+                Err(e) => {
+                    // Not on disk, so not on screen: back to where it was. The history goes with it,
+                    // its steps no longer lining up with what the file holds.
+                    self.put_back(here);
+                    self.history = History::default();
+                    self.set_error_banner(e.friendly_message(t));
+                    return;
+                }
+            }
+        }
+        // A change that said nothing is undone saying nothing: it was in sight, a star or a folder.
+        if !quiet && !said.is_empty() && self.banner.is_none() {
+            let template = if undoing { t.undone_what } else { t.redone_what };
+            let what = said.trim_end_matches(['.', '।']);
+            self.set_info_banner(fill(template, &[("what", what)]));
+        }
+        let back = Step { state: here, file, said };
+        if undoing {
+            self.history.undone.push(back);
+        } else {
+            self.history.done.push(back);
+        }
+        self.history.revision = self.list_revision;
     }
 
     fn note_slot(&mut self, settings: bool) -> &mut Option<Banner> {
@@ -1899,41 +2032,6 @@ impl AppState {
         }
     }
 
-    /// Puts back whatever the island is offering to undo. Says nothing more: the list going
-    /// back to how it was, and the island to «+», is the answer.
-    pub fn undo_from_banner(&mut self) {
-        if self.banner.as_ref().is_none_or(|b| b.undo.is_none()) || self.undo_is_stale() {
-            return;
-        }
-        let Some(Undo { action, .. }) = self.banner.take().and_then(|b| b.undo) else {
-            return;
-        };
-        match action {
-            UndoAction::FolderMove(previous) => {
-                for (trigger, folder) in &previous {
-                    self.settings.set_folder(trigger, folder.clone());
-                }
-                let _ = self.settings_store.save(&self.settings);
-                self.touch_list();
-            }
-            UndoAction::Restore(snapshot) => {
-                self.put_back(*snapshot);
-                self.clear_selection();
-                let t = self.t();
-                match yaml_io::save(&self.match_file_path, &self.match_file, &self.backups_dir) {
-                    Ok(warnings) => {
-                        if let Some(warning) = warnings.message(t) {
-                            self.set_error_banner(warning);
-                        }
-                        self.reload_note = None;
-                        self.reload.request(t);
-                    }
-                    Err(e) => self.set_error_banner(e.friendly_message(t)),
-                }
-            }
-        }
-    }
-
     pub fn save_edit(&mut self, edit: &EditState) {
         let t = self.t();
         let new_match = edit.build_match();
@@ -1963,7 +2061,7 @@ impl AppState {
         let previous_entries = self.match_file.entries.clone();
         let previous_off = self.match_file.off.clone();
         let previous_settings = self.settings.clone();
-        let before = Snapshot::of(&self.match_file, &self.settings);
+        let before = self.snapshot();
 
         match edit.editing_index {
             Some(index) => self.match_file.entries[index] = MatchEntry::Simple(new_match.clone()),
@@ -1982,7 +2080,7 @@ impl AppState {
 
         if self.save_and_reload(t.expansion_saved) {
             self.view = View::List;
-            self.offer_undo(UndoAction::Restore(Box::new(before)));
+            self.record(before, true);
         } else {
             // The red banner `save_and_reload` raised says why; the draft is still on screen,
             // untouched, to try again or cancel.
@@ -2027,7 +2125,7 @@ impl AppState {
         let previous_entries = self.match_file.entries.clone();
         let previous_off = self.match_file.off.clone();
         let previous_settings = self.settings.clone();
-        let before = Snapshot::of(&self.match_file, &self.settings);
+        let before = self.snapshot();
 
         if let MatchEntry::Simple(m) = &mut self.match_file.entries[index] {
             m.trigger = new.to_owned();
@@ -2039,7 +2137,7 @@ impl AppState {
         self.touch_list();
 
         if self.save_and_reload(t.trigger_changed) {
-            self.offer_undo(UndoAction::Restore(Box::new(before)));
+            self.record(before, true);
             true
         } else {
             self.match_file.entries = previous_entries;
@@ -3083,6 +3181,7 @@ impl KhipuApp {
             reload_note: None,
             renaming_folder: None,
             pending_confirm: None,
+            history: History::default(),
             pending_transfer: None,
             pending_language_refresh: false,
             pending_theme_refresh: false,

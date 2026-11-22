@@ -64,6 +64,7 @@ pub enum Glyph {
     Info,
     Error,
     Undo,
+    Redo,
     Wifi,
     Volume,
     Star,
@@ -74,11 +75,12 @@ pub enum Glyph {
     ViewGrid,
     News,
     Calendar,
+    Clock,
 }
 
 impl Glyph {
     /// The codepoint in Segoe Fluent Icons — and in Segoe MDL2 Assets, which uses the same ones.
-    pub fn codepoint(self) -> char {
+    pub const fn codepoint(self) -> char {
         match self {
             Glyph::Add => '\u{E710}',
             Glyph::More => '\u{E712}',
@@ -108,6 +110,7 @@ impl Glyph {
             Glyph::Info => '\u{E946}',
             Glyph::Error => '\u{EA39}',
             Glyph::Undo => '\u{E7A7}',
+            Glyph::Redo => '\u{E7A6}',
             Glyph::Wifi => '\u{E701}',
             Glyph::Volume => '\u{E767}',
             Glyph::Star => '\u{E734}',
@@ -118,6 +121,7 @@ impl Glyph {
             Glyph::ViewGrid => '\u{E8A9}',
             Glyph::News => '\u{E789}',
             Glyph::Calendar => '\u{E787}',
+            Glyph::Clock => '\u{E121}',
         }
     }
 }
@@ -142,25 +146,32 @@ pub fn paint(ui: &egui::Ui, rect: Rect, glyph: Glyph, size: f32, ink: Color32) {
     if !ui.is_rect_visible(rect) {
         return;
     }
-    if available(ui.ctx()) {
-        let galley = ui.painter().layout_no_wrap(
-            glyph.codepoint().to_string(),
-            egui::FontId::new(size, crate::fonts::fluent_family()),
-            ink,
-        );
-        // Centred on the ink, then snapped to the pixel grid: an icon one half-pixel off is an icon
-        // drawn with soft edges.
-        let ink_box = galley.mesh_bounds;
-        let offset = rect.center() - ink_box.center();
-        let ppp = ui.ctx().pixels_per_point();
-        let at = egui::pos2(
-            (offset.x * ppp).round() / ppp,
-            (offset.y * ppp).round() / ppp,
-        );
-        ui.painter().galley(at, galley, ink);
-    } else {
-        fallback(ui, rect, glyph, size, ink);
+    match shape(ui, rect, glyph, size, ink) {
+        Some(shape) => {
+            ui.painter().add(shape);
+        }
+        None => fallback(ui, rect, glyph, size, ink),
     }
+}
+
+/// [`paint`] as a shape, for a caller that hands its shapes on rather than painting them. `None`
+/// on a machine with no icon font, where there is nothing to hand on.
+pub fn shape(ui: &egui::Ui, rect: Rect, glyph: Glyph, size: f32, ink: Color32) -> Option<egui::Shape> {
+    if !available(ui.ctx()) {
+        return None;
+    }
+    let galley = ui.painter().layout_no_wrap(
+        glyph.codepoint().to_string(),
+        egui::FontId::new(size, crate::fonts::fluent_family()),
+        ink,
+    );
+    // Centred on the ink, then snapped to the pixel grid: an icon one half-pixel off is an icon
+    // drawn with soft edges.
+    let ink_box = galley.mesh_bounds;
+    let offset = rect.center() - ink_box.center();
+    let ppp = ui.ctx().pixels_per_point();
+    let at = egui::pos2((offset.x * ppp).round() / ppp, (offset.y * ppp).round() / ppp);
+    Some(egui::Shape::galley(at, galley, ink))
 }
 
 /// Allocates a `size`-point square for an icon that is only decoration beside text.

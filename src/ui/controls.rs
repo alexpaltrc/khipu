@@ -220,16 +220,27 @@ pub fn muted(text: impl Into<String>, is_light: bool) -> egui::RichText {
 /// at the edge rather than dropping the text and keeping the name.
 ///
 /// Whatever a search found in either is drawn in the accent — see [`marked`].
+///
+/// `live` says the text is what a date expansion writes right now: it is drawn as a pill led by a
+/// clock, so a row shows today's date, plainly a date, without a word about it.
 pub fn named_text(
     ui: &egui::Ui,
     name: Option<&str>,
     name_color: egui::Color32,
     text: &str,
+    live: bool,
     text_color: egui::Color32,
     needle: &str,
 ) -> egui::text::LayoutJob {
     let font = egui::TextStyle::Body.resolve(ui.style());
     let hit = accent(ui.visuals());
+    let pill;
+    let text = if live {
+        pill = format!("{{{{{CLOCK} {text}}}}}");
+        pill.as_str()
+    } else {
+        text
+    };
     let mut job = egui::text::LayoutJob::default();
     if let Some(name) = name {
         marked_with_pills(&mut job, name, needle, &font, name_color, hit, hit);
@@ -243,6 +254,20 @@ pub fn named_text(
     }
     job
 }
+
+/// What leads a live date's pill (see [`named_text`]): the clock's own codepoint, laid out unseen
+/// to keep its room. Nobody types a private-use character, so no text of theirs reads as one.
+const CLOCK: char = Glyph::Clock.codepoint();
+
+/// The clock a little smaller than the text it leads, as Fluent sets an icon beside a label.
+const CLOCK_SCALE: f32 = 0.86;
+
+/// How tall Segoe UI's capitals and figures stand, as a share of its size.
+const CAP_HEIGHT: f32 = 0.7;
+
+/// The room a pill's closing brackets keep after its text, as a share of the text size, for the
+/// pill whose brackets the edge cut off.
+const ELIDED_PAD: f32 = 0.6;
 
 /// Where a text shows a pill: each question's `[[name]]` and each `{{name}}`, as byte ranges of
 /// the whole marker, in order and never overlapping. The editor draws these as pills, so every
@@ -258,7 +283,8 @@ pub fn pill_spans(text: &str) -> Vec<std::ops::Range<usize>> {
             break;
         };
         let name = text[inner..close].trim();
-        if !name.is_empty() && !name.contains(['{', '\n', '\r']) && name.chars().count() <= form::NAME_MAX {
+        let short = name.chars().count() <= form::NAME_MAX || name.starts_with(CLOCK);
+        if !name.is_empty() && !name.contains(['{', '\n', '\r']) && short {
             spans.push(open..close + 2);
             at = close + 2;
         } else {
@@ -298,6 +324,16 @@ pub fn marked_with_pills(
         let (open, rest) = marker.split_at(2);
         let (name, close) = rest.split_at(rest.len() - 2);
         marked(job, open, "", font, egui::Color32::TRANSPARENT, egui::Color32::TRANSPARENT);
+        // A live date's clock is laid out unseen, for its room only: [`pill_shapes`] draws it
+        // centred on its ink, which an icon font's own line box would not.
+        let name = match name.strip_prefix(CLOCK) {
+            Some(rest) => {
+                let icons = egui::FontId::new(font.size, crate::fonts::fluent_family());
+                job.append(&CLOCK.to_string(), 0.0, egui::TextFormat::simple(icons, egui::Color32::TRANSPARENT));
+                rest
+            }
+            None => name,
+        };
         marked(job, name, "", font, pill_ink, pill_ink);
         marked(job, close, "", font, egui::Color32::TRANSPARENT, egui::Color32::TRANSPARENT);
         done = span.end;
@@ -349,12 +385,37 @@ fn pill_shapes(ui: &egui::Ui, galley: &egui::Galley, origin: egui::Pos2, is_ligh
     let text = galley.text();
     let fill = pill_fill(ui.visuals(), is_light);
     let mut shapes = Vec::new();
-    for span in pill_spans(text) {
+    let body = egui::TextStyle::Body.resolve(ui.style()).size;
+    let spans = pill_spans(text);
+    let last = spans.len().saturating_sub(1);
+    let shown: usize = galley.rows.iter().map(|row| row.glyphs.len()).sum();
+    for (n, span) in spans.into_iter().enumerate() {
         let start = text[..span.start].chars().count();
         let chars = start..start + text[span].chars().count();
-        for rect in pill_rects(galley, origin, &chars) {
-            let rect = rect.shrink2(egui::vec2(0.0, 1.0));
+        let rects = pill_rects(galley, origin, &chars);
+        let end = rects.len().saturating_sub(1);
+        for (r, rect) in rects.into_iter().enumerate() {
+            let mut rect = rect.shrink2(egui::vec2(0.0, 1.0));
+            if galley.elided && n == last && r == end && shown < chars.end {
+                // Cut at the edge, the pill lost its closing brackets and the room they kept: it
+                // ends at the ellipsis, which would sit right against its rounded end.
+                rect.max.x += body * ELIDED_PAD;
+            }
             shapes.push(egui::Shape::rect_filled(rect, rect.height() * 0.5, fill));
+        }
+    }
+    // After every pill, so a clock is never painted over by the pill it sits in. Centred on the
+    // figures beside it, half a cap height over their baseline: the middle of the line box sits
+    // lower than a row of digits does, and a clock centred there floats above the date.
+    let ink = accent(ui.visuals());
+    for row in &galley.rows {
+        for (i, glyph) in row.glyphs.iter().enumerate().filter(|(_, g)| g.chr == CLOCK) {
+            let baseline = row.glyphs.get(i + 1).map_or(glyph.pos.y, |next| next.pos.y);
+            let center = origin
+                + row.pos.to_vec2()
+                + egui::vec2(glyph.pos.x + glyph.advance_width * 0.5, baseline - body * CAP_HEIGHT * 0.5);
+            let rect = egui::Rect::from_center_size(center, egui::Vec2::splat(glyph.advance_width));
+            shapes.extend(glyphs::shape(ui, rect, Glyph::Clock, body * CLOCK_SCALE, ink));
         }
     }
     shapes
