@@ -85,14 +85,16 @@ Código fuente: https://github.com/alexpaltrc/khipu
 
 Khipu incluye espanso (https://espanso.org), de Federico Terzi, también bajo la GPL de GNU v3; su código fuente está en https://github.com/espanso/espanso. Los avisos de cada componente están en THIRD-PARTY-NOTICES.txt, que se instala con la aplicación.
 
-## Novedades de esta versión (0.0.9) · «Novedades de esta versión»
-Preguntas: selecciona unas palabras del texto y conviértelas en una pregunta que Khipu te hace al usar la expansión. Si lo seleccionado es un día, una hora, un correo o un precio, la pregunta ya sale con nombre («¿Qué día?»).
-Con el texto vacío, «Ver un ejemplo» escribe uno para que veas cómo funciona.
-Arrastra una pregunta para moverla a otro lugar del texto.
-Clic derecho en el texto: Cortar, Copiar, Pegar y Preguntar esto.
-La vista previa es una tarjeta propia: haz clic en una respuesta para probar otra.
-Las preguntas y la fecha se ven como pastillas en la lista y en el buscador.
-Cada mensaje sale en una pastilla al pie, y los errores dicen qué pasó y qué hacer.
-El buscador (Alt+Espacio) vuelve a pegar en Brave, Chrome y Edge.
-Usa unos 11 MB menos de memoria.
-Varias correcciones en carpetas y al borrar.
+## Novedades de esta versión (0.0.10) · «Novedades de esta versión»
+Un clic en una expansión abre el editor; al volver, la lista sigue donde estaba.
+Clic derecho en una expansión: favorita, mover, cambiar activador, apagar y eliminar.
+Arrastra una expansión y abajo aparecen tus carpetas: suéltala en una y se mueve.
+Las expansiones con fecha u hora muestran la de hoy, tal como saldrá al escribirlas.
+Ctrl+Z deshace y Ctrl+Y rehace, paso a paso. Por eso borrar ya no pregunta: si te equivocas, se deshace.
+Elegir varias tiene su propia pastilla al pie, con todas sus acciones.
+Crear una expansión es más corto: la estrella, la carpeta y el nombre van al pie del editor.
+Ajustes y las opciones de cada carpeta, más sencillos.
+Los párrafos separados por una línea en blanco ya no se pegan al expandir.
+Khipu recuerda el tamaño de la ventana tras actualizar o apagar el equipo.
+Ya no se cierra con un lector de pantalla abierto.
+Se quitó «Copiar texto».

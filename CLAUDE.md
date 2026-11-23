@@ -28,16 +28,18 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
 
 ## Estado
 
-- **Última versión publicada: 0.0.9** (etiqueta `v0.0.9`, GitHub Releases el 2026-11-14; el
-  paquete de la Store lo sube Alex). Primera con su propia tarjeta de «Novedades» (la 0.0.8 salió
-  con la de la 0.0.7; ver «Reglas permanentes»).
+- **Última versión publicada: 0.0.10** (etiqueta `v0.0.10`, GitHub Releases el 2026-11-22; el
+  paquete de la Store lo sube Alex).
 - **Pendiente de Alex**: cómo se crean la fecha y la hora dentro de una expansión (un solo sistema
   de «elementos»). Maquetas en `docs/disenos/elementos.html`, contexto en `docs/roadmap.md`. No
   construir hasta que decida; recordárselo cuando venga al caso.
 - Decidido el 2026-11-22: sin panel de detalle (clic en la fila abre el editor), sin «Copiar
   texto» (fue un error añadirlo; no proponerlo de nuevo) y soltar en carpeta con la isla que sale
   del «+» (`ui/drop_island.rs`).
-- **En curso: `0.0.10-dev`**. Sin publicar hasta que Alex lo pida. El
+- **Plan de Alex para la 0.0.11** (2026-11-22): renovar la ventana «Mover a una carpeta» como
+  las demás, por coherencia, y poner en la isla de soltar un destino para crear una carpeta nueva
+  con la expansión que se arrastra. Contexto en `docs/roadmap.md`.
+- **En curso: `0.0.11-dev`**. Sin publicar hasta que Alex lo pida. El
   `-dev` se quita en el commit que publica, y ese commit lleva la etiqueta de la versión.
 - **Microsoft Store**: Store ID `9NXXV15RJ94T`, `https://apps.microsoft.com/detail/9NXXV15RJ94T`.
   Pública desde que se aprobó el envío 2 (0.0.6). Cada actualización es un envío nuevo con
@@ -116,7 +118,7 @@ Vibecode\Khipu\          este repo (solo código y documentos)
 - Fuera del repo, en `Documentos\Vibecode Archivos\Khipu Archivos\`: el material de marca
   (videos, campaña e imágenes de la Store, paleta). No es código; no traerlo de vuelta.
 - Nada personal entra a git: las expansiones de Alex viven en el LocalState de Khipu Dev.
-- Versiones publicadas: GitHub Releases, etiquetas `v0.0.1` a `v0.0.9`. Desde la 0.0.5 el ZIP se
+- Versiones publicadas: GitHub Releases, etiquetas `v0.0.1` a `v0.0.10`. Desde la 0.0.5 el ZIP se
   sube como `Khipu-Portable-<versión>.zip`, con guiones (GitHub cambia los espacios por puntos).
   Lleva una carpeta `Khipu <versión>/` con solo `Khipu.exe` y `Program Files/`.
 - `PRIVACY.md` en `main` es la política de privacidad de la Store: no moverlo.

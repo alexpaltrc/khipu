@@ -236,6 +236,18 @@ decidir cómo se crean la fecha y la hora. Las maquetas están en `docs/disenos/
 
 No construir nada de esto hasta que Alex decida.
 
+## Plan: la 0.0.11 (2026-11-22)
+
+Con la 0.0.10 ya publicada, Alex deja dos cosas para la siguiente:
+
+- **Renovar «Mover a una carpeta»** (la ventana que abren Mover del clic derecho y la píldora de
+  elegir varias). Hoy es una lista sencilla con una marca y «Nueva carpeta» debajo; debe verse y
+  comportarse como las ventanas ya renovadas (Ajustes, opciones de carpeta, editor), para que toda
+  la app se sienta una sola.
+- **Una carpeta nueva desde la isla de soltar.** Mientras se arrastra una expansión, junto a las
+  carpetas un destino (quizá un «+») que crea una carpeta nueva y mete ahí lo que se arrastra.
+  Por diseñar: cómo se le pone nombre sin romper el gesto.
+
 ## Referencias de la revisión local
 
 Base consultada: commit local `bebb488`, Cargo `0.0.6`. No se modificó el código de la aplicación para elaborar esta propuesta.

@@ -89,14 +89,16 @@ Source code: https://github.com/alexpaltrc/khipu
 
 Khipu includes espanso (https://espanso.org) by Federico Terzi, also under the GNU GPL v3; its source code is at https://github.com/espanso/espanso. The notices of every component are in THIRD-PARTY-NOTICES.txt, installed with the app.
 
-## Ano ang bago sa bersyong ito (0.0.9) · «Novedades de esta versión»
-Mga tanong: pumili ng ilang salita sa teksto at gawin itong tanong na itatanong ng Khipu kapag ginamit mo ang expansion. Kung araw, oras, email o presyo ang pinili mo, may pangalan na agad ang tanong ("Anong araw?").
-Kapag walang laman ang teksto, sumusulat ng isa ang Tingnan ang halimbawa para makita mo kung paano ito gumagana.
-I-drag ang isang tanong para ilipat ito sa ibang bahagi ng teksto.
-I-right-click ang teksto: I-cut, Kopyahin, I-paste at Itanong ito.
-Sariling card na ang preview: i-click ang isang sagot para sumubok ng iba.
-Pill na ang itsura ng mga tanong at ng petsa sa listahan at sa paghahanap.
-Lumalabas ang bawat mensahe bilang pill sa ibaba, at sinasabi ng mga error kung ano ang nangyari at ano ang gagawin.
-Nagpe-paste ulit ang paghahanap (Alt+Space) sa Brave, Chrome at Edge.
-Mga 11 MB na mas kaunting memory.
-Iba't ibang ayos sa mga folder at sa pagbura.
+## Ano ang bago sa bersyong ito (0.0.10) · «Novedades de esta versión»
+Isang click sa isang expansion at bubukas ang editor; pagbalik mo, nasa dati pa rin ang listahan.
+I-right-click ang isang expansion: paborito, ilipat, palitan ang trigger, patayin at tanggalin.
+I-drag ang isang expansion at lilitaw sa ibaba ang mga folder mo: bitawan ito sa isa at lilipat ito.
+Ipinapakita ng mga expansion na may petsa o oras ang sa ngayon, gaya ng lalabas kapag tinype mo.
+Ina-undo ng Ctrl+Z at ibinabalik ng Ctrl+Y, isa-isa. Kaya hindi na nagtatanong ang pagbura: kapag nagkamali ka, i-undo lang.
+May sariling pill sa ibaba ang pagpili ng marami, kasama ang lahat ng aksyon nito.
+Mas maikli ang paggawa ng expansion: nasa ibaba ng editor ang bituin, ang folder at ang pangalan.
+Mas simple ang Settings at ang mga opsyon ng bawat folder.
+Hindi na nagdidikit ang mga talatang may pagitang blangkong linya kapag na-expand.
+Naaalala ng Khipu ang laki ng window pagkatapos mag-update o mag-shut down.
+Hindi na nagsasara kapag may screen reader na tumatakbo.
+Inalis ang Kopyahin ang teksto.

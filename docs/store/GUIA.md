@@ -1,6 +1,6 @@
 # Khipu en la Microsoft Store
 
-*Actualizada el 2026-11-14 para la actualización a la 0.0.9. Las pantallas son las que se comprobaron el 2026-10-07 (skill `subir-a-microsoft-store`); si alguna no coincide, mándame la captura.*
+*Actualizada el 2026-11-22 para la actualización a la 0.0.10. Las pantallas son las que se comprobaron el 2026-10-07 (skill `subir-a-microsoft-store`); si alguna no coincide, mándame la captura.*
 
 *Las imágenes y capturas que esta guía y las fichas (`ficha-<idioma>.md`) mencionan no están en el
 repo: viven en `Documentos\Vibecode Archivos\Khipu Archivos\marca\store\`. Las capturas vigentes
@@ -10,11 +10,11 @@ Khipu está en la Store, **pública**, desde que se aprobó el envío 2 (0.0.6):
 `9NXXV15RJ94T`, `https://apps.microsoft.com/detail/9NXXV15RJ94T`. Todo lo que se hace en Partner
 Center lo haces tú; aquí va casilla por casilla.
 
-## Ahora: actualización a la 0.0.9
+## Ahora: actualización a la 0.0.10
 
-Un envío nuevo con el paquete nuevo, sus novedades, y la descripción y las características al día
-(ahora cuentan las preguntas y «No expandir en», y los atajos de ejemplo empiezan con «;», como en
-un Khipu recién instalado). Las imágenes y el video se quedan como están.
+Un envío nuevo con el paquete nuevo, sus novedades, y las cuatro capturas nuevas por idioma con
+sus leyendas (se renovaron el 2026-11-21 y aún no se han subido). La descripción, las
+características y el video se quedan como están.
 
 ### Empezar
 
@@ -23,23 +23,25 @@ un Khipu recién instalado). Las imágenes y el video se quedan como están.
 
 ### «Paquetes»
 
-- [ ] «Browse your files» (o arrastra el archivo) y sube `Documentos\Vibecode Archivos\Khipu Archivos\paquetes\Khipu 0.0.9.msix`.
-- [ ] En la tabla debe salir «Khipu 0.0.9.msix · v0.0.9.0, X64» con «Windows 10/11 Desktop»
+- [ ] «Browse your files» (o arrastra el archivo) y sube `Documentos\Vibecode Archivos\Khipu Archivos\paquetes\Khipu 0.0.10.msix`.
+- [ ] En la tabla debe salir «Khipu 0.0.10.msix · v0.0.10.0, X64» con «Windows 10/11 Desktop»
       marcado.
-- [ ] Partner Center tacha «Khipu 0.0.8.msix» y avisa de que lo quitará al guardar. Así tiene que
-      ser: no pulses «Don’t remove this package». Quien tiene la 0.0.8 recibe la 0.0.9.
+- [ ] Partner Center tacha «Khipu 0.0.9.msix» y avisa de que lo quitará al guardar. Así tiene que
+      ser: no pulses «Don’t remove this package». Quien tiene la 0.0.9 recibe la 0.0.10.
 - [ ] «Roll out update gradually…» y «Make this update mandatory»: sin marcar.
 - [ ] «Guardar».
 
 ### «Descripciones de Store», en cada uno de los cuatro idiomas
 
-- [ ] «Novedades de esta versión»: copia la sección **«Novedades de esta versión (0.0.9)»** del
+- [ ] «Novedades de esta versión»: copia la sección **«Novedades de esta versión (0.0.10)»** del
       final de la `ficha.md` de ese idioma (`es-MX`, `en-US`, `fil-PH`, `hi-IN`). Todas miden
       menos de 1500 caracteres.
-- [ ] «Descripción»: borra la que viene y pega la sección **«Descripción»** de la misma ficha.
-- [ ] «Características del producto»: borra las que vienen y pega las 20 líneas de la sección
-      **«Características»**, una por casilla.
-- [ ] Lo demás (capturas, leyendas, descripción corta, palabras clave): **déjalo como viene**.
+- [ ] «Capturas de pantalla»: quita las siete que vienen y sube las cuatro de
+      `marca\campana-store\Store\Capturas\<idioma>\`, en orden (01 a 04).
+- [ ] La leyenda de cada captura: copia la línea con su número de la sección **«Leyendas de las
+      capturas»** de la misma ficha.
+- [ ] Lo demás (descripción, características, descripción corta, palabras clave): **déjalo como
+      viene**.
 - [ ] «Guardar» en cada idioma.
 
 ### «Opciones de envío»
@@ -56,10 +58,10 @@ un Khipu recién instalado). Las imágenes y el video se quedan como están.
 
 ### Enviar
 
-- [ ] «Enviar para certificación». Mientras se revisa, la 0.0.8 sigue publicada. Tarda hasta 3
+- [ ] «Enviar para certificación». Mientras se revisa, la 0.0.9 sigue publicada. Tarda hasta 3
       días hábiles.
 - [ ] Al publicarse, en `https://apps.microsoft.com/detail/9NXXV15RJ94T` debe salir la versión
-      0.0.9 y sus novedades. Quien ya la tiene instalada la recibe solo.
+      0.0.10 y sus novedades. Quien ya la tiene instalada la recibe solo.
 
 ## El envío 2 (0.0.6, lanzamiento público)
 

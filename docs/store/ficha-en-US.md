@@ -85,14 +85,16 @@ Source code: https://github.com/alexpaltrc/khipu
 
 Khipu includes espanso (https://espanso.org) by Federico Terzi, also under the GNU GPL v3; its source code is at https://github.com/espanso/espanso. The notices of every component are in THIRD-PARTY-NOTICES.txt, installed with the app.
 
-## What's new in this version (0.0.9) · «Novedades de esta versión»
-Questions: select some words in the text and turn them into a question Khipu asks when you use the expansion. If what you selected is a day, a time, an email address or a price, the question comes already named ("Which day?").
-With the text empty, See an example writes one so you can see how it works.
-Drag a question to move it elsewhere in the text.
-Right-click the text: Cut, Copy, Paste and Ask for this.
-The preview is a card of its own: click an answer to try another.
-Questions and the date show as pills in the list and in search.
-Every message appears as a pill at the bottom, and errors say what happened and what to do.
-Search (Alt+Space) pastes in Brave, Chrome and Edge again.
-Uses about 11 MB less memory.
-Several fixes to folders and deleting.
+## What's new in this version (0.0.10) · «Novedades de esta versión»
+One click on an expansion opens the editor; when you come back, the list is where you left it.
+Right-click an expansion: favorite, move, change trigger, turn off and delete.
+Drag an expansion and your folders appear below: drop it on one and it moves.
+Expansions with a date or time show today's, just as it will come out when you type them.
+Ctrl+Z undoes and Ctrl+Y redoes, step by step. That is why deleting no longer asks: if you slip, undo it.
+Choosing several has its own pill at the bottom, with all its actions.
+Making an expansion is shorter: the star, the folder and the name sit at the foot of the editor.
+Settings and each folder's options, simpler.
+Paragraphs separated by a blank line no longer run together when expanded.
+Khipu remembers the window size after an update or a shutdown.
+No more closing with a screen reader running.
+Copy text was removed.
