@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soltar en carpeta · diseños pendientes</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{--surface:#f3f3f3;--card:#fbfbfb;--bg-neutral:#e9e7e0;--sunken:#ebebeb;--bg-accent:#e6e4fb;--text-primary:#1f1e1d;--text-secondary:#5f5e5a;--text-muted:#888780;--text-accent:#4b42b0;--accent:#5b50c8;--on-accent:#fff;--border:rgba(0,0,0,.09);--border-strong:rgba(0,0,0,.20);--shadow:0 8px 28px rgba(0,0,0,.16);--font-sans:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;--font-mono:"Cascadia Mono",Consolas,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--surface:#202020;--card:#2b2b2b;--bg-neutral:#161616;--sunken:#262626;--bg-accent:#3a3480;--text-primary:#f1efe8;--text-secondary:#b4b2a9;--text-muted:#888780;--text-accent:#cecbf6;--accent:#a49df0;--on-accent:#1f1e1d;--border:rgba(255,255,255,.08);--border-strong:rgba(255,255,255,.20);--shadow:0 8px 28px rgba(0,0,0,.5)}}
+:root[data-theme="dark"]{--surface:#202020;--card:#2b2b2b;--bg-neutral:#161616;--sunken:#262626;--bg-accent:#3a3480;--text-primary:#f1efe8;--text-secondary:#b4b2a9;--text-muted:#888780;--text-accent:#cecbf6;--accent:#a49df0;--on-accent:#1f1e1d;--border:rgba(255,255,255,.08);--border-strong:rgba(255,255,255,.20);--shadow:0 8px 28px rgba(0,0,0,.5)}
+body{margin:0 auto;max-width:780px;padding:24px 16px;background:var(--surface);color:var(--text-primary);font-family:var(--font-sans);line-height:1.6}
+h1{font-size:22px;font-weight:500;margin:0 0 4px}h2{font-size:18px;font-weight:500;margin:36px 0 6px}
+.intro,.why{color:var(--text-secondary);margin:0 0 12px}.why{font-size:14px}
+.k{background:var(--bg-neutral);border-radius:12px;padding:16px;overflow:hidden}
+.win{position:relative;background:var(--surface);border:0.5px solid var(--border);border-radius:10px;height:340px;overflow:hidden;font-size:14px}
+.bar{display:flex;align-items:center;gap:10px;padding:14px 16px 10px}
+.search{flex:1;max-width:260px;height:30px;border:0.5px solid var(--border-strong);border-radius:6px;background:var(--card);display:flex;align-items:center;gap:6px;padding:0 10px;color:var(--text-muted);font-size:13px}
+.picker{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-primary);height:30px;padding:0 8px}
+.rows{padding:0 16px}
+.r{display:flex;gap:16px;height:40px;align-items:center;border-bottom:0.5px solid var(--border)}
+.r .t{width:120px;font-family:var(--font-mono);font-size:12px;color:var(--text-accent)}
+.r .x{color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r.gone{opacity:.35}
+.ghost{position:absolute;display:flex;gap:16px;align-items:center;height:40px;padding:0 14px;background:var(--card);border:0.5px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);font-size:14px;transform:rotate(-1.2deg);z-index:3}
+.ghost .t{font-family:var(--font-mono);font-size:12px;color:var(--text-accent)}
+.ghost .x{color:var(--text-secondary)}
+.cursor{position:absolute;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:16px solid var(--text-primary);transform:rotate(-25deg);z-index:4}
+i.ti{font-size:16px;vertical-align:-2px}
+.tag{font-size:12px;color:var(--text-muted);text-align:center;margin-top:8px}
+/* 1 · the picker becomes the folders */
+.lane{display:flex;gap:6px;align-items:center;flex-wrap:nowrap;overflow:hidden}
+.f{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:6px;background:var(--card);border:0.5px solid var(--border-strong);font-size:13px;white-space:nowrap}
+.f.cur{opacity:.45;border-style:dashed}
+.f.on{background:var(--accent);color:var(--on-accent);border-color:transparent;transform:scale(1.06);box-shadow:var(--shadow)}
+.f.none{color:var(--text-secondary)}
+/* 2 · a rail on the right */
+.rail{position:absolute;top:0;right:0;bottom:0;width:200px;background:var(--card);border-left:0.5px solid var(--border);box-shadow:var(--shadow);padding:14px 8px;box-sizing:border-box;z-index:2}
+.rail .cap{font-size:12px;color:var(--text-muted);padding:0 8px 6px}
+.rail .it{position:relative;display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border-radius:6px;font-size:14px}
+.rail .it .n{margin-left:auto;font-size:12px;color:var(--text-muted)}
+.rail .it.on{background:var(--bg-accent);color:var(--text-accent)}
+.rail .it.on::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:2px;background:var(--accent)}
+.rail .it.cur{opacity:.45}
+.rail hr{border:0;border-top:0.5px solid var(--border);margin:6px 8px}
+/* 3 · the island */
+.island{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:5px;background:var(--card);border:0.5px solid var(--border-strong);border-radius:999px;box-shadow:var(--shadow);z-index:2;white-space:nowrap}
+.island .p{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:999px;font-size:13px}
+.island .p.on{background:var(--accent);color:var(--on-accent);padding:0 18px}
+.island .p.cur{opacity:.45}
+.island .sep{width:0.5px;height:20px;background:var(--border-strong);margin:0 2px}
+.island.after{bottom:18px}
+.plus{position:absolute;bottom:18px;width:46px;height:46px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:var(--shadow)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:640px){.pair{grid-template-columns:1fr}}
+.pair .win{height:300px}
+.msg{display:inline-flex;align-items:center;gap:10px;height:34px;padding:0 6px 0 16px;font-size:13px}
+.msg b{font-weight:600}.msg .u{padding:4px 12px;border-radius:999px;background:var(--sunken)}
+</style>
+</head>
+<body>
+<h1>Soltar en carpeta: tres propuestas</h1>
+<p class="intro">Diseños guardados para cuando Alex decida (2026-11-22). Hoy, al arrastrar una expansión aparece una tarjeta arriba a la izquierda, «Suelta sobre una carpeta», con botones de contorno que tapan las primeras filas. Las tres propuestas comparten tres arreglos: la carpeta en la que ya está la expansión se ve apagada (soltarla ahí no hace nada), «Sin carpeta» solo aparece si la expansión tiene carpeta, y al soltar sale la píldora de siempre: «Movida a Trabajo · Deshacer».</p>
+
+<h2>1 · El selector se abre en carpetas</h2>
+<p class="why">Al empezar a arrastrar, «Todas las carpetas», junto al buscador, se despliega en una fila con todas las carpetas; al soltar, vuelve a cerrarse. Nada nuevo aparece sobre la lista: las carpetas salen de donde ya viven. La carpeta bajo el ratón se llena de acento y crece un poco. Es la más integrada; con muchas carpetas la fila se desliza de lado cuando el ratón llega a su borde.</p>
+<div class="k"><div class="win">
+<div class="bar"><div class="search"><i class="ti ti-search" aria-hidden="true"></i>Buscar</div>
+<div class="lane"><span class="f cur"><i class="ti ti-folder" aria-hidden="true"></i>Trabajo</span><span class="f on"><i class="ti ti-folder" aria-hidden="true"></i>Clientes</span><span class="f"><i class="ti ti-folder" aria-hidden="true"></i>Personal</span><span class="f none"><i class="ti ti-folder-off" aria-hidden="true"></i>Sin carpeta</span></div></div>
+<div class="rows">
+<div class="r"><span class="t">;fecha</span><span class="x">22/11/2026</span></div>
+<div class="r gone"><span class="t">;cliente</span><span class="x">Hola Ana, tu pedido salió hoy</span></div>
+<div class="r"><span class="t">;pedido</span><span class="x">Pedido del fecha, para</span></div>
+<div class="r"><span class="t">;dir</span><span class="x">Av. Reforma 222, piso 9</span></div>
+<div class="r"><span class="t">;cv</span><span class="x">Adjunto mi currículum</span></div>
+</div>
+<div class="ghost" style="left:300px;top:58px"><span class="t">;cliente</span><span class="x">Hola Ana, tu pedido…</span></div>
+<span class="cursor" style="left:420px;top:44px"></span>
+</div><div class="tag">Arrastrando «;cliente» sobre «Clientes»</div></div>
+
+<h2>2 · Un riel de carpetas a la derecha</h2>
+<p class="why">Del borde derecho se desliza una columna con las carpetas una debajo de otra, cada una con cuántas expansiones tiene, como el panel de navegación del Explorador. La carpeta bajo el ratón se marca igual que una fila elegida: tinte y barra de acento. Cabe cualquier número de carpetas y deja la lista entera a la vista; a cambio, es una superficie más que entra y sale.</p>
+<div class="k"><div class="win">
+<div class="bar"><div class="search"><i class="ti ti-search" aria-hidden="true"></i>Buscar</div><div class="picker"><i class="ti ti-folder" aria-hidden="true"></i>Todas las carpetas<i class="ti ti-chevron-down" aria-hidden="true"></i></div></div>
+<div class="rows">
+<div class="r"><span class="t">;fecha</span><span class="x">22/11/2026</span></div>
+<div class="r gone"><span class="t">;cliente</span><span class="x">Hola Ana, tu pedido salió hoy</span></div>
+<div class="r"><span class="t">;pedido</span><span class="x">Pedido del fecha, para</span></div>
+<div class="r"><span class="t">;dir</span><span class="x">Av. Reforma 222, piso 9</span></div>
+<div class="r"><span class="t">;cv</span><span class="x">Adjunto mi currículum</span></div>
+</div>
+<div class="rail"><div class="cap">Mover a</div>
+<div class="it cur"><i class="ti ti-folder" aria-hidden="true"></i>Trabajo<span class="n">aquí</span></div>
+<div class="it on"><i class="ti ti-folder" aria-hidden="true"></i>Clientes<span class="n">12</span></div>
+<div class="it"><i class="ti ti-folder" aria-hidden="true"></i>Personal<span class="n">5</span></div>
+<hr><div class="it"><i class="ti ti-folder-off" aria-hidden="true"></i>Sin carpeta</div></div>
+<div class="ghost" style="left:420px;top:112px"><span class="t">;cliente</span><span class="x">Hola Ana…</span></div>
+<span class="cursor" style="left:600px;top:108px"></span>
+</div><div class="tag">Arrastrando «;cliente» sobre «Clientes»</div></div>
+
+<h2>3 · La isla de abajo (la que recomiendo)</h2>
+<p class="why">Al arrastrar, la píldora del pie crece desde el «+», como los mensajes y la de elegir varias, y trae las carpetas. La carpeta bajo el ratón se llena de acento y se ensancha; al soltar, la misma píldora se transforma en «Movida a Clientes · Deshacer», sin reemplazarse. Habla el mismo idioma que el resto de la app (Deshacer, elegir varias), no tapa la lista, y el arrastre baja la vista hacia donde termina. Con muchas carpetas, la píldora muestra las usadas hace poco y «Más…» abre la lista.</p>
+<div class="k"><div class="pair">
+<div><div class="win">
+<div class="bar"><div class="search"><i class="ti ti-search" aria-hidden="true"></i>Buscar</div></div>
+<div class="rows">
+<div class="r"><span class="t">;fecha</span><span class="x">22/11/2026</span></div>
+<div class="r gone"><span class="t">;cliente</span><span class="x">Hola Ana, tu pedido</span></div>
+<div class="r"><span class="t">;pedido</span><span class="x">Pedido del fecha</span></div>
+<div class="r"><span class="t">;dir</span><span class="x">Av. Reforma 222</span></div>
+</div>
+<div class="island"><span class="p cur"><i class="ti ti-folder" aria-hidden="true"></i>Trabajo</span><span class="p on"><i class="ti ti-folder" aria-hidden="true"></i>Clientes</span><span class="p"><i class="ti ti-folder" aria-hidden="true"></i>Personal</span><span class="sep"></span><span class="p"><i class="ti ti-folder-off" aria-hidden="true"></i></span></div>
+<div class="ghost" style="left:110px;top:196px"><span class="t">;cliente</span><span class="x">Hola Ana…</span></div>
+<span class="cursor" style="left:178px;top:252px"></span>
+</div><div class="tag">Arrastrando sobre «Clientes»</div></div>
+<div><div class="win">
+<div class="bar"><div class="search"><i class="ti ti-search" aria-hidden="true"></i>Buscar</div></div>
+<div class="rows">
+<div class="r"><span class="t">;fecha</span><span class="x">22/11/2026</span></div>
+<div class="r"><span class="t">;pedido</span><span class="x">Pedido del fecha</span></div>
+<div class="r"><span class="t">;dir</span><span class="x">Av. Reforma 222</span></div>
+<div class="r"><span class="t">;cv</span><span class="x">Adjunto mi currículum</span></div>
+</div>
+<div class="island" style="left:calc(50% - 30px)"><span class="msg">Movida a <b>Clientes</b><span class="u">Deshacer</span></span></div>
+<div class="plus" style="left:calc(50% + 92px)"><i class="ti ti-plus" aria-hidden="true"></i></div>
+</div><div class="tag">Al soltar: la misma píldora da el aviso</div></div>
+</div></div>
+</body>
+</html>

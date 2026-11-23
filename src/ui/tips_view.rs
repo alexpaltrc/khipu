@@ -301,9 +301,36 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
     let t = state.t();
     let keys = state.search_shortcut.label(state.settings.lang);
     ui.vertical(|ui| {
+        // Settings has no box for it on purpose: Windows already keeps one list of what starts at
+        // sign-in, and a second switch here could only disagree with it. So the guide says why it
+        // is on and where Windows lets you turn it off. First, because it shapes every day with Khipu
+        // more than anything below it.
         topic(
             ui,
             true,
+            text(state, "Iniciar con Windows", "Start with Windows", "Magsimula kasama ng Windows", "Windows के साथ शुरू करें"),
+            |ui| {
+                para(ui, text(
+                    state,
+                    "Khipu se abre solo al iniciar sesión, junto al reloj y sin ventana, para que tus expansiones funcionen desde el primer momento sin que tengas que acordarte de abrirlo.",
+                    "Khipu opens by itself when you sign in, beside the clock and without a window, so your expansions work from the first moment without you having to remember to open it.",
+                    "Kusang bumubukas ang Khipu pag-sign in mo, sa tabi ng orasan at walang window, para gumana ang mga expansion mo mula sa unang sandali nang hindi mo kailangang tandaang buksan ito.",
+                    "साइन इन करते ही Khipu अपने आप घड़ी के पास, बिना विंडो के खुल जाता है, ताकि आपके विस्तार पहले पल से काम करें और आपको इसे खोलना याद न रखना पड़े।",
+                ));
+                ui.add_space(controls::GAP);
+                para(ui, text(
+                    state,
+                    "Para eso usa la lista de inicio del propio Windows, la misma de tus demás programas, en vez de un interruptor más en Ajustes. Para apagarlo, ve a Configuración de Windows › Aplicaciones › Inicio y apaga Khipu; también está en el Administrador de tareas, en Aplicaciones de inicio.",
+                    "It uses Windows' own startup list for this, the same one as your other programs, instead of one more switch in Settings. To turn it off, go to Windows Settings › Apps › Startup and turn Khipu off; it is also in Task Manager, under Startup apps.",
+                    "Ginagamit nito ang sariling startup list ng Windows, ang pareho sa iba mong programa, sa halip na isa pang switch sa Settings. Para i-off ito, pumunta sa Windows Settings › Apps › Startup at i-off ang Khipu; nasa Task Manager din ito, sa Startup apps.",
+                    "इसके लिए यह Windows की अपनी स्टार्टअप सूची इस्तेमाल करता है, वही जो आपके बाकी प्रोग्रामों की है, सेटिंग्स में एक और स्विच की जगह। इसे बंद करने के लिए Windows सेटिंग्स › ऐप्स › स्टार्टअप में जाकर Khipu बंद करें; यह टास्क मैनेजर में स्टार्टअप ऐप्स के अंदर भी है।",
+                ));
+            },
+        );
+
+        topic(
+            ui,
+            false,
             text(state, "Encontrar y editar", "Find and edit", "Hanapin at i-edit", "खोजें और संपादित करें"),
             |ui| {
                 para(ui, text(
@@ -460,32 +487,6 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
                 part(ui, false, t.tip_pin_title, t.tip_pin_body);
                 ui.add_space(controls::GAP);
                 tray_illustration(ui);
-            },
-        );
-
-        // Settings has no box for it on purpose: Windows already keeps one list of what starts at
-        // sign-in, and a second switch here could only disagree with it. So the guide says why it
-        // is on and where Windows lets you turn it off.
-        topic(
-            ui,
-            false,
-            text(state, "Iniciar con Windows", "Start with Windows", "Magsimula kasama ng Windows", "Windows के साथ शुरू करें"),
-            |ui| {
-                para(ui, text(
-                    state,
-                    "Khipu se abre solo al iniciar sesión, junto al reloj y sin ventana, para que tus expansiones funcionen desde el primer momento sin que tengas que acordarte de abrirlo.",
-                    "Khipu opens by itself when you sign in, beside the clock and without a window, so your expansions work from the first moment without you having to remember to open it.",
-                    "Kusang bumubukas ang Khipu pag-sign in mo, sa tabi ng orasan at walang window, para gumana ang mga expansion mo mula sa unang sandali nang hindi mo kailangang tandaang buksan ito.",
-                    "साइन इन करते ही Khipu अपने आप घड़ी के पास, बिना विंडो के खुल जाता है, ताकि आपके विस्तार पहले पल से काम करें और आपको इसे खोलना याद न रखना पड़े।",
-                ));
-                ui.add_space(controls::GAP);
-                para(ui, text(
-                    state,
-                    "Para eso usa la lista de inicio del propio Windows, la misma de tus demás programas, en vez de un interruptor más en Ajustes. Para apagarlo, ve a Configuración de Windows › Aplicaciones › Inicio y apaga Khipu; también está en el Administrador de tareas, en Aplicaciones de inicio.",
-                    "It uses Windows' own startup list for this, the same one as your other programs, instead of one more switch in Settings. To turn it off, go to Windows Settings › Apps › Startup and turn Khipu off; it is also in Task Manager, under Startup apps.",
-                    "Ginagamit nito ang sariling startup list ng Windows, ang pareho sa iba mong programa, sa halip na isa pang switch sa Settings. Para i-off ito, pumunta sa Windows Settings › Apps › Startup at i-off ang Khipu; nasa Task Manager din ito, sa Startup apps.",
-                    "इसके लिए यह Windows की अपनी स्टार्टअप सूची इस्तेमाल करता है, वही जो आपके बाकी प्रोग्रामों की है, सेटिंग्स में एक और स्विच की जगह। इसे बंद करने के लिए Windows सेटिंग्स › ऐप्स › स्टार्टअप में जाकर Khipu बंद करें; यह टास्क मैनेजर में स्टार्टअप ऐप्स के अंदर भी है।",
-                ));
             },
         );
 

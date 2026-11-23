@@ -35,7 +35,10 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
   de «elementos»). Maquetas en `docs/disenos/elementos.html`, contexto en `docs/roadmap.md`. No
   construir hasta que decida; recordárselo cuando venga al caso.
 - **Pendiente de Alex**: el panel de detalle (cinco propuestas; la quinta junta lo que le gustó de la 1 y la 2). Maquetas en
-  `docs/disenos/detalle.html`. No construir hasta que elija.
+  `docs/disenos/detalle.html`. No construir hasta que elija. Desde el 2026-11-22 Alex se inclina
+  por quitar el panel: clic en la fila abre el editor.
+- **Pendiente de Alex**: cómo se ve soltar una expansión en una carpeta (tres propuestas, la
+  tercera recomendada). Maquetas en `docs/disenos/soltar.html`. Va en 0.0.10 cuando elija.
 - **En curso: `0.0.10-dev`**. Sin publicar hasta que Alex lo pida. El
   `-dev` se quita en el commit que publica, y ese commit lleva la etiqueta de la versión.
 - **Microsoft Store**: Store ID `9NXXV15RJ94T`, `https://apps.microsoft.com/detail/9NXXV15RJ94T`.
