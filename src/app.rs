@@ -1336,6 +1336,20 @@ impl AppState {
         self.pending_confirm = None;
     }
 
+    /// The prefix question answered «Cancelar», or put away with Esc or a click beside it: the new
+    /// prefix was only being looked at, so the one the expansions carry comes back, and nothing
+    /// is renamed.
+    pub fn cancel_prefix_change(&mut self) {
+        self.pending_confirm = None;
+        if let Some(before) = self.prefix_before.take() {
+            self.settings.prefix = before;
+            if let Err(e) = self.settings_store.save(&self.settings) {
+                let msg = fill(self.t().prefix_save_error, &[("err", &crate::i18n::explain_io(self.t(), &e))]);
+                self.set_error_banner(msg);
+            }
+        }
+    }
+
     pub fn confirm_pending(&mut self) {
         let Some(pending) = self.pending_confirm.take() else {
             return;
@@ -2957,6 +2971,10 @@ pub struct KhipuApp {
     /// Set when this frame is drawn for a window nobody can see, or one about to be put away: the
     /// round «+» is then told, after drawing, to rise again when the window opens.
     rewind_new_button: bool,
+    /// Set as the window goes to the tray, so eframe saves its size and place at the end of that
+    /// frame rather than at its next half-minute: a hidden window draws no frames, and an update or
+    /// a shutdown that ends the program there would otherwise lose the size it was given.
+    save_now: std::cell::Cell<bool>,
     /// Set by the tray's Quit item. The window's close handler normally cancels the close and hides
     /// to the tray instead; this is what tells it that this particular close is meant.
     quitting: bool,
@@ -3264,6 +3282,7 @@ impl KhipuApp {
             last_icon_dpi,
             start_hidden_pending: ctx.start_hidden,
             rewind_new_button: false,
+            save_now: std::cell::Cell::new(false),
             quitting: false,
             pacer: Default::default(),
             held_menu: Vec::new(),
@@ -3303,6 +3322,7 @@ impl KhipuApp {
     }
 
     fn hide_to_tray(&self) {
+        self.save_now.set(true);
         if let Some(window) = &self.window {
             window.set_visible(false);
         }
@@ -3814,6 +3834,15 @@ pub(crate) fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput)
 }
 
 impl eframe::App for KhipuApp {
+    /// eframe's half-minute, except for the frame that puts the window away: see `save_now`.
+    fn auto_save_interval(&self) -> std::time::Duration {
+        if self.save_now.take() {
+            std::time::Duration::ZERO
+        } else {
+            std::time::Duration::from_secs(30)
+        }
+    }
+
     /// The main window's focus comes from Windows on every frame, not from the last notice winit
     /// passed on: one lost notice used to leave every text box without its caret and highlight
     /// until the window was hidden and opened again. See [`crate::display::has_keyboard_focus`].
@@ -3917,8 +3946,16 @@ impl eframe::App for KhipuApp {
         // and in the editor it is Cancelar. The confirmation is drawn over every screen, so this is.
         // egui reports it as a physical key, so it works the same on a keyboard that prints "Esc",
         // "Escape" or nothing at all.
-        if self.state.pending_confirm.is_some() && esc(ctx) {
-            self.state.cancel_pending_confirm();
+        // The prefix's question backs out all the way, to the prefix there was before.
+        if let Some(pending) = &self.state.pending_confirm {
+            let prefix = matches!(pending.kind, PendingConfirmKind::RenamePrefix);
+            if esc(ctx) {
+                if prefix {
+                    self.state.cancel_prefix_change();
+                } else {
+                    self.state.cancel_pending_confirm();
+                }
+            }
         }
         // Ajustes last: the picker it opens sits in front of it and has already had its Esc. An
         // open drop-down (the language) takes its own Esc and closes, and Ajustes stays.

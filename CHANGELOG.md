@@ -39,16 +39,20 @@ was published.
   star and the folder are one icon each until they hold something (the folder then shows its
   name), and each says on hover what it is for. The name is typed right there: the word
   «Nombre» becomes a box when pointed at. The folder opens a short list with «Nueva carpeta» at
-  the end.
-- **The hover highlight glides at any speed.** On its way it stretches towards where it is
-  going and gathers itself as it arrives, like something liquid; a fast sweep never turns into a
-  long smear, and crossing the gap between two controls no longer makes it blink out and back.
+  the end. Pointed at, the name's box is as tall as Cancelar and Guardar beside it.
+- **The hover highlight glides the same at any speed**, in every list and menu. It slides
+  without stretching; moved slowly it follows row by row, and on a fast sweep it rides one row
+  behind the pointer instead of falling far behind, then settles as quickly as after a single
+  row. Crossing the gap between two controls no longer makes it blink out and back.
 - **A smaller Ajustes.** The theme is one icon beside the ✕ (sun, moon…) that moves to the next
   theme with each click, its icon turning over; the language is another icon that opens the four.
   «Iniciar con Windows» is gone: Khipu starts with Windows from the first run, and is switched off
   where Windows lists its startup apps. «Favoritos primero» is gone: favorites always come
   first. The two prefix settings are one: picking a new prefix offers to change your existing
-  expansions too («Cambiarlas» or «Solo las nuevas»).
+  expansions too («Cambiarlas» or «Solo las nuevas»). «Cancelar», Esc or a click outside that
+  question keep the prefix you had.
+- **Starting with Windows is explained in Consejos**: why Khipu opens at sign-in, and where
+  Windows lets you turn it off.
 - **No more trailing «…»** on buttons and hints (Exportar, Importar, «Nueva carpeta», «Tu texto
   aparecerá aquí» and others): only words that are a sentence end like one.
 
@@ -67,6 +71,9 @@ was published.
 - **No more busy cursor flicker when Khipu starts or saves.** Every espanso command Khipu ran
   (five or six at start, more after each save) made Windows show its "app starting" cursor for a
   moment. They now launch with launch feedback turned off.
+- **Your window size survives updates and shutdowns.** Khipu saved it only every half minute,
+  and putting the window away in the tray did not count, so an update or a shutdown could
+  forget the last size you gave it. It is now saved the moment the window goes to the tray.
 - **Your window size is no longer lost.** Opening Khipu from the tray while it was minimized
   measured it as zero, "repaired" it to the smallest size and saved that as yours.
 - **Text sits in the middle of its buttons, pills and rows.** Segoe UI letters were drawn 1 to

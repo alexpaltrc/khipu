@@ -34,7 +34,7 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
 - **Pendiente de Alex**: cómo se crean la fecha y la hora dentro de una expansión (un solo sistema
   de «elementos»). Maquetas en `docs/disenos/elementos.html`, contexto en `docs/roadmap.md`. No
   construir hasta que decida; recordárselo cuando venga al caso.
-- **Pendiente de Alex**: el panel de detalle (cuatro propuestas, la cuarta atrevida). Maquetas en
+- **Pendiente de Alex**: el panel de detalle (cinco propuestas; la quinta junta lo que le gustó de la 1 y la 2). Maquetas en
   `docs/disenos/detalle.html`. No construir hasta que elija.
 - **En curso: `0.0.10-dev`**. Sin publicar hasta que Alex lo pida. El
   `-dev` se quita en el commit que publica, y ese commit lleva la etiqueta de la versión.

@@ -42,10 +42,24 @@ h1{font-size:22px;font-weight:500;margin:0 0 4px}h2{font-size:18px;font-weight:5
 .edit{white-space:pre-line;outline:1.5px solid var(--border-accent);outline-offset:-1px;border-radius:var(--radius);padding:10px 12px;font-size:14px;background:var(--surface)}
 .dock{display:flex;justify-content:center;gap:4px;margin-top:14px;padding:4px;border-radius:999px;background:var(--sunken);width:max-content;margin-left:auto;margin-right:auto}
 .dock .ib{border-radius:999px}
+/* Proposal 5 */
+.k.two{flex-wrap:wrap;gap:16px;align-items:flex-start}
+.trig.wrap{overflow-wrap:anywhere;line-height:1.3;flex:1;min-width:0}
+.row.top{align-items:flex-start}
+.name{color:var(--text-secondary);font-size:14px;margin:2px 0 12px;overflow-wrap:anywhere}
+.name i{font-size:14px;vertical-align:-2px;margin-left:6px}
+.body{position:relative;background:var(--sunken);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:14px;white-space:pre-line;cursor:text}
+.body .cp{position:absolute;top:4px;right:4px;width:28px;height:28px;display:none;align-items:center;justify-content:center;border-radius:6px;background:var(--card);border:0.5px solid var(--border);font-size:15px}
+.body.hover{outline:1.5px solid var(--border-accent);outline-offset:-1px}.body.hover .cp{display:inline-flex}
+.menu{width:190px;background:var(--card);border:0.5px solid var(--border-strong);border-radius:8px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.14);font-size:14px;z-index:1}
+.menu div{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:4px}.menu div.h{background:var(--sunken)}
+.menu i{font-size:16px;color:var(--text-secondary)}.menu hr{border:0;border-top:0.5px solid var(--border);margin:4px 0}
+.off{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);margin:0 0 10px}
+.tag{font-size:12px;color:var(--text-muted);text-align:center;margin-top:8px}
 </style>
 </head>
 <body>
-<h1>Panel de detalle: cuatro propuestas</h1>
+<h1>Panel de detalle: cinco propuestas</h1>
 <p class="intro">Diseños guardados para cuando Alex decida (2026-11-22). El panel sale a la derecha de la lista al elegir una expansión. Hoy tiene, de arriba abajo: el activador con la estrella y la ✕, el nombre, «Texto» con Copiar, el texto en una caja hundida, «Carpeta», «Estado» con su interruptor, y Editar con «⋯». Las tres primeras son las que haría normalmente; la cuarta es la atrevida.</p>
 
 <h2>1 · Menos rótulos</h2>
@@ -96,5 +110,25 @@ Col. Juárez, CDMX 06600</div>
 Col. Juárez, CDMX 06600<span class="caret"></span></div>
 <div class="dock"><span class="ib on" title="Favorita"><i class="ti ti-star-filled" aria-hidden="true"></i></span><span class="ib" title="Carpeta"><i class="ti ti-folder" aria-hidden="true"></i></span><span class="ib" title="Copiar"><i class="ti ti-copy" aria-hidden="true"></i></span><span class="ib" title="Apagar"><i class="ti ti-power" aria-hidden="true"></i></span><span class="ib" title="Eliminar"><i class="ti ti-trash" aria-hidden="true"></i></span></div>
 </div></div>
+
+<h2>5 · La que junta lo que gustó de la 1 y la 2</h2>
+<p class="why">El orden de la 1, con lo que pediste de la 2: solo dos protagonistas, el activador y el texto. Sin interruptor, sin botón Editar y sin pie. <strong>Editar es hacer clic en el texto</strong>: al pasar el ratón la caja se marca y aparece Copiar en su esquina; el clic abre el editor de siempre (nada se guarda solo). Apagar, mover y eliminar viven en «⋯», el mismo menú que ya sale con clic derecho en la fila. El estado solo se ve cuando es raro: una expansión apagada dice «Apagada» bajo el nombre. Un activador largo baja de línea en su propia letra, y el nombre, más tenue, va debajo con su carpeta; la estrella, el «⋯» y la ✕ se quedan arriba a la derecha y nunca se montan sobre el texto.</p>
+<div class="k two">
+<div><div class="panel">
+<div class="row top"><span class="trig wrap">;dir</span><span class="ib on"><i class="ti ti-star-filled" aria-hidden="true"></i></span><span class="ib"><i class="ti ti-dots" aria-hidden="true"></i></span><span class="ib"><i class="ti ti-x" aria-hidden="true"></i></span></div>
+<div class="name">Dirección de la oficina<i class="ti ti-folder" aria-hidden="true"></i> Trabajo</div>
+<div class="body">Av. Reforma 222, piso 9
+Col. Juárez, CDMX 06600<span class="cp"><i class="ti ti-copy" aria-hidden="true"></i></span></div>
+</div><div class="tag">En reposo</div></div>
+<div><div class="panel">
+<div class="row top"><span class="trig wrap">;respuestaclientefactura</span><span class="ib"><i class="ti ti-star" aria-hidden="true"></i></span><span class="ib"><i class="ti ti-dots" aria-hidden="true"></i></span><span class="ib"><i class="ti ti-x" aria-hidden="true"></i></span></div>
+<div class="name">Respuesta al cliente que pide su factura del mes pasado<i class="ti ti-folder" aria-hidden="true"></i> Soporte</div>
+<div class="off"><i class="ti ti-power" aria-hidden="true"></i>Apagada</div>
+<div class="body hover">Hola, gracias por escribirnos.
+Te adjunto la factura de octubre; si necesitas otro dato fiscal, dímelo y la corrijo hoy mismo.<span class="cp"><i class="ti ti-copy" aria-hidden="true"></i></span></div>
+</div><div class="tag">Largo, apagado, con el ratón sobre el texto</div></div>
+<div><div class="menu" style="width:200px"><div class="h"><i class="ti ti-pencil" aria-hidden="true"></i>Editar</div><div><i class="ti ti-power" aria-hidden="true"></i>Encender</div><div><i class="ti ti-folder" aria-hidden="true"></i>Mover a carpeta</div><hr><div><i class="ti ti-trash" aria-hidden="true"></i>Eliminar</div></div>
+<div class="tag">«⋯», igual que el clic derecho en la fila</div></div>
+</div>
 </body>
 </html>

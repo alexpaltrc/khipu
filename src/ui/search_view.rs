@@ -685,7 +685,7 @@ fn glide_selection(
         *glide = Glide { top: target, speed: 0.0 };
     } else {
         let dt = ui.input(|i| i.stable_dt).clamp(0.0, 1.0 / 20.0);
-        let (x, v) = crate::ui::glide::spring_step(glide.top - target, glide.speed, dt);
+        let (x, v) = crate::ui::glide::chase(glide.top - target, glide.speed, ROW_HEIGHT, dt);
         if x.abs() > 0.1 || v.abs() > 0.5 {
             *glide = Glide { top: target + x, speed: v };
             ui.ctx().request_repaint();

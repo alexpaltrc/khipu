@@ -45,17 +45,15 @@
 use std::collections::HashMap;
 
 /// How quickly a wash reaches its target: a critically damped spring, so it arrives without
-/// bouncing. At 34 it covers nine tenths of the way in about 0.11 s.
+/// bouncing. At 34 it covers nine tenths of the way in about 0.11 s. The shape keeps its size on the
+/// way — it slides, it does not stretch — and only grows or shrinks when the controls differ.
 const OMEGA: f32 = 34.0;
-/// On a trip, the edge in front and the edge behind: the front one leaves sooner and the back one
-/// follows, so a wash on its way stretches towards where it is going and gathers itself as it
-/// arrives, like something liquid being drawn along rather than a box sliding. On the hop to the
-/// next row the stretch is a few pixels; on a fast sweep across a menu it is the movement itself.
-const OMEGA_FRONT: f32 = 44.0;
-const OMEGA_BACK: f32 = 26.0;
-/// The longest a wash may draw out on its way, as a share of where it is going: past this, the
-/// edge behind is pulled along, so a very fast sweep never turns into a long smear.
-const STRETCH: f32 = 0.6;
+/// How far behind the control it is heading for a wash may fall, in that control's own heights (or
+/// widths, for a row of buttons): one. A slow hop to the next row is a short glide. A fast sweep
+/// down a long menu does not leave the wash rows behind, to come chasing after the pointer has
+/// stopped: it rides one row behind the pointer and settles the moment it stops, in the same tenth
+/// of a second as the slow hop. Slow, normal or fast, it is the same movement.
+const REACH: f32 = 1.0;
 /// How long a wash takes to appear, and to go.
 const FADE_IN: f32 = 0.10;
 const FADE_OUT: f32 = 0.16;
@@ -68,43 +66,21 @@ const LINGER: f32 = 0.07;
 const LAND_BELOW: f32 = 0.35;
 
 /// One step of a critically damped spring, exact for any `dt`: `x` is the distance still to go,
-/// `v` the speed. Returns both after `dt` seconds.
-pub fn spring_step(x: f32, v: f32, dt: f32) -> (f32, f32) {
-    spring_step_at(OMEGA, x, v, dt)
-}
-
-fn spring_step_at(omega: f32, x: f32, v: f32, dt: f32) -> (f32, f32) {
-    let decay = (-omega * dt).exp();
-    let b = v + omega * x;
-    ((x + b * dt) * decay, (v - omega * b * dt) * decay)
-}
-
-/// Moves one axis of a wash, `[low edge, high edge]`, a frame towards `to`, the edge in front
-/// faster than the one behind.
-fn chase_span(span: [f32; 2], speed: &mut [f32; 2], to: [f32; 2], dt: f32) -> [f32; 2] {
-    let ahead = (to[0] + to[1]) - (span[0] + span[1]);
-    let (low, high) = if ahead > 1.0 {
-        (OMEGA_BACK, OMEGA_FRONT)
-    } else if ahead < -1.0 {
-        (OMEGA_FRONT, OMEGA_BACK)
+/// `v` the speed. Returns both after `dt` seconds, never further than `reach` from the goal.
+///
+/// Held back at `reach`, the speed becomes the one that brings it in along a plain exponential —
+/// straight in and slowing down, with neither a start from rest that would read as hesitation nor
+/// a run-up that would carry it past the goal.
+pub fn chase(x: f32, v: f32, reach: f32, dt: f32) -> (f32, f32) {
+    let decay = (-OMEGA * dt).exp();
+    let b = v + OMEGA * x;
+    let (x, v) = ((x + b * dt) * decay, (v - OMEGA * b * dt) * decay);
+    if x.abs() > reach {
+        let x = reach.copysign(x);
+        (x, -OMEGA * x)
     } else {
-        (OMEGA, OMEGA)
-    };
-    let (x0, v0) = spring_step_at(low, span[0] - to[0], speed[0], dt);
-    let (x1, v1) = spring_step_at(high, span[1] - to[1], speed[1], dt);
-    let (mut lo, mut hi) = (to[0] + x0, to[1] + x1);
-    *speed = [v0, v1];
-    let longest = (to[1] - to[0]).max(0.0) * (1.0 + STRETCH);
-    if hi - lo > longest {
-        if ahead > 0.0 {
-            lo = hi - longest;
-            speed[0] = speed[1];
-        } else {
-            hi = lo + longest;
-            speed[1] = speed[0];
-        }
+        (x, v)
     }
-    [lo, hi.max(lo)]
 }
 
 /// How one wash moves: where it is, how fast each edge travels, and how lit it is. The groups
@@ -112,7 +88,7 @@ fn chase_span(span: [f32; 2], speed: &mut [f32; 2], to: [f32; 2], dt: f32) -> [f
 #[derive(Clone, Copy)]
 pub struct Wash {
     pub rect: egui::Rect,
-    /// Left, right, top, bottom.
+    /// Across, down, wider, taller.
     speed: [f32; 4],
     /// 0 is gone, 1 is fully lit.
     pub alpha: f32,
@@ -137,11 +113,17 @@ impl Wash {
                     self.rect = to;
                     self.speed = [0.0; 4];
                 } else {
-                    let (mut sx, mut sy) = ([self.speed[0], self.speed[1]], [self.speed[2], self.speed[3]]);
-                    let [l, r] = chase_span([self.rect.left(), self.rect.right()], &mut sx, [to.left(), to.right()], dt);
-                    let [t, b] = chase_span([self.rect.top(), self.rect.bottom()], &mut sy, [to.top(), to.bottom()], dt);
-                    self.rect = egui::Rect::from_min_max(egui::pos2(l, t), egui::pos2(r, b));
-                    self.speed = [sx[0], sx[1], sy[0], sy[1]];
+                    let (off, grow) = (self.rect.center() - to.center(), self.rect.size() - to.size());
+                    let reach = to.size() * REACH;
+                    let (x, vx) = chase(off.x, self.speed[0], reach.x, dt);
+                    let (y, vy) = chase(off.y, self.speed[1], reach.y, dt);
+                    let (w, vw) = chase(grow.x, self.speed[2], f32::INFINITY, dt);
+                    let (h, vh) = chase(grow.y, self.speed[3], f32::INFINITY, dt);
+                    self.rect = egui::Rect::from_center_size(
+                        to.center() + egui::vec2(x, y),
+                        (to.size() + egui::vec2(w, h)).max(egui::Vec2::ZERO),
+                    );
+                    self.speed = [vx, vy, vw, vh];
                 }
                 self.alpha = if animate { (self.alpha + dt / FADE_IN).min(1.0) } else { 1.0 };
                 let moving = (self.rect.min - to.min).length() > 0.1
@@ -305,37 +287,53 @@ pub fn end_frame(ctx: &egui::Context) {
 mod tests {
     use super::*;
 
-    /// Runs one axis from `from` to `to` at 60 frames a second, and returns every frame's span.
-    fn trip(from: [f32; 2], to: [f32; 2], frames: usize) -> Vec<[f32; 2]> {
-        let (mut span, mut speed) = (from, [0.0; 2]);
-        (0..frames).map(|_| { span = chase_span(span, &mut speed, to, 1.0 / 60.0); span }).collect()
-    }
+    const ROW: f32 = 36.0;
+    const DT: f32 = 1.0 / 60.0;
 
-    #[test]
-    fn a_wash_on_its_way_leans_forward_and_never_smears() {
-        // A sweep from the first row to the twentieth, 36 px each.
-        let frames = trip([0.0, 36.0], [684.0, 720.0], 40);
-        assert!(frames.iter().any(|s| s[1] - s[0] > 37.0), "it never stretched");
-        for s in &frames {
-            assert!(s[1] - s[0] <= 36.0 * (1.0 + STRETCH) + 0.01, "it smeared to {}", s[1] - s[0]);
-            assert!(s[1] >= s[0]);
+    /// A pointer going down a long list a row every `frames_per_row` frames (a fraction for more
+    /// than one row a frame) for 20 rows, then resting; returns, every frame, where the wash's top
+    /// is and where the row under the pointer starts.
+    fn sweep(frames_per_row: f32) -> Vec<(f32, f32)> {
+        let (mut x, mut v, mut out) = (0.0, 0.0, Vec::new());
+        let moving = (20.0 * frames_per_row).ceil() as usize;
+        let mut was = 0.0;
+        for frame in 1..=moving + 30 {
+            let row = ((frame as f32 / frames_per_row).floor()).min(20.0);
+            let to = row * ROW;
+            // The wash is kept as how far it still is from its goal: a new goal moves that.
+            x += was - to;
+            was = to;
+            (x, v) = chase(x, v, ROW * REACH, DT);
+            out.push((to + x, to));
         }
+        out
     }
 
     #[test]
-    fn a_wash_arrives_without_overshooting() {
-        for (from, to) in [([0.0, 36.0], [36.0, 72.0]), ([684.0, 720.0], [0.0, 36.0])] {
-            let frames = trip(from, to, 30);
-            let down = to[0] > from[0];
-            for s in &frames {
-                if down {
-                    assert!(s[1] <= to[1] + 0.01 && s[0] <= to[0] + 0.01);
-                } else {
-                    assert!(s[0] >= to[0] - 0.01 && s[1] >= to[1] - 0.01);
-                }
+    fn slow_normal_and_fast_all_look_the_same() {
+        // Slow: a row every 12 frames. Normal: every 4. Fast: three rows a frame.
+        for pace in [12.0, 4.0, 1.0 / 3.0] {
+            let frames = sweep(pace);
+            let mut last = f32::NEG_INFINITY;
+            for &(top, goal) in &frames {
+                assert!(goal - top <= ROW + 0.01, "at pace {pace} it fell {} behind", goal - top);
+                assert!(top <= goal + 0.01, "at pace {pace} it ran past the row");
+                assert!(top >= last - 0.01, "at pace {pace} it went backwards");
+                last = top;
             }
-            let last = frames.last().unwrap();
-            assert!((last[0] - to[0]).abs() < 0.1 && (last[1] - to[1]).abs() < 0.1, "still on its way: {last:?}");
+            let (top, goal) = *frames.last().unwrap();
+            assert!((goal - top).abs() < 0.1, "at pace {pace} it never settled");
         }
+    }
+
+    #[test]
+    fn a_wash_settles_as_quickly_after_a_sweep_as_after_one_row() {
+        let settle = |pace: f32| {
+            let frames = sweep(pace);
+            let stop = frames.iter().position(|&(_, goal)| goal >= 20.0 * ROW).unwrap();
+            frames[stop..].iter().position(|&(top, goal)| goal - top < 1.0).unwrap()
+        };
+        let (slow, fast) = (settle(12.0), settle(1.0 / 3.0));
+        assert!(fast <= 9 && slow <= 9, "settled in {slow} and {fast} frames");
     }
 }

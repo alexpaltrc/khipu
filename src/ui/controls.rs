@@ -1655,13 +1655,20 @@ pub fn quiet_field(ui: &mut egui::Ui, id: egui::Id, text: &mut String, hint: &st
             visuals.text_edit_bg_color = Some(egui::Color32::TRANSPARENT);
             visuals.widgets.inactive.bg_stroke = egui::Stroke::NONE;
         }
+        // Exactly as tall as Cancelar and Guardar: a shorter box looks like a smaller control, and
+        // a taller one makes the row centre what came before it on a shorter line, lifting the
+        // star and the folder. The margins make up the difference to the line of text.
+        let room = (FIELD_HEIGHT - ui.text_style_height(&egui::TextStyle::Body)).max(0.0);
+        let margin = egui::Margin {
+            left: TOOL_PAD_X as i8,
+            right: TOOL_PAD_X as i8,
+            top: (room * 0.5).ceil() as i8,
+            bottom: (room * 0.5).floor() as i8,
+        };
         ui.add(
             text_field(text)
                 .id(id)
-                // Exactly as tall as the buttons beside it: a taller box would make the row centre
-                // what came before it on a shorter line, lifting the star and the folder.
-                .margin(egui::Margin::symmetric(TOOL_PAD_X as i8, 0))
-                .min_size(egui::vec2(0.0, FIELD_HEIGHT))
+                .margin(margin)
                 .desired_width(width - TOOL_PAD_X * 2.0)
                 .hint_text(hint),
         )

@@ -4201,6 +4201,7 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
     let expanded = pending.expanded;
 
     let mut confirm = false;
+    let mut keep = false;
     let mut cancel = false;
     let mut expand = false;
 
@@ -4266,10 +4267,15 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
 
         ui.add_space(controls::GAP_WIDE);
         controls::dialog_buttons(ui, |ui| {
-            // Both answers keep the new prefix; they differ only in what it reaches, so each says so.
-            let keep = studio::text(state, "Solo las nuevas", "Only new ones", "Bago lang", "सिर्फ़ नए");
-            if controls::button(ui, keep, Tone::Normal, true).clicked() {
+            // Windows' order for three answers: the two that keep the new prefix, which differ only
+            // in what it reaches, and Cancelar, which keeps the old one, as anyone only looking
+            // around Ajustes expects.
+            if controls::button(ui, t.cancel, Tone::Normal, true).clicked() {
                 cancel = true;
+            }
+            let only_new = studio::text(state, "Solo las nuevas", "Only new ones", "Bago lang", "सिर्फ़ नए");
+            if controls::button(ui, only_new, Tone::Normal, true).clicked() {
+                keep = true;
             }
             let label = studio::text(state, "Cambiarlas", "Change them", "Palitan", "बदलें");
             if controls::button(ui, label, Tone::Primary, true).clicked() {
@@ -4278,7 +4284,8 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
         });
     });
 
-    if modal.backdrop_response.clicked() {
+    // A click beside it or Esc is a «no» to all of it, never a choice between the answers.
+    if modal.should_close() {
         cancel = true;
     }
     if expand {
@@ -4288,8 +4295,10 @@ pub fn show_pending_confirm(ctx: &egui::Context, state: &mut AppState) {
     }
     if confirm {
         state.confirm_pending();
-    } else if cancel {
+    } else if keep {
         state.cancel_pending_confirm();
+    } else if cancel {
+        state.cancel_prefix_change();
     }
 }
 
