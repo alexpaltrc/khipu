@@ -14,6 +14,10 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
 - Alex no programa: usa cada día la versión más reciente (Khipu Dev) para encontrar bugs e ideas.
 - Informes **en español**, resumidos, para alguien no técnico, y honestos: lo que no se pudo
   medir se dice que no se pudo medir. Al cerrar un cambio, decir exactamente qué probar.
+- **Lo que lee el usuario dice qué hay de nuevo y nada más** (decisión de Alex, 2026-11-22):
+  novedades, notas de versión, consejos y mensajes, en palabras de quien usa la app. Nunca el
+  porqué técnico ni cómo funciona por dentro («ya se respetan las líneas en blanco entre
+  párrafos», no «ya no se pegan al expandir»). El detalle técnico va solo en `CHANGELOG.md`.
 - Prioridades, en orden: ultraminimalista, ultra simple, moderno, nativo de Windows 11,
   rendimiento medido, elegancia. Ante la duda, la opción más simple.
 - Cada pantalla se sigue empujando a ser **más agradable a la vista, más satisfactoria de usar y

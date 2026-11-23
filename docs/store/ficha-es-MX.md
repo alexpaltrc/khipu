@@ -94,7 +94,7 @@ Ctrl+Z deshace y Ctrl+Y rehace, paso a paso. Por eso borrar ya no pregunta: si t
 Elegir varias tiene su propia pastilla al pie, con todas sus acciones.
 Crear una expansión es más corto: la estrella, la carpeta y el nombre van al pie del editor.
 Ajustes y las opciones de cada carpeta, más sencillos.
-Los párrafos separados por una línea en blanco ya no se pegan al expandir.
+Ahora se respetan las líneas en blanco que separan tus párrafos.
 Khipu recuerda el tamaño de la ventana tras actualizar o apagar el equipo.
 Ya no se cierra con un lector de pantalla abierto.
 Se quitó «Copiar texto».

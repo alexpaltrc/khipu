@@ -94,7 +94,7 @@ Ctrl+Z undoes and Ctrl+Y redoes, step by step. That is why deleting no longer as
 Choosing several has its own pill at the bottom, with all its actions.
 Making an expansion is shorter: the star, the folder and the name sit at the foot of the editor.
 Settings and each folder's options, simpler.
-Paragraphs separated by a blank line no longer run together when expanded.
+The blank lines between your paragraphs are now kept.
 Khipu remembers the window size after an update or a shutdown.
 No more closing with a screen reader running.
 Copy text was removed.

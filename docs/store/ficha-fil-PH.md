@@ -98,7 +98,7 @@ Ina-undo ng Ctrl+Z at ibinabalik ng Ctrl+Y, isa-isa. Kaya hindi na nagtatanong a
 May sariling pill sa ibaba ang pagpili ng marami, kasama ang lahat ng aksyon nito.
 Mas maikli ang paggawa ng expansion: nasa ibaba ng editor ang bituin, ang folder at ang pangalan.
 Mas simple ang Settings at ang mga opsyon ng bawat folder.
-Hindi na nagdidikit ang mga talatang may pagitang blangkong linya kapag na-expand.
+Napapanatili na ang mga blangkong linya sa pagitan ng iyong mga talata.
 Naaalala ng Khipu ang laki ng window pagkatapos mag-update o mag-shut down.
 Hindi na nagsasara kapag may screen reader na tumatakbo.
 Inalis ang Kopyahin ang teksto.
