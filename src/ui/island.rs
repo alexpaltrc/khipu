@@ -112,8 +112,6 @@ const RIPPLE: f64 = 0.52;
 pub enum Source {
     /// The list's round «+», drawn where this rect is: it becomes the island, and the island it.
     Plus(egui::Rect),
-    /// Nothing, with its foot here: the window's own messages where the «+» is not drawn.
-    Window(egui::Pos2),
     /// Nothing, with its foot here, over Ajustes: what Ajustes' own buttons did.
     Settings(egui::Pos2),
     /// Nothing, with its foot here, above the selection island: what was done while choosing.
@@ -124,7 +122,7 @@ impl Source {
     fn foot(self) -> egui::Pos2 {
         match self {
             Source::Plus(circle) => circle.center_bottom(),
-            Source::Window(foot) | Source::Settings(foot) | Source::Over(foot) => foot,
+            Source::Settings(foot) | Source::Over(foot) => foot,
         }
     }
 
@@ -140,7 +138,7 @@ impl Source {
         egui::Id::new(match self {
             Source::Settings(_) => "settings-island",
             Source::Over(_) => "island-over",
-            Source::Plus(_) | Source::Window(_) => "island",
+            Source::Plus(_) => "island",
         })
     }
 }
@@ -148,6 +146,18 @@ impl Source {
 /// Whether the island from `source` is on screen, saying something or on its way out.
 pub fn alive(ctx: &egui::Context, source: Source) -> bool {
     ctx.data(|d| d.get_temp::<Island>(source.id()).is_some())
+}
+
+/// Starts the list's island, with the next message, as a pill already `width` wide on the surface,
+/// the way another pill stood a moment ago: the drop island, when an expansion lands on a folder,
+/// becomes the island that says so instead of closing as it opens. Only for that next frame.
+pub fn seed(ctx: &egui::Context, width: f32) {
+    let frame = ctx.cumulative_frame_nr();
+    ctx.data_mut(|d| d.insert_temp(seed_id(), (width, frame)));
+}
+
+fn seed_id() -> egui::Id {
+    egui::Id::new("island-seed")
 }
 
 /// Lets go of the island over Ajustes, so the next time the dialog opens it starts afresh.
@@ -465,7 +475,21 @@ pub fn show(
         let delay = if source.rises() { RISE_WORDS_DELAY } else { WORDS_DELAY };
         let words = |at| Words { text, act, at, out: None };
         match island.as_mut() {
-            None => island = Some(Island::new(now, key, words(later(delay)), source, error)),
+            None => {
+                let mut isl = Island::new(now, key, words(later(delay)), source, error);
+                let frame = ctx.cumulative_frame_nr();
+                let seed = matches!(source, Source::Plus(_))
+                    .then(|| ctx.data_mut(|d| d.remove_temp::<(f32, u64)>(seed_id())))
+                    .flatten();
+                if let Some((width, _)) = seed.filter(|&(_, at)| frame <= at + 1) {
+                    isl.width = Spring { x: width, ..isl.width };
+                    isl.height = Spring { x: ISLAND_HEIGHT, ..isl.height };
+                    isl.morph = Spring { x: 1.0, to: 1.0, ..isl.morph };
+                    isl.tone = Spring { x: 1.0, to: 1.0, ..isl.tone };
+                    isl.icon = Spring { x: -width * 0.5 + ISLAND_ICON, ..isl.icon };
+                }
+                island = Some(isl);
+            }
             Some(isl) if isl.key != key || isl.phase == Phase::Closing => {
                 isl.say(later(0.0), words(later(SWAP_DELAY)));
                 isl.key = key;

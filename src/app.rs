@@ -3793,6 +3793,14 @@ pub(crate) fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput)
                 }
                 continue;
             }
+            // `m:x,y` only moves there: a press held by `d:` is carried along, a drag caught midway.
+            if let Some(rest) = line.strip_prefix("m:") {
+                let n: Vec<f32> = rest.split(',').filter_map(|n| n.trim().parse().ok()).collect();
+                if let [x, y] = n[..] {
+                    queue.push_back(vec![egui::Event::PointerMoved(egui::pos2(x / ppp, y / ppp))]);
+                }
+                continue;
+            }
             // `d:x,y` presses there and holds; `u:x,y` moves there and lets go — a press held, or
             // one dragged off what it was on.
             let held = line.strip_prefix("d:").map(|rest| (rest, true));

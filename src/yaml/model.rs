@@ -234,22 +234,6 @@ impl MatchEntry {
         }
     }
 
-    /// The text as the user wrote it, line breaks and all, for the one place that shows it whole
-    /// and copies it. [`preview`](Self::preview) flattens lines because a list row has one; a
-    /// three-line signature read back as one line, and was copied as one, is not the signature.
-    /// Dates and the matches the form cannot edit have no single text to show, so they keep
-    /// their preview.
-    pub fn full_text(&self, t: &'static Strings) -> String {
-        match self {
-            MatchEntry::Simple(m) if m.text_vars().is_some() && !m.is_only_date() => m.replace.clone(),
-            MatchEntry::Simple(m) => match m.as_form() {
-                Some(form) => form.template,
-                None => self.preview(t),
-            },
-            _ => self.preview(t),
-        }
-    }
-
     /// Whether the simple form can safely rewrite this match's `replace`/`vars` without losing
     /// anything. A text with, at most, the date and what was last copied in it qualifies, and so
     /// does one of our own forms (see [`super::form`]); a match with other kinds of `vars` (shell
@@ -584,15 +568,6 @@ mod tests {
         assert_eq!(date("          format: \"%Y\"\n          tz: Europe/Madrid\n"), None);
         assert_eq!(date("          format: \"%B\"\n          locale: fr-FR\n"), None);
         assert_eq!(date("          format: \"%Y\"\n          offset: 86400\n"), None);
-    }
-
-    #[test]
-    fn the_whole_text_keeps_its_lines_and_only_the_preview_flattens_them() {
-        let text = "matches:\n  - trigger: \":sig\"\n    replace: |-\n      Best regards,\n      Jamie\n";
-        let mf = MatchFile::from_str(text).expect("loads");
-        let t = crate::i18n::Lang::En.strings();
-        assert_eq!(mf.entries[0].full_text(t), "Best regards,\nJamie");
-        assert_eq!(mf.entries[0].preview(t), "Best regards, Jamie");
     }
 
     #[test]

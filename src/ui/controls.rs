@@ -428,23 +428,6 @@ pub fn paint_pills(ui: &egui::Ui, galley: &egui::Galley, origin: egui::Pos2, is_
     ui.painter().extend(pill_shapes(ui, galley, origin, is_light));
 }
 
-/// A wrapping label that can be selected, with the pills of [`marked_with_pills`] drawn behind it.
-/// The label draws itself, selection and all; the pills go in a slot kept for them underneath,
-/// filled once the label has said where its text landed.
-pub fn wrapped_with_pills(ui: &mut egui::Ui, text: &str, ink: egui::Color32, is_light: bool) -> egui::Response {
-    let font = egui::TextStyle::Body.resolve(ui.style());
-    let pill_ink = accent(ui.visuals());
-    let mut job = egui::text::LayoutJob::default();
-    marked_with_pills(&mut job, text, "", &font, ink, pill_ink, pill_ink);
-    let slot = ui.painter().add(egui::Shape::Noop);
-    let mut laid = job.clone();
-    let response = ui.add(egui::Label::new(job).wrap().selectable(true));
-    laid.wrap.max_width = response.rect.width();
-    let galley = ui.fonts_mut(|f| f.layout_job(laid));
-    ui.painter().set(slot, pill_shapes(ui, &galley, response.rect.min, is_light));
-    response
-}
-
 /// A one-line label cut at the edge, with the pills of [`marked_with_pills`] drawn behind it.
 pub fn label_with_pills(ui: &mut egui::Ui, job: egui::text::LayoutJob, is_light: bool) -> egui::Response {
     let (origin, galley, mut response) = egui::Label::new(job).truncate().selectable(false).layout_in_ui(ui);
@@ -982,86 +965,7 @@ pub fn widget_line(
     )
 }
 
-// --- Chips and checkboxes ----------------------------------------------------------------------
-
-/// Space between a chip's edge and its words.
-const CHIP_PAD_X: f32 = 11.0;
-/// Space between a chip's name and its count.
-const CHIP_COUNT_GAP: f32 = 5.0;
-
-/// One folder filter: a rectangle with the folder's name and, when there is one, its count.
-///
-/// Chosen state is carried three ways at once — fill, border and colour — because one of them alone
-/// is a problem for somebody: fill alone disappears on a dim panel, colour alone disappears for a
-/// colour-blind reader, and border alone is too quiet to find at a glance.
-pub fn chip(
-    ui: &mut egui::Ui,
-    label: &str,
-    count: Option<usize>,
-    selected: bool,
-) -> egui::Response {
-
-    let is_light = !ui.visuals().dark_mode;
-    let accent_color = accent(ui.visuals());
-    let ink = if selected { accent_color } else { ui.visuals().text_color() };
-
-    let name_font = egui::TextStyle::Button.resolve(ui.style());
-    let count_font = egui::TextStyle::Small.resolve(ui.style());
-
-    // Laid out before anything is allocated, so the chip asks for exactly the width its words need.
-    // Nothing here ever shrinks the text to make a row fit: the row wraps instead.
-    let name = ui
-        .painter()
-        .layout_no_wrap(label.to_owned(), name_font, ink);
-    let tally = count.map(|n| {
-        ui.painter()
-            .layout_no_wrap(n.to_string(), count_font, secondary_text(is_light))
-    });
-
-    let mut width = name.size().x + CHIP_PAD_X * 2.0;
-    if let Some(tally) = &tally {
-        width += CHIP_COUNT_GAP + tally.size().x;
-    }
-    let (rect, response) =
-        ui.allocate_exact_size(egui::vec2(width, FIELD_HEIGHT), egui::Sense::click());
-
-    if ui.is_rect_visible(rect) {
-        let fill = if selected {
-            selection_tint(is_light, accent_color)
-        } else if response.hovered() {
-            hover_tint(is_light)
-        } else {
-            win_control_for(is_light)
-        };
-        let edge = if selected { accent_color } else { hairline(is_light) };
-        let painter = ui.painter();
-        painter.rect_filled(rect, RADIUS_CONTROL, fill);
-        painter.rect_stroke(
-            rect,
-            RADIUS_CONTROL,
-            egui::Stroke::new(1.0, edge),
-            egui::StrokeKind::Inside,
-        );
-
-        let mut x = rect.left() + CHIP_PAD_X;
-        let name_size = name.size();
-        let name_top = rect.center().y - name_size.y * 0.5;
-        let name_baseline = name_top + baseline(&name);
-        painter.galley(egui::pos2(x, name_top), name, ink);
-        x += name_size.x + CHIP_COUNT_GAP;
-        if let Some(tally) = tally {
-            // On the name's baseline rather than centred beside it. See [`baseline`].
-            let top = name_baseline - baseline(&tally);
-            painter.galley(egui::pos2(x, top), tally, secondary_text(is_light));
-        }
-    }
-
-    if response.hovered() {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-    }
-    focus_ring(ui, &response, f32::from(RADIUS_CONTROL));
-    response
-}
+// --- Checkboxes -------------------------------------------------------------------------------
 
 /// The square that marks one item of a set. Painted rather than `egui::Checkbox` so it is the size
 /// the design says ([`CHECKBOX`], 18 points) and carries the accent, instead of egui's own smaller
@@ -1829,6 +1733,59 @@ pub fn menu_item(
     menu_line(ui, glyph, label, keys, tone, enabled, false, true)
 }
 
+/// One step of a [`menu_pair`]: its icon, the icon's ink when it is not the words' (the filled star
+/// of a favourite, in the accent), its short label and what it says on hover.
+pub struct PairItem<'a> {
+    pub glyph: Glyph,
+    pub glyph_ink: Option<egui::Color32>,
+    pub label: &'a str,
+    pub tip: &'a str,
+}
+
+/// Two commands side by side on one menu line, each half its width with its icon and a short word
+/// centred together — the row of quick actions a Windows 11 context menu opens with. Returns which
+/// was clicked; either closes the menu.
+pub fn menu_pair(ui: &mut egui::Ui, items: [PairItem<'_>; 2]) -> [bool; 2] {
+    let gap = GAP_TIGHT;
+    let half = ((ui.available_width() - gap) * 0.5).floor();
+    let ink = ui.visuals().text_color();
+    let mut clicked = [false; 2];
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = gap;
+        for (n, item) in items.iter().enumerate() {
+            let (rect, response) = ui.allocate_exact_size(egui::vec2(half, MENU_ROW), egui::Sense::click());
+            let response = response.on_hover_text(item.tip);
+            subtle_wash(ui, &response, true);
+            if ui.is_rect_visible(rect) {
+                let words = ui.painter().layout_no_wrap(
+                    item.label.to_owned(),
+                    egui::TextStyle::Button.resolve(ui.style()),
+                    ink,
+                );
+                let both = glyphs::SIZE + GAP + words.size().x;
+                let left = (rect.center().x - both * 0.5).max(rect.left() + MENU_PAD_X).round();
+                let icon = egui::Rect::from_min_size(
+                    egui::pos2(left, rect.center().y - glyphs::SIZE * 0.5),
+                    egui::Vec2::splat(glyphs::SIZE),
+                );
+                glyphs::paint(ui, icon, item.glyph, glyphs::SIZE, item.glyph_ink.unwrap_or(ink));
+                let top = rect.center().y - words.size().y * 0.5;
+                ui.painter().galley(egui::pos2(icon.right() + GAP, top), words, ink);
+            }
+            if response.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, item.tip));
+            focus_ring(ui, &response, f32::from(RADIUS_CONTROL));
+            if response.clicked() {
+                clicked[n] = true;
+                ui.close();
+            }
+        }
+    });
+    clicked
+}
+
 /// A [`menu_item`] that leaves its menu open, for a line that turns into something else in place —
 /// «Nueva carpeta» becoming the box for the name.
 pub fn menu_item_staying(ui: &mut egui::Ui, glyph: Option<Glyph>, label: &str) -> egui::Response {
@@ -2040,32 +1997,6 @@ pub fn accent_bar_grown(ui: &egui::Ui, row: egui::Rect, grown: f32) {
         egui::vec2(3.0, (full * grown).max(3.0)),
     );
     ui.painter().rect_filled(bar, 2, fill);
-}
-
-/// A borderless icon button that copies `text` and, for a moment afterwards, shows a check in place
-/// of its icon — the only confirmation a copy needs.
-pub fn copy_button(
-    ui: &mut egui::Ui,
-    id: egui::Id,
-    text: &str,
-    tip: &str,
-    done_tip: &str,
-) -> egui::Response {
-    const SHOWN: f64 = 1.5;
-    let now = ui.input(|i| i.time);
-    let copied_at = ui.ctx().data(|d| d.get_temp::<f64>(id));
-    let done = copied_at.is_some_and(|t| now - t < SHOWN);
-    let glyph = if done { Glyph::Check } else { Glyph::Copy };
-    let response = icon_button(ui, glyph, if done { done_tip } else { tip }, true);
-    if response.clicked() {
-        ui.ctx().copy_text(text.to_owned());
-        ui.ctx().data_mut(|d| d.insert_temp(id, now));
-        ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(SHOWN));
-    } else if let Some(at) = copied_at.filter(|_| done) {
-        let left = SHOWN - (now - at);
-        ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(left.max(0.05)));
-    }
-    response
 }
 
 /// Room inside the search box's left edge for the magnifier.

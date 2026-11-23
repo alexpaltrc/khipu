@@ -10,8 +10,21 @@ was published.
 - **A roomier window on first open.** Khipu now opens at 1240 × 840 (or 94% of a smaller
   screen), wide enough for the editor to keep its preview on the right. Any size you give it is
   kept.
-- **A new «Novedades» card for 0.0.10.** Dates you can see, undo and redo, choosing several in
-  sight, and texts pasted just as they were written.
+- **A new «Novedades» card for 0.0.10.** One click to edit, dropping on a folder, dates you can
+  see, and undo and redo.
+- **One click opens the editor.** The detail panel on the right is gone: clicking an expansion
+  edits it, and coming back leaves the list where it was, with that row lit for a moment.
+- **A shorter right-click menu.** Favorita and Mover side by side on one line, then Cambiar
+  activador, Apagar or Encender, and Eliminar. Editar left it (a click does that now), and so did
+  «Copiar texto»: copying an expansion's text is gone from Khipu.
+- **Drop an expansion on a folder.** Picking one up grows a pill out of the «+» with your
+  folders as chips; the folder it is already in is dimmed, «Sin carpeta» comes last (only when
+  it would change something), and a narrow window folds the rest into «Más…». Dropping on a chip
+  moves it, and the pill turns into the message with «Deshacer»; letting go anywhere else folds it
+  back into the «+».
+- **Every tip in Consejos reviewed** for the new click, menu and drop, with a new tip on
+  expansions that ask a question when used, «No expandir en» in the Ajustes tip, and Ctrl+Z and
+  Ctrl+Y in the shortcut table.
 - **The «+» is always at hand.** When a message pill grows out of it (an expansion deleted,
   switched off, moved…), a «+» buds from the pill's end and waits beside it, the two centred as
   one row, and slides back in when the message ends.
@@ -78,9 +91,8 @@ was published.
   measured it as zero, "repaired" it to the smallest size and saved that as yours.
 - **Text sits in the middle of its buttons, pills and rows.** Segoe UI letters were drawn 1 to
   1.5 pixels under the centre, so labels looked low and the icons beside them looked high. Every
-  text face is now drawn a pixel higher. Also lined up: the expansion's title in the detail panel
-  (it stood 9 pixels above the star and ✕), «;hola» in Consejos' example, and the editor's step
-  numbers.
+  text face is now drawn a pixel higher. Also lined up: «;hola» in Consejos' example and the
+  editor's step numbers.
 - **Smaller alignment fixes.** The compact view shows the form mark like the other views; the
   editor's folder list starts where every field starts, with «+» after it; a form opened without
   a name titles itself with its trigger in monospace; Consejos is centred under its title, an

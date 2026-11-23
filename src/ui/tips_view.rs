@@ -335,10 +335,10 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
             |ui| {
                 para(ui, text(
                     state,
-                    "Busca por el activador, por su nombre o por el texto que inserta; Ctrl+F lleva el cursor al buscador. Abre una fila para leer el texto completo: Editar y Eliminar están dentro de ese detalle, no en cada fila.",
-                    "Search by the trigger, by its name or by the text it inserts; Ctrl+F puts the cursor in the search box. Open a row to read the whole text: Edit and Delete live inside that detail, not on every row.",
-                    "Maghanap gamit ang trigger, ang pangalan nito o ang tekstong ipinapasok nito; dinadala ng Ctrl+F ang cursor sa paghahanap. Buksan ang isang row para mabasa ang buong teksto: nasa loob ng detalye ang I-edit at Tanggalin, hindi sa bawat row.",
-                    "ट्रिगर से, उसके नाम से या उसके डाले जाने वाले टेक्स्ट से खोजें; Ctrl+F कर्सर को खोज बॉक्स में ले जाता है। पूरा टेक्स्ट पढ़ने के लिए पंक्ति खोलें: संपादित करें और हटाएँ उसी विवरण के अंदर हैं, हर पंक्ति पर नहीं।",
+                    "Busca por el activador, por su nombre o por el texto que inserta; Ctrl+F lleva el cursor al buscador. Haz clic en una fila para editarla; al volver, la lista sigue donde estaba. Con clic derecho la marcas como favorita, la mueves a otra carpeta, le cambias el activador, la apagas o la eliminas. La estrella de arriba muestra solo tus favoritas.",
+                    "Search by the trigger, by its name or by the text it inserts; Ctrl+F puts the cursor in the search box. Click a row to edit it; when you come back, the list is where you left it. Right-click it to make it a favorite, move it to another folder, change its trigger, turn it off or delete it. The star at the top shows only your favorites.",
+                    "Maghanap gamit ang trigger, ang pangalan nito o ang tekstong ipinapasok nito; dinadala ng Ctrl+F ang cursor sa paghahanap. I-click ang isang row para i-edit ito; pagbalik mo, nasa dati pa rin ang listahan. I-right-click ito para gawing paborito, ilipat sa ibang folder, palitan ang trigger, patayin o tanggalin. Ang bituin sa itaas ay nagpapakita lang ng mga paborito mo.",
+                    "ट्रिगर से, उसके नाम से या उसके डाले जाने वाले टेक्स्ट से खोजें; Ctrl+F कर्सर को खोज बॉक्स में ले जाता है। किसी पंक्ति को संपादित करने के लिए उस पर क्लिक करें; लौटने पर सूची वहीं रहती है जहाँ आपने छोड़ी थी। दायाँ क्लिक करके उसे पसंदीदा बनाएँ, दूसरे फ़ोल्डर में ले जाएँ, ट्रिगर बदलें, बंद करें या हटाएँ। ऊपर का तारा केवल आपके पसंदीदा दिखाता है।",
                 ));
             },
         );
@@ -370,10 +370,10 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
         let folders_body = crate::i18n::fill(
             text(
                 state,
-                "El selector {all}, junto al buscador, muestra solo una carpeta o {none}. Para mover varias expansiones de una vez, elige {select} en el menú «…»; para mover una sola, arrástrala hasta una carpeta o usa el menú de su detalle. En el mismo selector están {new} y {options}, donde puedes cambiarle el nombre o el prefijo, exportarla o eliminarla.",
-                "The {all} picker, beside the search box, shows just one folder or {none}. To move several expansions at once, choose {select} in the «…» menu; to move one, drag it onto a folder or use the menu in its detail. The same picker holds {new} and {options}, where you can rename a folder, change its prefix, export it or delete it.",
-                "Ang {all} na pagpipilian, katabi ng paghahanap, ay nagpapakita ng isang folder lang o {none}. Para maglipat ng ilang expansion nang sabay, piliin ang {select} sa menu na «…»; para sa isa, i-drag ito sa isang folder o gamitin ang menu sa detalye nito. Nasa parehong pagpipilian ang {new} at {options}, kung saan mapapalitan ang pangalan o prefix, mai-e-export o matatanggal ang folder.",
-                "खोज के बगल वाला {all} चयनकर्ता केवल एक फ़ोल्डर या {none} दिखाता है। एक साथ कई विस्तार ले जाने के लिए «…» मेनू में {select} चुनें; एक को ले जाने के लिए उसे फ़ोल्डर पर खींचें या उसके विवरण का मेनू इस्तेमाल करें। उसी चयनकर्ता में {new} और {options} हैं, जहाँ फ़ोल्डर का नाम या उपसर्ग बदल सकते हैं, निर्यात या हटा सकते हैं।",
+                "El selector {all}, junto al buscador, muestra solo una carpeta o {none}. Para mover varias expansiones de una vez, elige {select} en el menú «…»; para mover una sola, arrástrala: abajo aparecen tus carpetas para soltarla en una, y también está Mover en su clic derecho. En el mismo selector están {new} y {options}, donde puedes cambiarle el nombre o el prefijo, apagarla, exportarla o eliminarla.",
+                "The {all} picker, beside the search box, shows just one folder or {none}. To move several expansions at once, choose {select} in the «…» menu; to move one, drag it: your folders appear at the bottom to drop it on, and Move is also on its right-click menu. The same picker holds {new} and {options}, where you can rename a folder, change its prefix, turn it off, export it or delete it.",
+                "Ang {all} na pagpipilian, katabi ng paghahanap, ay nagpapakita ng isang folder lang o {none}. Para maglipat ng ilang expansion nang sabay, piliin ang {select} sa menu na «…»; para sa isa, i-drag ito: lilitaw ang mga folder mo sa ibaba para doon ito bitawan, at nasa right-click menu rin nito ang Ilipat. Nasa parehong pagpipilian ang {new} at {options}, kung saan mapapalitan ang pangalan o prefix, mapapatay, mai-e-export o matatanggal ang folder.",
+                "खोज के बगल वाला {all} चयनकर्ता केवल एक फ़ोल्डर या {none} दिखाता है। एक साथ कई विस्तार ले जाने के लिए «…» मेनू में {select} चुनें; एक को ले जाने के लिए उसे खींचें: नीचे आपके फ़ोल्डर दिखते हैं, किसी एक पर छोड़ दें; उसके दायाँ-क्लिक मेनू में «ले जाएँ» भी है। उसी चयनकर्ता में {new} और {options} हैं, जहाँ फ़ोल्डर का नाम या उपसर्ग बदल सकते हैं, उसे बंद, निर्यात या हटा सकते हैं।",
             ),
             &[
                 ("all", text(state, "Todas las carpetas", "All folders", "Lahat ng folder", "सभी फ़ोल्डर")),
@@ -452,14 +452,29 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
         topic(
             ui,
             false,
+            text(state, "Preguntar al usarla", "Ask when it is used", "Magtanong habang ginagamit", "उपयोग करते समय पूछें"),
+            |ui| {
+                para(ui, text(
+                    state,
+                    "En el editor, pulsa Pregunta debajo del texto para dejar un hueco que llenas cada vez: al usar la expansión, Khipu te hace la pregunta en una ventana pequeña y tu respuesta se escribe ahí. Si seleccionas una palabra antes de pulsarlo, esa palabra se vuelve la pregunta. En su burbuja eliges si se contesta escribiendo o eligiendo entre opciones.",
+                    "In the editor, press Question under the text to leave a gap you fill each time: when you use the expansion, Khipu asks you in a small window and your answer is written there. Select a word before pressing it and that word becomes the question. In its bubble you choose whether it is answered by typing or by picking from options.",
+                    "Sa editor, pindutin ang Tanong sa ilalim ng teksto para mag-iwan ng puwang na pinupunan mo bawat beses: kapag ginamit mo ang expansion, itatanong ito ng Khipu sa isang maliit na window at doon isusulat ang sagot mo. Kung pipili ka ng salita bago ito pindutin, ang salitang iyon ang magiging tanong. Sa bubble nito pipiliin mo kung isusulat ang sagot o pipiliin mula sa mga pagpipilian.",
+                    "संपादक में, टेक्स्ट के नीचे सवाल दबाएँ ताकि एक खाली जगह बने जिसे आप हर बार भरें: विस्तार उपयोग करने पर Khipu एक छोटी विंडो में आपसे पूछता है और आपका जवाब वहीं लिखा जाता है। दबाने से पहले कोई शब्द चुनें तो वही शब्द सवाल बन जाता है। उसके बबल में आप चुनते हैं कि जवाब लिखकर दिया जाए या विकल्पों में से चुनकर।",
+                ));
+            },
+        );
+
+        topic(
+            ui,
+            false,
             text(state, "Apagar expansiones", "Turn expansions off", "Patayin ang mga expansion", "विस्तार बंद करना"),
             |ui| {
                 para(ui, text(
                     state,
-                    "Para un texto que usas de vez en cuando y no necesita activador, abre la expansión y apaga su interruptor de Estado. Apagada no se expande ni aparece en el lanzador, pero sigue en la lista, más tenue y al final de su carpeta: puedes copiar su texto desde ahí o volver a encenderla. Desde las opciones de una carpeta se apaga la carpeta entera.",
-                    "For a text you use now and then that needs no trigger, open the expansion and turn off its Status switch. Off, it neither expands nor shows in the launcher, but it stays in the list, dimmer and at the end of its folder: you can copy its text from there or turn it back on. A folder's options turn off the whole folder.",
-                    "Para sa tekstong paminsan-minsan mo lang ginagamit at hindi kailangan ng trigger, buksan ang expansion at patayin ang switch ng Katayuan nito. Kapag nakapatay, hindi ito nag-e-expand at wala sa launcher, pero nananatili ito sa listahan, mas malabo at nasa dulo ng folder nito: puwede mong kopyahin ang teksto nito roon o buksan itong muli. Sa mga opsyon ng isang folder, mapapatay ang buong folder.",
-                    "ऐसे टेक्स्ट के लिए जिसे आप कभी-कभी उपयोग करते हैं और जिसे ट्रिगर की ज़रूरत नहीं, विस्तार खोलें और उसका स्थिति स्विच बंद करें। बंद होने पर वह न विस्तार करता है, न लॉन्चर में दिखता है, पर सूची में रहता है, हल्का और अपने फ़ोल्डर के अंत में: वहाँ से उसका टेक्स्ट कॉपी कर सकते हैं या उसे फिर चालू कर सकते हैं। फ़ोल्डर के विकल्पों से पूरा फ़ोल्डर बंद होता है।",
+                    "Para dejar de usar una expansión sin perderla, haz clic derecho en ella y elige Apagar. Apagada no se expande ni aparece en el lanzador, pero sigue en la lista, más tenue y al final de su carpeta, lista para encenderla igual. Desde las opciones de una carpeta se apaga la carpeta entera, y con Seleccionar varias, muchas a la vez.",
+                    "To stop using an expansion without losing it, right-click it and choose Turn off. Off, it neither expands nor shows in the launcher, but it stays in the list, dimmer and at the end of its folder, ready to turn back on the same way. A folder's options turn off the whole folder, and Select several turns off many at once.",
+                    "Para itigil ang paggamit ng isang expansion nang hindi ito nawawala, i-right-click ito at piliin ang Patayin. Kapag nakapatay, hindi ito nag-e-expand at wala sa launcher, pero nananatili ito sa listahan, mas malabo at nasa dulo ng folder nito, handang buksang muli sa parehong paraan. Sa mga opsyon ng isang folder, mapapatay ang buong folder, at sa Pumili ng ilan, marami nang sabay.",
+                    "किसी विस्तार को खोए बिना उसका उपयोग रोकने के लिए उस पर दायाँ क्लिक करें और «बंद करें» चुनें। बंद होने पर वह न विस्तार करता है, न लॉन्चर में दिखता है, पर सूची में रहता है, हल्का और अपने फ़ोल्डर के अंत में, उसी तरह फिर चालू करने के लिए तैयार। फ़ोल्डर के विकल्पों से पूरा फ़ोल्डर बंद होता है, और «कई चुनें» से कई एक साथ।",
                 ));
             },
         );
@@ -517,6 +532,18 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
             part(ui, true, t.appearance_section, t.theme_hint);
             part(ui, false, t.language_section, t.language_hint);
             part(ui, false, t.prefix_section, t.prefix_hint);
+            part(
+                ui,
+                false,
+                text(state, "No expandir en", "Don't expand in", "Huwag mag-expand sa", "इनमें विस्तार न करें"),
+                text(
+                    state,
+                    "Programas donde tus expansiones no se activan, como un juego o un gestor de contraseñas. Pulsa Añadir y elige entre los que tienes abiertos; la × lo quita de la lista. Un navegador cuenta entero, con todas sus páginas.",
+                    "Programs where your expansions don't work, such as a game or a password manager. Press Add and choose from the ones you have open; the × takes one back off. A browser counts whole, every page in it.",
+                    "Mga program kung saan hindi gagana ang mga expansion mo, gaya ng laro o password manager. Pindutin ang Magdagdag at pumili sa mga bukas mo ngayon; inaalis ito ng ×. Buo ang browser, kasama ang lahat ng page nito.",
+                    "वे प्रोग्राम जिनमें आपके विस्तार काम नहीं करते, जैसे कोई गेम या पासवर्ड मैनेजर। «जोड़ें» दबाएँ और अभी खुले प्रोग्रामों में से चुनें; × उसे सूची से हटा देता है। ब्राउज़र पूरा गिना जाता है, उसके सभी पेज समेत।",
+                ),
+            );
             // Only where Settings shows it: see the same test in the search topic above.
             if state.hotkey.is_some() {
                 let default = crate::hotkey::DEFAULT.label(state.settings.lang);
@@ -548,7 +575,7 @@ fn tasks(ui: &mut egui::Ui, state: &AppState) {
 fn shortcut_table(ui: &mut egui::Ui, state: &AppState) {
     let lang = state.settings.lang;
     let or = text(state, "o", "or", "o", "या");
-    let rows: [(String, &str); 10] = [
+    let rows: [(String, &str); 11] = [
         (
             keys::text(keys::NEW, lang),
             text(state, "Nueva expansión", "New expansion", "Bagong expansion", "नया विस्तार"),
@@ -563,15 +590,19 @@ fn shortcut_table(ui: &mut egui::Ui, state: &AppState) {
         ),
         (
             keys::text(keys::OPEN, lang),
-            text(state, "Editar la expansión abierta", "Edit the open expansion", "I-edit ang bukas na expansion", "खुला विस्तार संपादित करें"),
+            text(state, "Editar la expansión marcada", "Edit the marked expansion", "I-edit ang naka-markang expansion", "चिह्नित विस्तार संपादित करें"),
         ),
         (
             keys::text(keys::DELETE, lang),
-            text(state, "Eliminar la expansión abierta, tras confirmar", "Delete the open expansion, after confirming", "Tanggalin ang bukas na expansion, pagkatapos kumpirmahin", "पुष्टि के बाद खुला विस्तार हटाएँ"),
+            text(state, "Eliminar la expansión marcada, tras confirmar", "Delete the marked expansion, after confirming", "Tanggalin ang naka-markang expansion, pagkatapos kumpirmahin", "पुष्टि के बाद चिह्नित विस्तार हटाएँ"),
         ),
         (
             keys::text(keys::RENAME, lang),
             text(state, "Opciones de la carpeta que estás viendo", "Options for the folder you are viewing", "Mga opsyon ng folder na tinitingnan mo", "जो फ़ोल्डर देख रहे हैं उसके विकल्प"),
+        ),
+        (
+            format!("{} {}", keys::text(keys::UNDO, lang), keys::text(keys::REDO, lang)),
+            text(state, "Deshacer y rehacer el último cambio", "Undo and redo the last change", "I-undo at i-redo ang huling pagbabago", "पिछला बदलाव पूर्ववत करें और फिर से करें"),
         ),
         (
             keys::text(keys::SAVE, lang),
@@ -579,7 +610,7 @@ fn shortcut_table(ui: &mut egui::Ui, state: &AppState) {
         ),
         (
             keys::text(keys::BACK, lang),
-            text(state, "Cerrar el menú, el diálogo o el detalle; salir del editor", "Close the menu, the dialog or the detail; leave the editor", "Isara ang menu, dialog o detalye; umalis sa editor", "मेनू, संवाद या विवरण बंद करें; संपादक से निकलें"),
+            text(state, "Cerrar el menú o el diálogo; vaciar la búsqueda; salir del editor", "Close the menu or the dialog; clear the search; leave the editor", "Isara ang menu o dialog; burahin ang hinahanap; umalis sa editor", "मेनू या संवाद बंद करें; खोज खाली करें; संपादक से निकलें"),
         ),
         (
             keys::click_text(egui::Modifiers::CTRL, lang),

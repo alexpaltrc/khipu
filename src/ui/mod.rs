@@ -23,6 +23,7 @@
 pub mod controls;
 pub mod studio;
 pub mod date_blocks;
+pub mod drop_island;
 pub mod edit_form;
 pub mod glide;
 pub mod glyphs;

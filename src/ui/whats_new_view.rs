@@ -75,6 +75,28 @@ fn items(state: &AppState) -> Vec<Item> {
     let s = |es, en, fil, hi| in_lang(lang, es, en, fil, hi).to_string();
     vec![
         Item {
+            icon: Glyph::Edit,
+            title: s("Un clic para editar", "One click to edit", "Isang click para mag-edit", "संपादन के लिए एक क्लिक"),
+            line: s(
+                "Haz clic en una expansión y se abre el editor; al volver, la lista sigue donde estaba. Con clic derecho: favorita, mover, apagar y más.",
+                "Click an expansion and the editor opens; when you come back, the list is where you left it. Right-click for favorite, move, turn off and more.",
+                "I-click ang isang expansion at bubukas ang editor; pagbalik mo, nasa dati pa rin ang listahan. I-right-click para sa paborito, ilipat, patayin at iba pa.",
+                "किसी विस्तार पर क्लिक करें और संपादक खुल जाता है; लौटने पर सूची वहीं रहती है जहाँ थी। दायाँ क्लिक करें: पसंदीदा, ले जाएँ, बंद करें और भी।",
+            ),
+            path: vec![],
+        },
+        Item {
+            icon: Glyph::MoveToFolder,
+            title: s("Suéltala en una carpeta", "Drop it in a folder", "Ihulog sa isang folder", "फ़ोल्डर में छोड़ें"),
+            line: s(
+                "Arrastra una expansión y abajo aparecen tus carpetas; suéltala en una y se mueve, con Deshacer a mano.",
+                "Drag an expansion and your folders appear below; drop it on one and it moves, with Undo at hand.",
+                "I-drag ang isang expansion at lilitaw sa ibaba ang mga folder mo; bitawan ito sa isa at lilipat ito, may I-undo na handa.",
+                "किसी विस्तार को खींचें और नीचे आपके फ़ोल्डर दिखेंगे; किसी एक पर छोड़ें और वह चला जाएगा, पूर्ववत पास में रहेगा।",
+            ),
+            path: vec![],
+        },
+        Item {
             icon: Glyph::Calendar,
             title: s("Fechas que se ven", "Dates you can see", "Mga petsang nakikita", "दिखने वाली तारीखें"),
             line: s(
@@ -95,28 +117,6 @@ fn items(state: &AppState) -> Vec<Item> {
                 "Ctrl+Z आपका पिछला बदलाव पूर्ववत करता है और Ctrl+Y उसे फिर से करता है, एक-एक कदम। इसलिए हटाना अब पूछता नहीं: गलती हो तो पूर्ववत कर दें।",
             ),
             path: vec![icon(Glyph::More), named(Some(Glyph::Undo), t.undo)],
-        },
-        Item {
-            icon: Glyph::MultiSelect,
-            title: s("Varias, a la vista", "Several, in sight", "Marami, kita agad", "कई, नज़र के सामने"),
-            line: s(
-                "Al elegir varias, una píldora abajo las cuenta y tiene a mano moverlas o borrarlas.",
-                "Pick several and a pill below counts them, with moving or deleting them at hand.",
-                "Kapag pumili ka ng ilan, binibilang sila ng pill sa ibaba, handang ilipat o burahin.",
-                "कई विस्तार चुनने पर नीचे एक पिल गिनती दिखाती है और उन्हें ले जाना या हटाना पास रखती है।",
-            ),
-            path: vec![],
-        },
-        Item {
-            icon: Glyph::Paste,
-            title: s("Tal como lo escribiste", "Just as you wrote it", "Gaya ng isinulat mo", "जैसा आपने लिखा"),
-            line: s(
-                "Las líneas en blanco entre párrafos llegan intactas, y el cursor queda justo después de la última palabra, listo para seguir.",
-                "Blank lines between paragraphs arrive intact, and the cursor lands right after the last word, ready to carry on.",
-                "Buo ang mga blangkong linya sa pagitan ng mga talata, at napupunta ang cursor sa dulo ng huling salita.",
-                "अनुच्छेदों के बीच की खाली पंक्तियाँ ज्यों की त्यों पहुँचती हैं, और कर्सर ठीक आखिरी शब्द के बाद रुकता है, आगे लिखने को तैयार।",
-            ),
-            path: vec![],
         },
     ]
 }

@@ -34,11 +34,9 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
 - **Pendiente de Alex**: cómo se crean la fecha y la hora dentro de una expansión (un solo sistema
   de «elementos»). Maquetas en `docs/disenos/elementos.html`, contexto en `docs/roadmap.md`. No
   construir hasta que decida; recordárselo cuando venga al caso.
-- **Pendiente de Alex**: el panel de detalle (cinco propuestas; la quinta junta lo que le gustó de la 1 y la 2). Maquetas en
-  `docs/disenos/detalle.html`. No construir hasta que elija. Desde el 2026-11-22 Alex se inclina
-  por quitar el panel: clic en la fila abre el editor.
-- **Pendiente de Alex**: cómo se ve soltar una expansión en una carpeta (tres propuestas, la
-  tercera recomendada). Maquetas en `docs/disenos/soltar.html`. Va en 0.0.10 cuando elija.
+- Decidido el 2026-11-22: sin panel de detalle (clic en la fila abre el editor), sin «Copiar
+  texto» (fue un error añadirlo; no proponerlo de nuevo) y soltar en carpeta con la isla que sale
+  del «+» (`ui/drop_island.rs`).
 - **En curso: `0.0.10-dev`**. Sin publicar hasta que Alex lo pida. El
   `-dev` se quita en el commit que publica, y ese commit lleva la etiqueta de la versión.
 - **Microsoft Store**: Store ID `9NXXV15RJ94T`, `https://apps.microsoft.com/detail/9NXXV15RJ94T`.
@@ -181,7 +179,7 @@ solo el índice para saber cuál abrir.
 
 | Archivo | Qué manda |
 |---|---|
-| `list_view.rs` | La pantalla principal: virtualización, resaltado a un fotograma, arrastrar y soltar |
+| `list_view.rs` | La pantalla principal: virtualización, resaltado a un fotograma, clic que abre el editor, menú del clic derecho, arrastrar y soltar |
 | `edit_form.rs` · `date_blocks.rs` | Crear y editar una expansión; armar un formato de fecha por bloques |
 | `settings_view.rs` · `tips_view.rs` · `onboarding_view.rs` | Ajustes, consejos, primera vez |
 | `folder_view.rs` | Las opciones de una carpeta: renombrar, borrar |
@@ -189,6 +187,7 @@ solo el índice para saber cuál abrir.
 | `form_view.rs` | La ventana que abre un formulario (`Khipu.exe --form`): sus campos y el texto resultante |
 | `island.rs` | La píldora del pie: cada mensaje de Khipu, con Deshacer o con ✕; sale del «+» (que se queda al lado) o sube desde el borde de Ajustes |
 | `selection_island.rs` | La píldora de elegir varias: casilla con el número, y las acciones sobre lo elegido |
+| `drop_island.rs` | La píldora de soltar: al levantar una expansión sale del «+» con las carpetas como destinos |
 | `whats_new_view.rs` | «Novedades»: la tarjeta que sale una vez tras actualizar; no es el changelog |
 | `studio.rs` · `glide.rs` | Piezas compartidas (iconos dibujados, filtro de carpetas); el resaltado que se desliza entre controles |
 | `keys.rs` · `glyphs.rs` | Todos los atajos de teclado en una tabla; los iconos Segoe Fluent |

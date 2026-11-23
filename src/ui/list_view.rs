@@ -17,14 +17,14 @@
  * along with Khipu.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-//! The library: everything you have, in one flat list, with the chosen one open beside it.
+//! The library: everything you have, in one flat list. A click on a row opens it in the editor.
 //!
 //! The screen reads top to bottom — the real state of espanso on the left of the title, the two
 //! borderless commands on its right; then the search and the folder picker, short and centred;
 //! then the list, trigger and a one-line preview per row, with the round «+» floating over its
-//! foot. Choosing a row opens the inspector at
-//! the right, or, when the window is too narrow for two columns, in place of the list with a way
-//! back. Nothing here writes to disk; every action is a call into `AppState`.
+//! foot. A click on a row opens the editor; a right click, everything else that can be done to it.
+//! Back from the editor the list is where it was, with that row marked and in view. Nothing here
+//! writes to disk; every action is a call into `AppState`.
 //!
 //! ## A folder filters, it does not contain
 //!
@@ -336,8 +336,8 @@ fn set_select_mode(ctx: &egui::Context, on: bool) {
     });
 }
 
-/// The one row whose detail is open, if any. One at a time, so the list never turns into a page of
-/// unfolded cards you have to scroll past to reach the next name.
+/// The current row, if any: the one marked with the accent bar, that the arrows move from, Enter
+/// and Delete act on, and the list comes back to after the editor closes.
 fn open_row(ctx: &egui::Context) -> Option<String> {
     ctx.data(|d| d.get_temp::<String>(egui::Id::new("library-open-row")))
 }
@@ -396,9 +396,10 @@ fn in_question(ctx: &egui::Context, state: &AppState, drag_id: egui::Id, trigger
 
 /// What a card's right-click menu was asked to do.
 enum RowMenu {
-    Edit,
-    Rename,
+    Favorite,
     Move,
+    Rename,
+    Switch,
     Delete,
 }
 
@@ -696,6 +697,11 @@ fn drag_autoscroll(ui: &egui::Ui) {
     if pointer.x < view.left() || pointer.x > view.right() {
         return;
     }
+    // Nor while it is over the drop island, which floats over the list's foot.
+    let pill = ui.ctx().data(|d| d.get_temp::<egui::Rect>(drop_island_key()));
+    if pill.is_some_and(|p| p.expand(controls::GAP_SECTION).contains(pointer)) {
+        return;
+    }
     if from_top < -AUTOSCROLL_TURBO_ZONE || from_bottom < -AUTOSCROLL_TURBO_ZONE {
         return;
     }
@@ -740,13 +746,6 @@ const LIST_MIN_HEIGHT: f32 = 56.0;
 /// The star at the far end of a favourite's row: a step under an icon in a control, as a mark
 /// beside text is.
 const ROW_STAR: f32 = 14.0;
-/// From this width on, the chosen expansion opens in a pane beside the list; below it, the detail
-/// takes the whole window and «Volver» leads back.
-const INSPECTOR_BREAK: f32 = 720.0;
-/// The inspector's share of the window, and the widths it is kept between.
-const INSPECTOR_SHARE: f32 = 0.42;
-const INSPECTOR_MIN: f32 = 300.0;
-const INSPECTOR_MAX: f32 = 420.0;
 /// The widest the search box gets. A search box across the whole window is a search box nobody's
 /// eye goes to.
 const SEARCH_MAX: f32 = 340.0;
@@ -758,7 +757,7 @@ fn search_id() -> egui::Id {
 
 /// Whether the search box had the keyboard at the end of the last frame. egui takes focus away on
 /// Esc before this screen runs, so without it the Esc that should empty the search could not be
-/// told apart from the Esc that should close the inspector.
+/// told apart from the Esc that should let go of the current row.
 fn search_had_focus_key() -> egui::Id {
     egui::Id::new("library-search-had-focus")
 }
@@ -773,7 +772,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
     let ctx = ui.ctx().clone();
     begin_hover_frame(&ctx);
     // Read before anything on this screen draws a popup: a popup closes itself on the Esc of this
-    // frame, and that Esc is then spent — it must not also close the inspector behind it.
+    // frame, and that Esc is then spent — it must not also let go of the row behind it.
     let popup_was_open = egui::Popup::is_any_open(&ctx);
     let is_light = !ui.visuals().dark_mode;
 
@@ -813,57 +812,23 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
         visible
     };
 
-    // The open row has to be one the list is showing: an inspector about an expansion the search
-    // has just filtered away describes something that is not on the screen.
-    let open = open_row(&ctx).filter(|t| visible.iter().any(|&i| list.rows[i].trigger == *t));
-    if open.is_none() && open_row(&ctx).is_some() {
+    // The current row has to be one the list is showing: the arrows move from a row on the screen,
+    // not from one the search has just filtered away.
+    if open_row(&ctx).is_some_and(|t| !visible.iter().any(|&i| list.rows[i].trigger == t)) {
         set_open_row(&ctx, None);
     }
-    let wide = ui.available_width() >= INSPECTOR_BREAK;
 
-    match (&open, wide) {
-        (Some(trigger), false) => {
-            let trigger = trigger.clone();
-            inspector(ui, state, &trigger, false, is_light);
-            // No «+» here to become the island: it rises where the button would be.
-            let page = ui.max_rect();
-            let foot = egui::pos2(page.center().x, page.bottom() - NEW_BUTTON_LIFT);
-            let room = page.width() - 2.0 * f32::from(controls::page_margin(page.width()));
-            crate::ui::island::show(ui, state, Source::Window(foot), room, false);
-        }
-        _ => {
-            header(ui, state, is_light);
-            ui.add_space(controls::GAP_WIDE);
-            search_row(ui, state, &list, active.as_deref(), is_light);
-            ui.add_space(controls::GAP_WIDE);
-
-            let full = ui.available_rect_before_wrap();
-            let (list_rect, side) = match &open {
-                Some(trigger) => {
-                    let w = (full.width() * INSPECTOR_SHARE).clamp(INSPECTOR_MIN, INSPECTOR_MAX);
-                    let left = egui::Rect::from_min_max(
-                        full.min,
-                        egui::pos2(full.right() - w - controls::GAP_SECTION, full.bottom()),
-                    );
-                    let right =
-                        egui::Rect::from_min_max(egui::pos2(full.right() - w, full.top()), full.max);
-                    (left, Some((right, trigger.clone())))
-                }
-                None => (full, None),
-            };
-            ui.scope_builder(egui::UiBuilder::new().max_rect(list_rect), |ui| {
-                library(ui, state, &list, visible, active.as_deref(), is_light);
-            });
-            // After the list, so it is drawn over the rows and answers the click before them.
-            dock(ui, state, &list, visible, list_rect);
-            if let Some((rect, trigger)) = side {
-                ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
-                    inspector(ui, state, &trigger, true, is_light);
-                });
-            }
-            ui.advance_cursor_after_rect(full);
-        }
-    }
+    header(ui, state, is_light);
+    ui.add_space(controls::GAP_WIDE);
+    search_row(ui, state, &list, active.as_deref(), is_light);
+    ui.add_space(controls::GAP_WIDE);
+    let full = ui.available_rect_before_wrap();
+    ui.scope_builder(egui::UiBuilder::new().max_rect(full), |ui| {
+        library(ui, state, &list, visible, active.as_deref(), is_light);
+    });
+    // After the list, so it is drawn over the rows and answers the click before them.
+    dock(ui, state, &list, visible, full);
+    ui.advance_cursor_after_rect(full);
 
     keyboard(ui, state, &list, visible, active.as_deref(), popup_was_open);
     end_hover_frame(&ctx);
@@ -1374,73 +1339,6 @@ fn forget_selection(ctx: &egui::Context, state: &mut AppState) {
     state.set_info_banner(message);
 }
 
-// --- Dropping onto a folder ---------------------------------------------------------------------
-
-/// While a row is being dragged, the folders it can be dropped on, floating over the top of the
-/// list. They exist only for the length of the drag: the rest of the time, the folders are one
-/// quiet menu and take no room at all.
-fn drop_targets(ui: &mut egui::Ui, state: &mut AppState, list: &ListCache, at: egui::Rect) {
-    if !egui::DragAndDrop::has_payload_of_type::<DragPayload>(ui.ctx()) {
-        ui.ctx().data_mut(|d| d.remove::<egui::Rect>(drop_strip_key()));
-        return;
-    }
-    let t = state.t();
-    let is_light = !ui.visuals().dark_mode;
-    let mut drop_on: Option<(Option<String>, std::sync::Arc<DragPayload>)> = None;
-    let strip = egui::Area::new(egui::Id::new("library-drop-targets"))
-        .order(egui::Order::Foreground)
-        .fixed_pos(at.left_top())
-        .interactable(true)
-        .show(ui.ctx(), |ui| {
-            egui::Frame::popup(ui.style())
-                .fill(crate::app::win_card_for(is_light))
-                .corner_radius(controls::RADIUS_DIALOG)
-                .inner_margin(egui::Margin::same(controls::GAP as i8))
-                .show(ui, |ui| {
-                    ui.set_max_width(at.width() - 2.0 * controls::GAP);
-                    ui.label(controls::small_muted(
-                        studio::text(
-                            state,
-                            "Suelta sobre una carpeta",
-                            "Drop on a folder",
-                            "Ibagsak sa isang folder",
-                            "किसी फ़ोल्डर पर छोड़ें",
-                        ),
-                        is_light,
-                    ));
-                    ui.add_space(controls::GAP_TIGHT);
-                    ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing = egui::vec2(controls::GAP, controls::GAP);
-                        let names = list
-                            .folder_names
-                            .iter()
-                            .map(|f| (Some(f.clone()), truncate(f, 28)))
-                            .chain(std::iter::once((None, t.no_folder.to_owned())));
-                        for (folder, label) in names {
-                            let chip = controls::chip(ui, &label, None, false);
-                            let over = chip.contains_pointer();
-                            ui.painter().rect_stroke(
-                                chip.rect,
-                                controls::RADIUS_CONTROL,
-                                egui::Stroke::new(
-                                    if over { 2.0 } else { 1.0 },
-                                    if over { accent(ui.visuals()) } else { crate::app::line_strong(is_light) },
-                                ),
-                                egui::StrokeKind::Inside,
-                            );
-                            if let Some(payload) = chip.dnd_release_payload::<DragPayload>() {
-                                drop_on = Some((folder, payload));
-                            }
-                        }
-                    });
-                });
-        });
-    ui.ctx().data_mut(|d| d.insert_temp(drop_strip_key(), strip.response.rect));
-    if let Some((folder, payload)) = drop_on {
-        state.assign_folder_to_triggers(&payload, folder);
-    }
-}
-
 // --- The keyboard -------------------------------------------------------------------------------
 
 /// Every key the library answers to, read once at the end of the frame. The table of which keys
@@ -1485,7 +1383,8 @@ fn keyboard(
     let open = open_row(&ctx);
     let picking = select_mode(&ctx);
 
-    // Esc steps back one layer at a time: out of the search, then the detail, then the picking.
+    // Esc steps back one layer at a time: out of the search, then off the current row, then out
+    // of the picking.
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         let in_search = ctx.data(|d| d.get_temp::<bool>(search_had_focus_key())).unwrap_or(false);
         if in_search {
@@ -1608,8 +1507,6 @@ fn library(
     is_light: bool,
 ) {
     let picking = select_mode(ui.ctx());
-    let list_top = ui.available_rect_before_wrap();
-    drop_targets(ui, state, list, list_top);
     let fade = list_fade(ui.ctx());
     ui.scope(|ui| {
         ui.set_opacity(fade);
@@ -2028,10 +1925,10 @@ fn show_list(
                         ),
                         studio::text(
                             state,
-                            "Abre una expansión y usa «Mover a carpeta», o arrástrala hasta aquí.",
-                            "Open an expansion and use \"Move to folder\", or drag it here.",
-                            "Buksan ang isang expansion at gamitin ang \"Ilipat sa folder\", o i-drag ito rito.",
-                            "कोई विस्तार खोलकर «फ़ोल्डर में ले जाएँ» चुनें, या उसे यहाँ खींचें।",
+                            "En «Todas las carpetas», arrastra una expansión y suéltala en esta, o usa Mover en su clic derecho.",
+                            "In \"All folders\", drag an expansion and drop it on this one, or right-click it and choose Move.",
+                            "Sa \"Lahat ng folder\", i-drag ang isang expansion at bitawan ito rito, o i-right-click ito at piliin ang Ilipat.",
+                            "«सभी फ़ोल्डर» में किसी विस्तार को खींचकर इस पर छोड़ें, या उस पर दायाँ क्लिक करके «ले जाएँ» चुनें।",
                         ),
                     )
                 } else {
@@ -2289,7 +2186,9 @@ fn dock(ui: &mut egui::Ui, state: &mut AppState, list: &ListCache, visible: &[us
     let over_foot = egui::pos2(rest.center().x, rest.bottom() - crate::ui::island::ISLAND_HEIGHT - controls::GAP);
     let over = picking || crate::ui::island::alive(&ctx, Source::Over(over_foot));
     let choosing = picking || crate::ui::selection_island::alive(&ctx);
-    let message = crate::ui::island::show(ui, state, Source::Plus(shifted), room, over || choosing);
+    let dragging = egui::DragAndDrop::has_payload_of_type::<DragPayload>(&ctx);
+    let dropping = dragging || crate::ui::drop_island::alive(&ctx);
+    let message = crate::ui::island::show(ui, state, Source::Plus(shifted), room, over || choosing || dropping);
     let mut held = message;
     if message.is_none() {
         let all_ticked = !visible.is_empty() && visible.iter().all(|&i| state.selected.contains(&list.rows[i].trigger));
@@ -2299,9 +2198,37 @@ fn dock(ui: &mut egui::Ui, state: &mut AppState, list: &ListCache, visible: &[us
             any_visible: !visible.is_empty(),
             all_off: !state.selected.is_empty() && state.selected.iter().all(|t| state.match_file.is_off(t)),
         };
-        let (pill, pressed) = crate::ui::selection_island::show(ui, state, shifted, picking, &sel);
+        let (pill, pressed) = crate::ui::selection_island::show(ui, state, shifted, picking && !dragging, &sel);
         held = pill;
         act_on_selection(&ctx, state, list, visible, pressed);
+        // A drag takes the place, over the selection island as it closes, and gives it back after.
+        if dropping {
+            let targets = drop_targets(&ctx, state, list);
+            let (pill, dropped) = crate::ui::drop_island::show(ui, state, shifted, room + step, &targets, !picking);
+            ctx.data_mut(|d| match pill {
+                Some(rect) => {
+                    d.insert_temp(drop_island_key(), rect);
+                }
+                None => d.remove::<egui::Rect>(drop_island_key()),
+            });
+            if let Some(rect) = pill {
+                held = Some((rect, false));
+            }
+            match dropped {
+                Some((crate::ui::drop_island::Dropped::On(folder), payload)) => {
+                    if let Some(name) = &folder {
+                        ctx.data_mut(|d| {
+                            let recent = d.get_temp_mut_or_default::<Vec<String>>(recent_folders_key());
+                            recent.retain(|r| r != name);
+                            recent.insert(0, name.clone());
+                        });
+                    }
+                    state.assign_folder_to_triggers(&payload, folder);
+                }
+                Some((crate::ui::drop_island::Dropped::More, payload)) => ask_to_move(&ctx, payload.to_vec()),
+                None => {}
+            }
+        }
     }
     if over {
         crate::ui::island::show(ui, state, Source::Over(over_foot), room + step, false);
@@ -2802,20 +2729,48 @@ fn show_row_inner(
                 } else if resp.clicked() || (resp.drag_stopped() && !drag_is_deliberate(ui)) {
                     clicked_with = Some(ui.input(|i| (i.modifiers.command, i.modifiers.shift)));
                 }
-                // A right click is the quick way to what the detail's buttons do, without
-                // choosing the card first. Not while picking several: there a click ticks.
+                // A right click is the quick way to everything that can be done to a card besides
+                // editing it, which a plain click already does. Not while picking several: there a
+                // click ticks.
                 if !pass.select_mode {
                     let lang = state.settings.lang;
                     egui::Popup::context_menu(resp).width(MENU_WIDTH).show(|ui| {
                         ui.spacing_mut().item_spacing.y = 0.0;
-                        let open_keys = keys::text(keys::OPEN, lang);
-                        // The detail's button draws its pencil in the label; here the icon column does.
-                        let edit = t.edit_button.trim_start_matches('✏').trim_start();
-                        if controls::menu_item(ui, Some(Glyph::Edit), edit, Some(&open_keys), Tone::Normal, true)
-                            .clicked()
-                        {
-                            menu = Some(RowMenu::Edit);
+                        let star_tip = if row.favorite {
+                            studio::text(state, "Quitar de favoritos", "Remove from favorites", "Alisin sa mga paborito", "पसंदीदा से हटाएँ")
+                        } else {
+                            studio::text(state, "Añadir a favoritos", "Add to favorites", "Idagdag sa mga paborito", "पसंदीदा में जोड़ें")
+                        };
+                        let [star, move_it] = controls::menu_pair(
+                            ui,
+                            [
+                                controls::PairItem {
+                                    glyph: if row.favorite { Glyph::StarFilled } else { Glyph::Star },
+                                    glyph_ink: row.favorite.then(|| accent(ui.visuals())),
+                                    label: studio::text(state, "Favorita", "Favorite", "Paborito", "पसंदीदा"),
+                                    tip: star_tip,
+                                },
+                                controls::PairItem {
+                                    glyph: Glyph::MoveToFolder,
+                                    glyph_ink: None,
+                                    label: studio::text(state, "Mover", "Move", "Ilipat", "ले जाएँ"),
+                                    tip: studio::text(
+                                        state,
+                                        "Mover a carpeta",
+                                        "Move to folder",
+                                        "Ilipat sa folder",
+                                        "फ़ोल्डर में ले जाएँ",
+                                    ),
+                                },
+                            ],
+                        );
+                        if star {
+                            menu = Some(RowMenu::Favorite);
                         }
+                        if move_it {
+                            menu = Some(RowMenu::Move);
+                        }
+                        controls::menu_separator(ui);
                         let rename = studio::text(
                             state,
                             "Cambiar activador",
@@ -2826,17 +2781,13 @@ fn show_row_inner(
                         if controls::menu_item(ui, Some(Glyph::Tag), rename, None, Tone::Normal, true).clicked() {
                             menu = Some(RowMenu::Rename);
                         }
-                        let move_label = studio::text(
-                            state,
-                            "Mover a carpeta",
-                            "Move to folder",
-                            "Ilipat sa folder",
-                            "फ़ोल्डर में ले जाएँ",
-                        );
-                        if controls::menu_item(ui, Some(Glyph::MoveToFolder), move_label, None, Tone::Normal, true)
-                            .clicked()
-                        {
-                            menu = Some(RowMenu::Move);
+                        let switch = if row.off {
+                            studio::text(state, "Encender", "Turn on", "Buksan", "चालू करें")
+                        } else {
+                            studio::text(state, "Apagar", "Turn off", "Patayin", "बंद करें")
+                        };
+                        if controls::menu_item(ui, Some(Glyph::Power), switch, None, Tone::Normal, true).clicked() {
+                            menu = Some(RowMenu::Switch);
                         }
                         controls::menu_separator(ui);
                         let delete_keys = keys::text(keys::DELETE, lang);
@@ -2911,15 +2862,23 @@ fn show_row_inner(
             // In picking mode a plain click is a tick, which is what Ctrl already means here.
             state.click_select(trigger, ctrl || picking, shift, &order);
         } else {
-            set_open_row(ui.ctx(), if is_open { None } else { Some(trigger) });
+            edit_clicked = true;
         }
         ui.ctx().request_repaint();
     }
+    // The row stays the current one while it is edited, so the list comes back to it, marked and
+    // in view, when the editor closes.
     if edit_clicked {
+        set_open_row(ui.ctx(), Some(trigger));
+        ui.ctx().data_mut(|d| d.insert_temp(scroll_to_open_key(), true));
         open_edit_for(state, trigger);
     }
     match menu {
-        Some(RowMenu::Edit) => open_edit_for(state, trigger),
+        Some(RowMenu::Favorite) => {
+            start_travel(ui.ctx(), trigger);
+            state.set_favorite(trigger, !row.favorite);
+        }
+        Some(RowMenu::Switch) => state.set_off(&[trigger.to_owned()], !row.off),
         Some(RowMenu::Rename) => {
             ui.ctx().data_mut(|d| d.insert_temp(rename_key(), (trigger.to_owned(), trigger.to_owned())));
         }
@@ -2982,7 +2941,7 @@ fn closed_row(ui: &mut egui::Ui, row: &ListRow, pass: RowPass<'_>, is_selected: 
                 let found = !row.off && !controls::find_ignoring_case(&row.trigger, pass.needle).is_empty();
                 let trigger_ink = if found { crate::app::secondary_text(is_light) } else { code_ink };
                 // A hard column, not a minimum: a trigger wider than the column is cut short here
-                // and shown whole in the detail. Letting it push past instead would move the start
+                // and shown whole in the editor. Letting it push past instead would move the start
                 // of the replacement from row to row.
                 let spacing = ui.spacing().item_spacing.x;
                 // Laid out and truncated the way a label would be, but painted by hand, a hair
@@ -3308,342 +3267,6 @@ fn pointer_tip(ui: &egui::Ui, id: egui::Id, rect: egui::Rect, text: impl Into<eg
 }
 
 // ---------------------------------------------------------------------------------------------
-// The inspector
-// ---------------------------------------------------------------------------------------------
-
-/// Room kept under the text box for what follows it: the gap, the folder's caption and line, the
-/// gap, the status's caption and switch, the gap and the row of actions, with egui's spacing
-/// after each of the five. Only an estimate for the first frame: from then on the inspector uses
-/// the foot it measured.
-const INSPECTOR_FOOT: f32 = controls::GAP_SECTION
-    + 18.0
-    + controls::GAP_TIGHT
-    + 24.0
-    + controls::GAP_SECTION
-    + 18.0
-    + controls::GAP_TIGHT
-    + 24.0
-    + controls::GAP_SECTION
-    + controls::FIELD_HEIGHT
-    + 5.0 * 8.0;
-/// What the sunken text box adds around its text: its margin above and below, and its edge.
-const INSET_CHROME: f32 = 2.0 * 10.0 + 2.0;
-/// Of the side card's 16-point margin, what goes inside its scroll area: at the sides, room for
-/// the scroll bar at its widest and a gap; above and below, room for a focus ring.
-const CARD_BAR_ROOM: i8 = 14;
-const CARD_RING_ROOM: i8 = 4;
-
-/// Everything about one expansion: its whole trigger, its whole text, its folder, and what can be
-/// done to it. Beside the list on a wide window (`side`), or as the whole screen on a narrow one,
-/// with «Volver» at the top instead of the close button.
-fn inspector(ui: &mut egui::Ui, state: &mut AppState, trigger: &str, side: bool, is_light: bool) {
-    let t = state.t();
-    let lang = state.settings.lang;
-    let mut close = false;
-    let mut edit = false;
-    let mut move_it = false;
-    let mut unfile = false;
-    let mut delete = false;
-
-    // The list's own preview is capped so a multi-kilobyte replacement never costs the list
-    // anything. Here there is exactly one row to look up, so it can show the whole thing — with
-    // its line breaks, which the list's preview turns into spaces.
-    let entry = state.match_file.entries.iter().find(|e| e.trigger_str() == trigger);
-    let full = entry.map(|e| e.full_text(t));
-    let name = entry.and_then(|e| e.name().map(str::to_owned));
-    let folder = state.settings.folder_of(trigger).map(str::to_owned);
-    let was_off = state.match_file.is_off(trigger);
-    let mut switch_to: Option<bool> = None;
-    let starred = state.settings.is_favorite(trigger);
-    let mut star_to: Option<bool> = None;
-    let star_tip = if starred {
-        studio::text(state, "Quitar de favoritos", "Remove from favorites", "Alisin sa mga paborito", "पसंदीदा से हटाएँ")
-    } else {
-        studio::text(state, "Añadir a favoritos", "Add to favorites", "Idagdag sa mga paborito", "पसंदीदा में जोड़ें")
-    };
-    let close_tip = keys::tip(
-        studio::text(state, "Cerrar", "Close", "Isara", "बंद करें"),
-        keys::BACK,
-        lang,
-    );
-
-    // How tall the card can be before it has to scroll: its own height beside the list, and no
-    // limit as a page, where the page itself scrolls and the text is shown whole.
-    let side_height = ui.available_height() - 2.0 * (controls::GAP_SECTION - f32::from(CARD_RING_ROOM)) - 2.0;
-    let limit = if side { side_height - 2.0 * f32::from(CARD_RING_ROOM) } else { f32::INFINITY };
-
-    let mut body = |ui: &mut egui::Ui| {
-        ui.set_width(ui.available_width());
-        let start = ui.cursor().top();
-        if !side {
-            let back = studio::text(state, "Volver", "Back", "Bumalik", "वापस");
-            controls::quiet_row(ui, |ui| {
-                let response = controls::subtle_button(ui, Some(Glyph::Back), back, None)
-                    .on_hover_text(keys::tip(back, keys::BACK, lang));
-                if response.clicked() {
-                    close = true;
-                }
-            });
-            ui.add_space(controls::GAP_WIDE);
-        }
-
-        // The trigger, whole: the list cuts a long one to keep its column straight, so this is the
-        // one place it can be read in full. It wraps rather than truncates for that reason.
-        // The star stands beside it, with the close button when there is one.
-        ui.horizontal_top(|ui| {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                ui.spacing_mut().item_spacing.x = controls::GAP_TIGHT;
-                if side && controls::icon_button(ui, Glyph::Close, &close_tip, true).clicked() {
-                    close = true;
-                }
-                if controls::star_button(ui, starred, star_tip).clicked() {
-                    star_to = Some(!starred);
-                }
-                ui.spacing_mut().item_spacing.x = controls::GAP;
-                ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-                    trigger_heading(ui, trigger);
-                });
-            });
-        });
-        // Its name, under it: the trigger is what you type, so it stays the heading; the name is
-        // what you call it, and reads as the line that explains the heading.
-        if let Some(name) = &name {
-            ui.add_space(controls::GAP_TIGHT);
-            ui.add(egui::Label::new(controls::muted(name, is_light)).wrap().selectable(true));
-        }
-        ui.add_space(controls::GAP_SECTION);
-
-        let text = full.clone().unwrap_or_default();
-        ui.horizontal(|ui| {
-            ui.label(controls::small_muted(
-                studio::text(state, "Texto", "Text", "Teksto", "टेक्स्ट"),
-                is_light,
-            ));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let copy = studio::text(state, "Copiar texto", "Copy text", "Kopyahin ang teksto", "टेक्स्ट कॉपी करें");
-                let copied = studio::text(state, "Copiado", "Copied", "Nakopya", "कॉपी हो गया");
-                controls::copy_button(ui, egui::Id::new("inspector-copy").with(trigger), &text, copy, copied);
-            });
-        });
-        ui.add_space(controls::GAP_TIGHT);
-        // The foot as last drawn, spacing between its widgets included; the estimate only stands
-        // in for the very first frame, before there is a foot to measure.
-        let foot_id = egui::Id::new("inspector-foot");
-        let foot = ui.ctx().data(|d| d.get_temp::<f32>(foot_id)).unwrap_or(INSPECTOR_FOOT);
-        let used = ui.cursor().top() - start;
-        let room = (limit - used - foot - INSET_CHROME).max(0.0);
-        let foot_top = controls::inset_frame(ui).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            // Capped at a whole number of lines rather than at a round number of points: a box
-            // whose height falls mid-glyph shows a sliced line at every scroll position except the
-            // last one, which reads as damage rather than as "there is more below".
-            // Measured off two laid-out lines: laying out rounds each row to the pixel grid, so
-            // `text_style_height` is a fraction off, and the fraction adds up line by line.
-            let body = egui::TextStyle::Body.resolve(ui.style());
-            let probe = ui.painter().layout_no_wrap("A\nA".to_owned(), body, egui::Color32::WHITE);
-            let line = probe.size().y / 2.0;
-            let cap = (room / line).floor().max(3.0) * line;
-            egui::ScrollArea::vertical()
-                .id_salt(("inspector-text", trigger))
-                .max_height(cap)
-                // egui keeps a scrolled box at least 64 points tall, which beats `max_height` and
-                // would bring back the sliced line the cap is there to avoid.
-                .min_scrolled_height(cap)
-                .auto_shrink([false, true])
-                .show(ui, |ui| match &full {
-                    Some(text) => {
-                        controls::wrapped_with_pills(ui, text, ui.visuals().text_color(), is_light);
-                    }
-                    None => {
-                        ui.label(controls::muted(t.no_matches, is_light));
-                    }
-                });
-        })
-        .response
-        .rect
-        .bottom();
-
-        ui.add_space(controls::GAP_SECTION);
-        ui.label(controls::small_muted(
-            studio::text(state, "Carpeta", "Folder", "Folder", "फ़ोल्डर"),
-            is_light,
-        ));
-        ui.add_space(controls::GAP_TIGHT);
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = controls::GAP;
-            glyphs::show(ui, Glyph::Folder, glyphs::SIZE, crate::app::secondary_text(is_light));
-            let name = folder.as_deref().unwrap_or(t.no_folder);
-            ui.add(egui::Label::new(truncate(name, 40)).truncate());
-        });
-
-        // On or off, said by the switch itself and by the word beside it. A simple expansion only:
-        // anything the form cannot edit never reaches the list, and so never reaches this.
-        ui.add_space(controls::GAP_SECTION);
-        ui.label(controls::small_muted(
-            studio::text(state, "Estado", "Status", "Katayuan", "स्थिति"),
-            is_light,
-        ));
-        ui.add_space(controls::GAP_TIGHT);
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = controls::GAP;
-            let mut on = !was_off;
-            let tip = studio::text(
-                state,
-                "Apagada, no se expande ni aparece en el lanzador. Sigue aquí para encenderla cuando haga falta.",
-                "Off, it neither expands nor shows in the launcher. It stays here, to turn back on when needed.",
-                "Kapag nakapatay, hindi ito nag-e-expand at wala sa launcher. Nananatili ito rito para buksan muli kapag kailangan.",
-                "बंद होने पर यह न विस्तार करता है, न लॉन्चर में दिखता है। यह यहीं रहता है, ज़रूरत पर फिर से चालू करने के लिए।",
-            );
-            let name = studio::text(state, "Activada", "On", "Nakabukas", "चालू");
-            if controls::toggle(ui, &mut on, name).on_hover_text(tip).changed() {
-                switch_to = Some(!on);
-            }
-            let word = if was_off {
-                studio::text(state, "Apagada", "Off", "Nakapatay", "बंद")
-            } else {
-                studio::text(state, "Activada", "On", "Nakabukas", "चालू")
-            };
-            ui.label(word);
-        });
-
-        ui.add_space(controls::GAP_SECTION);
-        let actions = ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = controls::GAP;
-            if controls::button(ui, t.edit_button, Tone::Primary, true)
-                .on_hover_text(keys::tip(t.edit_button, keys::OPEN, lang))
-                .clicked()
-            {
-                edit = true;
-            }
-            let more = controls::icon_button(
-                ui,
-                Glyph::More,
-                studio::text(state, "Más acciones", "More actions", "Iba pang aksyon", "और क्रियाएँ"),
-                true,
-            );
-            let delete_keys = keys::text(keys::DELETE, lang);
-            let move_label = studio::text(
-                state,
-                "Mover a carpeta",
-                "Move to folder",
-                "Ilipat sa folder",
-                "फ़ोल्डर में ले जाएँ",
-            );
-            let foldered = folder.is_some();
-            let remove_label = t.remove_from_folder;
-            let delete_label = t.delete;
-            let by_keyboard = more.clicked() && more.has_focus();
-            egui::Popup::menu(&more)
-                .align(egui::RectAlign::BOTTOM_START)
-                .gap(controls::GAP_TIGHT)
-                .width(MENU_WIDTH)
-                .show(|ui| {
-                    ui.spacing_mut().item_spacing.y = 0.0;
-                    let first = ui.next_auto_id();
-                    if controls::menu_item(ui, Some(Glyph::MoveToFolder), move_label, None, Tone::Normal, true)
-                        .clicked()
-                    {
-                        move_it = true;
-                    }
-                    if by_keyboard {
-                        ui.memory_mut(|m| m.request_focus(first));
-                    }
-                    if controls::menu_item(ui, None, remove_label, None, Tone::Normal, foldered).clicked() {
-                        unfile = true;
-                    }
-                    controls::menu_separator(ui);
-                    if controls::menu_item(ui, Some(Glyph::Delete), delete_label, Some(&delete_keys), Tone::Danger, true)
-                        .clicked()
-                    {
-                        delete = true;
-                    }
-                });
-        });
-        let measured = actions.response.rect.bottom() - foot_top;
-        if (measured - foot).abs() > 0.5 {
-            ui.ctx().data_mut(|d| d.insert_temp(foot_id, measured));
-            ui.ctx().request_discard("inspector foot measured");
-        }
-    };
-
-    if side {
-        // The text box gives up lines down to three; on a window shorter than that still leaves
-        // room for, the card scrolls rather than lose its actions under the bottom edge. The
-        // card's margin is split so the same 16 points stand round the content: most of it goes
-        // inside the scroll area, where the bar draws at the side and focus rings are not clipped.
-        let gap = controls::GAP_SECTION as i8;
-        controls::section_frame(is_light)
-            .inner_margin(egui::Margin::symmetric(gap - CARD_BAR_ROOM, gap - CARD_RING_ROOM))
-            .show(ui, |ui| {
-                ui.set_min_height(side_height);
-                egui::ScrollArea::vertical()
-                    .id_salt(("inspector-card", trigger))
-                    .auto_shrink([false, false])
-                    .max_height(side_height)
-                    .content_margin(egui::Margin::symmetric(CARD_BAR_ROOM, CARD_RING_ROOM))
-                    .show(ui, |ui| body(ui));
-            });
-    } else {
-        controls::page_scroll(ui, ("inspector-page", trigger), body);
-    }
-
-    if close {
-        set_open_row(ui.ctx(), None);
-    }
-    if edit {
-        open_edit_for(state, trigger);
-    }
-    if move_it {
-        ask_to_move(ui.ctx(), vec![trigger.to_owned()]);
-    }
-    if unfile {
-        state.assign_folder_to_triggers(&[trigger.to_owned()], None);
-    }
-    if let Some(on) = star_to {
-        start_travel(ui.ctx(), trigger);
-        state.set_favorite(trigger, on);
-    }
-    if let Some(off) = switch_to {
-        state.set_off(&[trigger.to_owned()], off);
-    }
-    if delete {
-        if let Some(index) = entry_index(state, trigger) {
-            state.request_delete(index);
-        }
-    }
-}
-
-/// How tall Cascadia Mono's capitals stand, as a share of its size.
-const HEADING_CAP_HEIGHT: f32 = 0.7;
-
-/// An expansion's trigger as the inspector's heading: monospaced, a step up from the list, and
-/// wrapped whole however long it is.
-///
-/// Its first line shares the middle of the star and ✕ beside it, measured on the letters: laid out
-/// from the top, the larger line stood well above the icons' centre.
-fn trigger_heading(ui: &mut egui::Ui, trigger: &str) {
-    const SIZE: f32 = 18.0;
-    let first_line = ui.painter().layout_no_wrap(
-        "X".to_owned(),
-        egui::FontId::monospace(SIZE),
-        egui::Color32::PLACEHOLDER,
-    );
-    let letters_middle =
-        controls::baseline(&first_line) - crate::fonts::TEXT_LIFT - SIZE * HEADING_CAP_HEIGHT * 0.5;
-    ui.add_space((controls::FIELD_HEIGHT * 0.5 - letters_middle).max(0.0));
-    ui.add(
-        egui::Label::new(
-            egui::RichText::new(trigger)
-                .monospace()
-                .size(SIZE)
-                .color(ui.visuals().strong_text_color()),
-        )
-        .wrap()
-        .selectable(true),
-    );
-}
-
-// ---------------------------------------------------------------------------------------------
 // Dragging
 // ---------------------------------------------------------------------------------------------
 
@@ -3671,9 +3294,38 @@ fn list_span_key() -> egui::Id {
     egui::Id::new("list_span")
 }
 
-/// Where the folders to drop on are this frame, while a drag shows them (`drop_targets`).
-fn drop_strip_key() -> egui::Id {
-    egui::Id::new("drop_strip")
+/// Where the drop island is this frame, while a drag shows it.
+fn drop_island_key() -> egui::Id {
+    egui::Id::new("drop_island")
+}
+
+/// The folders dropped on lately, the latest first: when they do not all fit in the drop island,
+/// these are the ones it keeps.
+fn recent_folders_key() -> egui::Id {
+    egui::Id::new("recent_folders")
+}
+
+/// Where a drag can drop what it carries, in the order the drop island offers them: the folders
+/// used lately, then the rest as the folder picker lists them, and «Sin carpeta» when any of it is
+/// in a folder. The folder they all share already is among them, marked, so it can be shown dimmed.
+fn drop_targets(ctx: &egui::Context, state: &AppState, list: &ListCache) -> Vec<crate::ui::drop_island::Target> {
+    use crate::ui::drop_island::Target;
+    let carried = egui::DragAndDrop::payload::<DragPayload>(ctx);
+    let carried: &[String] = carried.as_deref().map_or(&[], |p| p.as_slice());
+    let mut homes = carried.iter().map(|t| state.settings.folder_of(t));
+    let shared = homes.next().flatten().filter(|first| homes.all(|h| h == Some(*first)));
+    let foldered = carried.iter().any(|t| state.settings.folder_of(t).is_some());
+    let recent = ctx.data(|d| d.get_temp::<Vec<String>>(recent_folders_key())).unwrap_or_default();
+    let mut names: Vec<&String> = recent.iter().filter_map(|r| list.folder_names.iter().find(|f| *f == r)).collect();
+    names.extend(list.folder_names.iter().filter(|f| !recent.contains(f)));
+    let mut targets: Vec<Target> = names
+        .into_iter()
+        .map(|f| Target { folder: Some(f.clone()), current: shared == Some(f.as_str()) })
+        .collect();
+    if foldered {
+        targets.push(Target { folder: None, current: false });
+    }
+    targets
 }
 
 fn drag_is_deliberate(ui: &egui::Ui) -> bool {
@@ -3762,10 +3414,10 @@ fn drag_source(
             let rect = response.rect;
             let (min, max) = (list.min - rect.left(), list.max - rect.right());
             delta.x = if min <= max { delta.x.clamp(min, max) } else { min };
-            // Never over the folders it can be dropped on: it waits just below them, so the one
+            // Never over the folders it can be dropped on: it waits just above them, so the one
             // under the pointer stays in sight and shows that it will take the drop.
-            if let Some(strip) = ui.ctx().data(|d| d.get_temp::<egui::Rect>(drop_strip_key())) {
-                delta.y = delta.y.max(strip.bottom() + controls::GAP_TIGHT - rect.top());
+            if let Some(pill) = ui.ctx().data(|d| d.get_temp::<egui::Rect>(drop_island_key())) {
+                delta.y = delta.y.min(pill.top() - controls::GAP_TIGHT - rect.bottom());
             }
             ui.ctx()
                 .transform_layer_shapes(layer_id, egui::emath::TSTransform::from_translation(delta));
@@ -3857,7 +3509,7 @@ pub fn show_move_modal(ctx: &egui::Context, state: &mut AppState) {
             "Ilipat sa isang folder",
             "किसी फ़ोल्डर में ले जाएँ",
         )));
-        // One expansion is the one in the detail beside it; only a selection needs counting.
+        // One expansion is the one the menu was opened on; only a selection needs counting.
         let n = targets.len();
         if n > 1 {
             ui.add_space(controls::GAP);
