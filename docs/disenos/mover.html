@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mover a una carpeta · diseños pendientes</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{--surface:#f3f3f3;--card:#fbfbfb;--bg-neutral:#e9e7e0;--sunken:#ebebeb;--bg-accent:#e6e4fb;--text-primary:#1f1e1d;--text-secondary:#5f5e5a;--text-muted:#888780;--text-accent:#4b42b0;--accent:#5b50c8;--on-accent:#fff;--border:rgba(0,0,0,.09);--border-strong:rgba(0,0,0,.20);--shadow:0 8px 28px rgba(0,0,0,.16);--scrim:rgba(0,0,0,.18);--font-sans:"Segoe UI Variable","Segoe UI",system-ui,sans-serif;--font-mono:"Cascadia Mono",Consolas,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--surface:#202020;--card:#2b2b2b;--bg-neutral:#161616;--sunken:#262626;--bg-accent:#3a3480;--text-primary:#f1efe8;--text-secondary:#b4b2a9;--text-muted:#888780;--text-accent:#cecbf6;--accent:#a49df0;--on-accent:#1f1e1d;--border:rgba(255,255,255,.08);--border-strong:rgba(255,255,255,.20);--shadow:0 8px 28px rgba(0,0,0,.5);--scrim:rgba(0,0,0,.45)}}
+:root[data-theme="dark"]{--surface:#202020;--card:#2b2b2b;--bg-neutral:#161616;--sunken:#262626;--bg-accent:#3a3480;--text-primary:#f1efe8;--text-secondary:#b4b2a9;--text-muted:#888780;--text-accent:#cecbf6;--accent:#a49df0;--on-accent:#1f1e1d;--border:rgba(255,255,255,.08);--border-strong:rgba(255,255,255,.20);--shadow:0 8px 28px rgba(0,0,0,.5);--scrim:rgba(0,0,0,.45)}
+body{margin:0 auto;max-width:780px;padding:24px 16px;background:var(--surface);color:var(--text-primary);font-family:var(--font-sans);line-height:1.6}
+h1{font-size:22px;font-weight:500;margin:0 0 4px}h2{font-size:18px;font-weight:500;margin:40px 0 6px}h3{font-size:15px;font-weight:600;margin:24px 0 4px}
+.intro,.why{color:var(--text-secondary);margin:0 0 12px}.why{font-size:14px}
+.rec{display:inline-block;font-size:12px;font-weight:600;color:var(--text-accent);background:var(--bg-accent);border-radius:999px;padding:1px 10px;margin-left:8px;vertical-align:2px}
+.k{background:var(--bg-neutral);border-radius:12px;padding:16px;overflow:hidden}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:640px){.pair{grid-template-columns:1fr}}
+.win{position:relative;background:var(--surface);border:0.5px solid var(--border);border-radius:10px;height:330px;overflow:hidden;font-size:14px}
+.rows{padding:14px 16px 0}
+.r{display:flex;gap:16px;height:40px;align-items:center;border-bottom:0.5px solid var(--border)}
+.r .t{width:96px;font-family:var(--font-mono);font-size:12px;color:var(--text-accent)}
+.r .x{color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scrim{position:absolute;inset:0;background:var(--scrim)}
+.dlg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:290px;background:var(--card);border:0.5px solid var(--border-strong);border-radius:10px;box-shadow:var(--shadow);padding:18px 16px 14px;box-sizing:border-box}
+.dlg h4{margin:0 0 2px;font-size:15px;font-weight:600}
+.dlg .sub{font-size:12px;color:var(--text-muted);margin:0 0 10px}
+.field{display:flex;align-items:center;gap:8px;height:32px;border:0.5px solid var(--border-strong);border-bottom:2px solid var(--accent);border-radius:6px;background:var(--surface);padding:0 10px;font-size:13px;color:var(--text-primary)}
+.field .ph{color:var(--text-muted)}
+.caret{display:inline-block;width:1px;height:15px;background:var(--text-primary);margin-left:-6px}
+.it{position:relative;display:flex;align-items:center;gap:10px;height:36px;padding:0 10px;border-radius:6px;font-size:14px}
+.it .n{margin-left:auto;font-size:12px;color:var(--text-muted)}
+.it.on{background:var(--bg-accent);color:var(--text-accent)}
+.it.on::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:2px;background:var(--accent)}
+.it.cur{color:var(--text-muted)}
+.it.new{color:var(--text-accent)}
+.list{margin-top:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.f{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:999px;background:var(--surface);border:0.5px solid var(--border-strong);font-size:13px;white-space:nowrap}
+.f.cur{opacity:.45}
+.f.on{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.f.add{border-style:dashed;color:var(--text-accent)}
+.fly{position:absolute;width:210px;background:var(--card);border:0.5px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:4px}
+.fly .it{height:32px;font-size:13px}
+.fly hr{border:0;border-top:0.5px solid var(--border);margin:4px 6px}
+.ctx{position:absolute;width:190px;background:var(--card);border:0.5px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);padding:4px;font-size:13px}
+.ctx .it{height:32px;font-size:13px}
+i.ti{font-size:16px;vertical-align:-2px}
+.tag{font-size:12px;color:var(--text-muted);text-align:center;margin-top:8px}
+/* the drop island */
+.ghost{position:absolute;display:flex;gap:14px;align-items:center;height:38px;padding:0 14px;background:var(--card);border:0.5px solid var(--border-strong);border-radius:8px;box-shadow:var(--shadow);font-size:13px;transform:rotate(-1.2deg);z-index:3}
+.ghost .t{font-family:var(--font-mono);font-size:12px;color:var(--text-accent)}
+.ghost .x{color:var(--text-secondary)}
+.cursor{position:absolute;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:16px solid var(--text-primary);transform:rotate(-25deg);z-index:4}
+.island{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:4px;padding:5px;background:var(--card);border:0.5px solid var(--border-strong);border-radius:999px;box-shadow:var(--shadow);z-index:2;white-space:nowrap}
+.island .p{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 13px;border-radius:999px;font-size:13px}
+.island .p.on{background:var(--accent);color:var(--on-accent)}
+.island .p.cur{opacity:.45}
+.island .p.add{color:var(--text-accent);border:0.5px dashed var(--border-strong)}
+.island .p.add.on{border-color:transparent;color:var(--on-accent)}
+.island .p.edit{background:var(--surface);border:0.5px solid var(--border-strong);border-bottom:2px solid var(--accent);border-radius:8px;min-width:130px}
+.island .sep{width:0.5px;height:20px;background:var(--border-strong);margin:0 2px}
+.island .u{padding:4px 12px;border-radius:999px;background:var(--sunken)}
+.island .msg{display:inline-flex;align-items:center;gap:10px;height:32px;padding:0 6px 0 14px;font-size:13px}
+.island .msg b{font-weight:600}
+.plus{position:absolute;right:16px;bottom:16px;width:42px;height:42px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:var(--shadow)}
+.r.lift{background:var(--bg-accent);border-radius:6px;border-bottom-color:transparent;outline:2px solid var(--accent);outline-offset:-2px}
+ul.notes{font-size:14px;color:var(--text-secondary);margin:8px 0 0;padding-left:20px}
+.decide{background:var(--card);border:0.5px solid var(--border);border-radius:10px;padding:12px 16px;margin-top:32px;font-size:14px}
+</style>
+</head>
+<body>
+<h1>Mover a una carpeta</h1>
+<p class="intro">Dos cosas del plan de la 0.0.11, cada una con sus caminos. Aquí se elige el aspecto y el comportamiento; el movimiento se elige después, con fotogramas sobre la app real.</p>
+
+<h2>1 · La ventana «Mover a una carpeta»</h2>
+<p class="why">Hoy: una lista con una marca en la carpeta actual, «Nueva carpeta» abre otra ventana y hay que pulsar Cancelar para salir. La sensación buscada: <b>elegir es moverla</b>. Un clic y listo, sin segunda ventana y con Deshacer en la isla, como en el resto de la app.</p>
+
+<h3>A · Escribe o elige<span class="rec">Recomendado</span></h3>
+<p class="why">Arriba un campo con el cursor ya puesto: escribir filtra las carpetas, y si el nombre no existe la última fila dice «Crear “Clientes”». Así la carpeta nueva se crea en la misma ventana, en el mismo gesto. Las carpetas van de la más reciente a la más vieja, con cuántas expansiones tiene cada una. La actual sale en gris con «Aquí está». Sin botones abajo: Esc o clic fuera cierra.</p>
+<div class="k"><div class="pair">
+ <div><div class="win">
+  <div class="rows"><div class="r"><span class="t">;firma</span><span class="x">Un saludo, Dafne Ruiz</span></div><div class="r"><span class="t">;dir</span><span class="x">Av. Reforma 222</span></div><div class="r"><span class="t">;gracias</span><span class="x">¡Muchas gracias por…</span></div><div class="r"><span class="t">;cita</span><span class="x">¿Te viene bien el…</span></div></div>
+  <div class="scrim"></div>
+  <div class="dlg"><h4>Mover a una carpeta</h4><p class="sub">;firma</p>
+   <div class="field"><i class="ti ti-search" style="color:var(--text-muted)"></i><span class="ph">Busca o crea una carpeta</span></div>
+   <div class="list">
+    <div class="it on"><i class="ti ti-folder"></i>Correo<span class="n">12</span></div>
+    <div class="it"><i class="ti ti-folder"></i>Trabajo<span class="n">8</span></div>
+    <div class="it cur"><i class="ti ti-folder"></i>Personal<span class="n">Aquí está</span></div>
+    <div class="it"><i class="ti ti-folder-off"></i>Sin carpeta</div>
+   </div></div>
+ </div><p class="tag">Al abrir: el cursor ya está en el campo</p></div>
+ <div><div class="win">
+  <div class="rows"><div class="r"><span class="t">;firma</span><span class="x">Un saludo, Dafne Ruiz</span></div><div class="r"><span class="t">;dir</span><span class="x">Av. Reforma 222</span></div><div class="r"><span class="t">;gracias</span><span class="x">¡Muchas gracias por…</span></div><div class="r"><span class="t">;cita</span><span class="x">¿Te viene bien el…</span></div></div>
+  <div class="scrim"></div>
+  <div class="dlg"><h4>Mover a una carpeta</h4><p class="sub">;firma</p>
+   <div class="field"><i class="ti ti-search" style="color:var(--text-muted)"></i>Clientes<span class="caret" style="margin-left:0"></span></div>
+   <div class="list">
+    <div class="it on new"><i class="ti ti-folder-plus"></i>Crear «Clientes»</div>
+   </div></div>
+ </div><p class="tag">Escribiendo: si no existe, Enter la crea y la mueve</p></div>
+</div></div>
+<ul class="notes"><li>Con muchas carpetas sigue siendo rápido: dos letras y Enter.</li><li>Enter mueve a la fila resaltada; las flechas cambian de fila.</li><li>Moviendo varias, debajo del título: «3 expansiones».</li></ul>
+
+<h3>B · Las mismas píldoras</h3>
+<p class="why">La ventana usa las mismas píldoras de carpeta que la isla de soltar, con «+ Nueva» al final. Una sola forma de decir «carpeta» en toda la app. Más compacta, pero con muchas carpetas se vuelve un mosaico difícil de leer, y crear una necesita un paso más.</p>
+<div class="k"><div class="win">
+ <div class="rows"><div class="r"><span class="t">;firma</span><span class="x">Un saludo, Dafne Ruiz</span></div><div class="r"><span class="t">;dir</span><span class="x">Av. Reforma 222</span></div><div class="r"><span class="t">;gracias</span><span class="x">¡Muchas gracias por…</span></div><div class="r"><span class="t">;cita</span><span class="x">¿Te viene bien el…</span></div></div>
+ <div class="scrim"></div>
+ <div class="dlg"><h4>Mover a una carpeta</h4><p class="sub">;firma</p>
+  <div class="chips"><span class="f on"><i class="ti ti-folder"></i>Correo</span><span class="f"><i class="ti ti-folder"></i>Trabajo</span><span class="f cur"><i class="ti ti-folder"></i>Personal</span><span class="f"><i class="ti ti-folder-off"></i>Sin carpeta</span><span class="f add"><i class="ti ti-plus"></i>Nueva</span></div>
+ </div>
+</div></div>
+
+<h3>C · Sin ventana: un submenú</h3>
+<p class="why">«Mover» del clic derecho abre las carpetas a un lado, como los submenús de Windows 11. Es lo más ligero, pero la píldora de elegir varias no tiene dónde colgarlo, y crear una carpeta vuelve a necesitar otra ventana.</p>
+<div class="k"><div class="win">
+ <div class="rows"><div class="r"><span class="t">;firma</span><span class="x">Un saludo, Dafne Ruiz</span></div><div class="r"><span class="t">;dir</span><span class="x">Av. Reforma 222</span></div><div class="r"><span class="t">;gracias</span><span class="x">¡Muchas gracias por…</span></div><div class="r"><span class="t">;cita</span><span class="x">¿Te viene bien el…</span></div></div>
+ <div class="ctx" style="left:150px;top:40px"><div class="it"><i class="ti ti-star"></i>Favorita</div><div class="it on"><i class="ti ti-folder-symlink"></i>Mover<i class="ti ti-chevron-right" style="margin-left:auto"></i></div><div class="it"><i class="ti ti-keyboard"></i>Cambiar activador</div><div class="it"><i class="ti ti-power"></i>Apagar</div><div class="it"><i class="ti ti-trash"></i>Eliminar</div></div>
+ <div class="fly" style="left:336px;top:72px"><div class="it"><i class="ti ti-folder"></i>Correo</div><div class="it"><i class="ti ti-folder"></i>Trabajo</div><div class="it cur"><i class="ti ti-check"></i>Personal</div><div class="it"><i class="ti ti-folder-off"></i>Sin carpeta</div><hr><div class="it new"><i class="ti ti-plus"></i>Nueva carpeta…</div></div>
+</div></div>
+
+<h2>2 · Una carpeta nueva al soltar</h2>
+<p class="why">Mientras se arrastra, la isla que sale del «+» muestra las carpetas. Falta un destino para una carpeta que aún no existe. La sensación buscada: <b>que el gesto no se rompa</b>. Soltar ya es la decisión; ponerle nombre no debe sentirse como un trámite.</p>
+
+<h3>A · El «+» se vuelve el nombre<span class="rec">Recomendado</span></h3>
+<p class="why">Al final de la isla, una píldora punteada «+ Nueva». Al soltar encima, esa misma píldora se estira en un campo con el cursor dentro (transformar, no reemplazar). Enter crea la carpeta con la expansión dentro y la isla se convierte en el mensaje con Deshacer. Esc o clic fuera: no se crea nada y la expansión se queda donde estaba.</p>
+<div class="k"><div class="pair">
+ <div><div class="win">
+  <div class="rows"><div class="r lift"><span class="t">;firma</span><span class="x">Un saludo, Dafne Ruiz</span></div><div class="r"><span class="t">;dir</span><span class="x">Av. Reforma 222</span></div><div class="r"><span class="t">;gracias</span><span class="x">¡Muchas gracias por…</span></div><div class="r"><span class="t">;cita</span><span class="x">¿Te viene bien el…</span></div></div>
+  <div class="ghost" style="left:196px;top:212px"><span class="t">;firma</span><span class="x">Un saludo…</span></div>
+  <div class="cursor" style="left:282px;top:262px"></div>
+  <div class="island"><span class="p"><i class="ti ti-folder"></i>Correo</span><span class="p cur"><i class="ti ti-folder"></i>Personal</span><span class="sep"></span><span class="p add on" style="background:var(--accent)"><i class="ti ti-plus"></i>Nueva</span></div>
+ </div><p class="tag">Arrastrando sobre «+ Nueva»</p></div>
+ <div><div class="win">
+  <div class="rows"><div class="r"><span class="t">;firma</span><span class="x">Un saludo, Dafne Ruiz</span></div><div class="r"><span class="t">;dir</span><span class="x">Av. Reforma 222</span></div><div class="r"><span class="t">;gracias</span><span class="x">¡Muchas gracias por…</span></div><div class="r"><span class="t">;cita</span><span class="x">¿Te viene bien el…</span></div></div>
+  <div class="island"><span class="p"><i class="ti ti-folder"></i>Correo</span><span class="p cur"><i class="ti ti-folder"></i>Personal</span><span class="sep"></span><span class="p edit"><i class="ti ti-folder-plus" style="color:var(--text-accent)"></i>Firmas<span class="caret" style="margin-left:0"></span></span></div>
+ </div><p class="tag">Al soltar: la píldora es el campo; Enter la crea</p></div>
+</div></div>
+
+<h3>B · Primero la crea, el nombre después</h3>
+<p class="why">Soltar en «+ Nueva» crea al instante «Carpeta nueva» con la expansión dentro, y el mensaje ofrece «Renombrar» y «Deshacer». El gesto termina al soltar, pero deja una carpeta mal nombrada si nadie pulsa Renombrar.</p>
+<div class="k"><div class="win" style="height:200px">
+ <div class="rows"><div class="r"><span class="t">;dir</span><span class="x">Av. Reforma 222</span></div><div class="r"><span class="t">;gracias</span><span class="x">¡Muchas gracias por…</span></div></div>
+ <div class="island"><span class="msg"><span>Movida a <b>Carpeta nueva</b></span><span class="u">Renombrar</span><span class="u">Deshacer</span></span></div>
+</div></div>
+
+<h3>C · Soltar una expansión sobre otra</h3>
+<p class="why">Sin píldora nueva: soltar <span style="font-family:var(--font-mono);font-size:13px;color:var(--text-accent)">;firma</span> encima de <span style="font-family:var(--font-mono);font-size:13px;color:var(--text-accent)">;dir</span> crea una carpeta con las dos, como juntar iconos en el móvil, y pide el nombre en la fila. Es el gesto más mágico, pero nadie lo descubre solo y se confunde con soltar «entre» filas.</p>
+<div class="k"><div class="win" style="height:220px">
+ <div class="rows"><div class="r"><span class="t">;gracias</span><span class="x">¡Muchas gracias por…</span></div><div class="r lift"><span class="t">;dir</span><span class="x">Av. Reforma 222</span></div><div class="r"><span class="t">;cita</span><span class="x">¿Te viene bien el…</span></div></div>
+ <div class="ghost" style="left:120px;top:66px"><span class="t">;firma</span><span class="x">Un saludo…</span></div>
+ <div class="cursor" style="left:200px;top:98px"></div>
+</div></div>
+
+<div class="decide"><b>Para decidir:</b> un camino para la ventana (A, B o C) y uno para la isla (A, B o C). Recomiendo <b>A y A</b>: las dos crean la carpeta escribiendo su nombre en el mismo sitio donde se elige, así que se aprenden una vez y sirven para las dos.</div>
+</body>
+</html>

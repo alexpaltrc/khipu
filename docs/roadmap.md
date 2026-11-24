@@ -248,6 +248,9 @@ Con la 0.0.10 ya publicada, Alex deja dos cosas para la siguiente:
   carpetas un destino (quizá un «+») que crea una carpeta nueva y mete ahí lo que se arrastra.
   Por diseñar: cómo se le pone nombre sin romper el gesto.
 
+Los caminos para las dos están en `docs/disenos/mover.html` (2026-11-23), esperando a que Alex
+elija.
+
 ## Referencias de la revisión local
 
 Base consultada: commit local `bebb488`, Cargo `0.0.6`. No se modificó el código de la aplicación para elaborar esta propuesta.
