@@ -248,8 +248,9 @@ Con la 0.0.10 ya publicada, Alex deja dos cosas para la siguiente:
   carpetas un destino (quizá un «+») que crea una carpeta nueva y mete ahí lo que se arrastra.
   Por diseñar: cómo se le pone nombre sin romper el gesto.
 
-Los caminos para las dos están en `docs/disenos/mover.html` (2026-11-23), esperando a que Alex
-elija.
+Los caminos están en `docs/disenos/mover.html`. **Alex eligió (2026-11-23):** la ventana A («Escribe o
+elige») y, al soltar, A («El «+» se vuelve el nombre») y también C (soltar una expansión sobre
+otra crea una carpeta con las dos).
 
 ## Referencias de la revisión local
 

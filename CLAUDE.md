@@ -23,8 +23,26 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
 - Cada pantalla se sigue empujando a ser **más agradable a la vista, más satisfactoria de usar y
   más fácil de entender de un vistazo**; proponer ideas por iniciativa propia, y arreglar un
   detalle en todos los sitios que muestran lo mismo, sin esperar a que Alex lo note.
-- Mica (transparencia) se descartó por ahora (2026-11-14): cuesta optimización y se ve peor con
-  fondos llamativos. No proponerlo de nuevo salvo que Alex lo pida.
+- **Que todo se sienta mágico** (el sello de Alex, skill `alex-vibecode` sección 2). La magia
+  también es comportamiento, no solo animación:
+  - Cero curva de aprendizaje, respuesta inmediata y un gesto discreto que confirma lo hecho.
+  - Partir de la sensación; tocar la cosa real, no un símbolo; nada aparece de la nada ni se
+    esfuma; el cambio fluye, no salta.
+  - Una firma que se repite (la isla, sus colores de firma fijos, no el acento) y capas sutiles.
+  - Más magia, menos interfaz: un gesto o una lógica que adivina antes que un botón nuevo; gestos
+    que ya se saben en Windows; el trabajo nunca se pierde (todo se deshace).
+  - Sutileza: antes de un efecto nuevo, mirar cuántos hay y si un buen comportamiento basta.
+  - **Se elige viéndolo**: tres o cuatro caminos con nombre y vista previa, uno recomendado; el
+    aspecto y el movimiento se eligen por separado.
+  - **Al cerrar cada cambio o fase, dos ideas mágicas** para Khipu, una o dos líneas cada una,
+    con recomendación. Se proponen, no se construyen, hasta que Alex elija.
+- **Librerías: solo las sólidas.** Las que Khipu ya usa (egui, serde, etc.) se quedan; no se
+  quitan ni se cambian sin que Alex lo pida. Una nueva solo si está viva y muy usada; si lo que
+  hace es poco, se escribe nosotros.
+- **Repositorio público con GPL**: Alex decidió dejarlo así (2026-11-23), aunque el estándar pide
+  privado y sin licencia. No proponerlo de nuevo.
+- **Mica: sí** (decisión de Alex, 2026-11-23; antes se había descartado el 2026-11-14 por coste y
+  por cómo se ve con fondos llamativos). Se añade cuidando esas dos cosas.
 - Expansiones con formato (negritas, listas) se probaron y se descartaron (2026-11-22): mucho
   trabajo y una experiencia que no se puede asegurar. El porqué, en `docs/roadmap.md` («Decidido:
   expansiones sin formato»). No proponerlo de nuevo salvo que Alex lo pida.
