@@ -225,14 +225,14 @@ cursor termina justo después de la última palabra.
 
 Alex quiere que una expansión se entienda como **normal o con elementos**: una pregunta (campo
 de formulario), la fecha, la hora o una combinación, en vez de tres sistemas distintos. Falta
-decidir cómo se crean la fecha y la hora. Las maquetas están en `docs/disenos/elementos.html`:
+decidir cómo se crean la fecha y la hora. Las primeras maquetas (botones con píldora, elegir entre
+ejemplos, escribirla y que Khipu la reconozca) no convencieron. El 2026-11-23 se cambiaron por
+otras tres en `docs/disenos/elementos.html`:
 
-- **A · Botones que insertan una píldora** (Pregunta, Fecha, Hora). Al tocar la píldora salen sus
-  formatos con la fecha de hoy y «Personalizar», que la abre en bloques. Fecha con hora: dos
-  píldoras juntas («el [fecha] a las [hora]») o una sola armada en Personalizar. Es la que más
-  le gusta a Alex por compacta, y la que mejor empuja la idea de un solo sistema.
-- **B · Elegir entre ejemplos reales** (fecha corta, larga, hora, fecha y hora). Más clara.
-- **C · Escribirla como la quieres** y que Khipu la reconozca.
+- **1 · La píldora se toca por piezas** (recomendada): sale como la escribe Windows, y cada pieza
+  (día de la semana, mes, año) se cambia tocándola dentro de la píldora. La hora se suma al final.
+- **2 · Escribe «/» donde la quieres**: un menú con los valores reales, sin botones.
+- **3 · Sin elegir nada**: el formato de Windows; otras formas con clic derecho en la píldora.
 
 No construir nada de esto hasta que Alex decida.
 
