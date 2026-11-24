@@ -21,6 +21,12 @@ was published.
   in other capitals, is that folder), handing over to the island's «movida a …» with Deshacer.
   Esc or a click elsewhere creates nothing and the pill closes into the «+»; a new drag lets the
   half-typed name go. One undo step, as with any drop.
+- **A folder from two expansions.** Holding a dragged expansion over another row lights that row
+  (signature tint and a thin accent ring) while the ghost thins to let it show; releasing turns
+  the row into a «Nombre de la carpeta» field with «2 expansiones» beside it. Enter files both
+  under the name (an existing folder, in any capitals, is reused) with the island's Deshacer; Esc
+  or a click elsewhere leaves both where they were. The drop is caught from the payload, since
+  egui forgets the dragged id on the release frame.
 - Studio: `r:x,y` in `preview-clicks.txt` right-clicks.
 
 ## 0.0.10 — 2026-11-22

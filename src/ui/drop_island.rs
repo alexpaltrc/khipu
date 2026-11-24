@@ -125,6 +125,11 @@ pub fn alive(ctx: &egui::Context) -> bool {
     ctx.data(|d| d.get_temp::<Pill>(id()).is_some())
 }
 
+/// Whether the pill is the box for a new folder's name, which has the keyboard.
+pub fn naming(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<Pill>(id()).is_some_and(|p| p.phase == Phase::Naming))
+}
+
 /// What the pill is holding up, laid out: each chip's place, what it says and what it takes.
 struct Chip {
     drop: Option<Take>,

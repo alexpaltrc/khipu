@@ -450,6 +450,9 @@ struct RowPass<'a> {
     needle: &'a str,
     /// What a form's mark says under the pointer, in the app's language.
     form_tip: &'a str,
+    /// The row another was dropped on, asking for the name of the folder the two will share — see
+    /// [`Pairing`]. Always drawn, wherever it is.
+    paired: Option<egui::Id>,
 }
 
 fn row_pass<'a>(
@@ -477,6 +480,7 @@ fn row_pass<'a>(
         glide: None,
         needle,
         form_tip,
+        paired: ui.ctx().data(|d| d.get_temp::<Pairing>(pairing_key())).map(|p| row_id(&p.onto)),
     }
 }
 
@@ -1357,6 +1361,8 @@ fn keyboard(
     if ctx.data(|d| d.get_temp::<Vec<String>>(move_targets_key()).is_some())
         || ctx.data(|d| d.get_temp::<String>(create_folder_key()).is_some())
         || ctx.data(|d| d.get_temp::<(String, String)>(rename_key()).is_some())
+        || ctx.data(|d| d.get_temp::<Pairing>(pairing_key()).is_some())
+        || crate::ui::drop_island::naming(&ctx)
     {
         return;
     }
@@ -2504,7 +2510,7 @@ fn show_row(
     let known_height = pass.known_height.or_else(|| {
         ui.ctx().data(|d| d.get_temp::<f32>(row_height_key(pass.compact, pass.grid, pass.select_mode)))
     });
-    if !dragging && !is_open && !flashed && !focusable {
+    if !dragging && !is_open && !flashed && !focusable && pass.paired != Some(id) {
         if let Some(height) = known_height {
             let top = ui.cursor().top();
             let view = ui.clip_rect();
@@ -2648,6 +2654,8 @@ fn show_row_inner(
     let mut clicked_with: Option<(bool, bool)> = None;
     let mut menu: Option<RowMenu> = None;
 
+    // Under the row's own fill: where it lights as something carried is held over it.
+    let behind = ui.painter().add(egui::Shape::Noop);
     let framed = frame
         .corner_radius(controls::RADIUS_CONTROL)
         .show(ui, |ui| {
@@ -2797,6 +2805,11 @@ fn show_row_inner(
 
     if marquee_rect(ui.ctx()).is_some_and(|r| r.intersects(framed.response.rect)) {
         ui.ctx().data_mut(|d| d.get_temp_mut_or_default::<Vec<String>>(marquee_hits_key()).push(trigger.to_owned()));
+    }
+
+    pair_onto(ui, framed.response.rect, trigger, behind, is_light);
+    if pass.paired == Some(drag_id) {
+        pair_name_box(ui, state, framed.response.rect, is_light);
     }
 
     // Under the pointer: tell the wash where to go. Not while something is being dragged — the
@@ -3299,6 +3312,153 @@ fn recent_folders_key() -> egui::Id {
     egui::Id::new("recent_folders")
 }
 
+/// Expansions dropped on another one, to go into a new folder together: the row dropped on asks
+/// for the folder's name in its own place. Enter makes it and files them all there, as one step to
+/// undo; Esc or a click elsewhere leaves everything where it was.
+#[derive(Clone)]
+struct Pairing {
+    carried: std::sync::Arc<DragPayload>,
+    onto: String,
+    name: String,
+    since: f64,
+}
+
+fn pairing_key() -> egui::Id {
+    egui::Id::new("library-pairing")
+}
+
+/// How a row looks with something held over it, and as the box for the shared folder's name: the
+/// tint a row saved a moment ago wears, ringed in the accent.
+fn pair_tint(is_light: bool, accent: egui::Color32) -> egui::Color32 {
+    crate::app::mix(crate::app::tint_base(is_light), accent, if is_light { 0.11 } else { 0.20 })
+}
+
+/// The pass in which a row last lit under something carried: the carried row thins while it does.
+fn pair_lit_key() -> egui::Id {
+    egui::Id::new("library-pair-lit")
+}
+
+/// While a drag is in flight, a row it does not carry lights under the pointer, and a release
+/// there starts a [`Pairing`]. `behind` is a place kept under the row's fill for the light. Asked
+/// of the payload, not of egui's drag: egui forgets the drag on the very frame of the release.
+fn pair_onto(ui: &egui::Ui, rect: egui::Rect, trigger: &str, behind: egui::layers::ShapeIdx, is_light: bool) {
+    let ctx = ui.ctx();
+    let over = ui.rect_contains_pointer(rect)
+        && !ctx
+            .data(|d| d.get_temp::<egui::Rect>(drop_island_key()))
+            .zip(ctx.pointer_latest_pos())
+            .is_some_and(|(pill, p)| pill.contains(p))
+        && egui::DragAndDrop::payload::<DragPayload>(ctx).is_some_and(|c| !c.iter().any(|t| t == trigger));
+    let pace = if crate::theme::animations_enabled() { 0.12 } else { 0.0 };
+    let lit = ctx.animate_bool_with_time(row_id(trigger).with("pair"), over, pace);
+    if over {
+        let pass = ctx.cumulative_pass_nr();
+        ctx.data_mut(|d| d.insert_temp(pair_lit_key(), pass));
+    }
+    if lit > 0.0 {
+        let accent = accent(ui.visuals());
+        let radius = controls::RADIUS_CONTROL;
+        ui.painter().set(behind, egui::Shape::rect_filled(rect, radius, pair_tint(is_light, accent).gamma_multiply(lit)));
+        ui.painter().rect_stroke(rect, radius, egui::Stroke::new(1.0, accent.gamma_multiply(0.6 * lit)), egui::StrokeKind::Inside);
+    }
+    if over && ui.input(|i| i.pointer.any_released()) {
+        if let Some(carried) = egui::DragAndDrop::take_payload::<DragPayload>(ctx) {
+            let now = ctx.input(|i| i.time);
+            ctx.data_mut(|d| {
+                d.insert_temp(pairing_key(), Pairing { carried, onto: trigger.to_owned(), name: String::new(), since: now })
+            });
+        }
+    }
+}
+
+/// The row dropped on, as the box for the shared folder's name: a folder, the keyboard, and how
+/// many will go in it.
+fn pair_name_box(ui: &mut egui::Ui, state: &mut AppState, rect: egui::Rect, is_light: bool) {
+    let ctx = ui.ctx().clone();
+    let Some(mut pairing) = ctx.data(|d| d.get_temp::<Pairing>(pairing_key())) else {
+        return;
+    };
+    let now = ctx.input(|i| i.time);
+    let pace = if crate::theme::animations_enabled() { 0.12 } else { 0.0 };
+    let shown = if pace > 0.0 { ((now - pairing.since) / pace).clamp(0.0, 1.0) as f32 } else { 1.0 };
+    if shown < 1.0 {
+        ctx.request_repaint();
+    }
+
+    let accent = accent(ui.visuals());
+    let radius = controls::RADIUS_CONTROL;
+    let painter = ui.painter();
+    painter.rect_filled(rect, radius, pair_tint(is_light, accent).gamma_multiply(shown));
+    painter.rect_stroke(rect, radius, egui::Stroke::new(1.0, accent.gamma_multiply(0.6)), egui::StrokeKind::Inside);
+
+    let text = ui.visuals().strong_text_color();
+    let middle = rect.center().y;
+    let left = rect.left() + controls::ROW_PAD_X;
+    let icon = egui::Rect::from_min_size(egui::pos2(left, middle - glyphs::SIZE * 0.5), egui::Vec2::splat(glyphs::SIZE));
+    glyphs::paint(ui, icon, Glyph::Folder, glyphs::SIZE, text.gamma_multiply(shown));
+
+    // How many will share it, at the far end.
+    let n = pairing.carried.len() + 1;
+    let count = crate::i18n::fill(
+        studio::text(state, "{n} expansiones", "{n} expansions", "{n} expansion", "{n} विस्तार"),
+        &[("n", &n.to_string())],
+    );
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let weak = ui.visuals().weak_text_color().gamma_multiply(shown);
+    let galley = ui.painter().layout_no_wrap(count, font, weak);
+    let count_at = egui::pos2(rect.right() - controls::ROW_PAD_X - galley.size().x, middle - galley.size().y * 0.5);
+    ui.painter().galley(count_at.round(), galley, weak);
+
+    let at = icon.right() + 8.0;
+    let field = egui::Rect::from_min_max(
+        egui::pos2(at, middle - 12.0),
+        egui::pos2((count_at.x - controls::GAP).max(at), middle + 12.0),
+    );
+    let hint = studio::text(state, "Nombre de la carpeta", "Folder name", "Pangalan ng folder", "फ़ोल्डर का नाम");
+    let response = ui
+        .scope(|ui| {
+            ui.multiply_opacity(shown);
+            ui.put(
+                field,
+                egui::TextEdit::singleline(&mut pairing.name)
+                    .id(egui::Id::new("library-pair-field"))
+                    .frame(egui::Frame::NONE)
+                    .margin(egui::Margin::ZERO)
+                    .vertical_align(egui::Align::Center)
+                    .text_color(text)
+                    .hint_text(hint)
+                    .desired_width(field.width()),
+            )
+        })
+        .inner;
+    if !response.has_focus() && !response.lost_focus() {
+        response.request_focus();
+    }
+    if response.lost_focus() {
+        let typed = pairing.name.trim();
+        if ui.input(|i| i.key_pressed(egui::Key::Enter)) && !typed.is_empty() {
+            // A name a folder already has, in other capitals, is that folder.
+            let folder = state
+                .settings
+                .all_folder_names()
+                .into_iter()
+                .find(|f| f.to_lowercase() == typed.to_lowercase())
+                .unwrap_or_else(|| typed.to_owned());
+            ctx.data_mut(|d| {
+                let recent = d.get_temp_mut_or_default::<Vec<String>>(recent_folders_key());
+                recent.retain(|r| *r != folder);
+                recent.insert(0, folder.clone());
+            });
+            let mut all: Vec<String> = pairing.carried.to_vec();
+            all.push(pairing.onto.clone());
+            state.assign_folder_to_triggers(&all, Some(folder));
+        }
+        ctx.data_mut(|d| d.remove::<Pairing>(pairing_key()));
+    } else {
+        ctx.data_mut(|d| d.insert_temp(pairing_key(), pairing));
+    }
+}
+
 /// Where a drag can drop what it carries, in the order the drop island offers them: the folders
 /// used lately, then the rest as the folder picker lists them, and «Sin carpeta» when any of it is
 /// in a folder. The folder they all share already is among them, marked, so it can be shown dimmed.
@@ -3376,6 +3536,13 @@ fn drag_source(
             .fixed_pos(ui.cursor().min)
             .show(ui.ctx(), |ui| {
                 ui.set_max_width(width);
+                // Held over another expansion, it thins, so the one that lights to take it shows
+                // through.
+                let ctx = ui.ctx().clone();
+                let pass = ctx.cumulative_pass_nr();
+                let over_row = ctx.data(|d| d.get_temp::<u64>(pair_lit_key())).is_some_and(|n| n + 1 >= pass);
+                let pace = if crate::theme::animations_enabled() { 0.12 } else { 0.0 };
+                ui.multiply_opacity(1.0 - 0.9 * ctx.animate_bool_with_time(id.with("thin"), over_row, pace));
                 if count > 1 {
                     egui::Frame::popup(ui.style()).show(ui, |ui| {
                         ui.label(fill(t.moving_n, &[("n", &count.to_string())]));
