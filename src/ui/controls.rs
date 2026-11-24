@@ -1510,8 +1510,21 @@ pub fn tool_button(ui: &mut egui::Ui, glyph: Glyph, label: &str, set: bool, max_
     let is_light = !ui.visuals().dark_mode;
     let ink = if set { ui.visuals().text_color() } else { secondary_text(is_light) };
     let room = (max_width - TOOL_PAD_X * 2.0 - glyphs::SIZE - TOOL_ICON_GAP).max(1.0);
+    // The words open out of the icon and fold back into it rather than jumping in: a folder Khipu
+    // guesses arrives while somebody types, and must not shove the row along. Folding back, they
+    // are the last words it held.
+    let id = ui.next_auto_id();
+    let kept = id.with("words");
+    let painted = if label.is_empty() {
+        ui.ctx().data(|d| d.get_temp::<String>(kept)).unwrap_or_default()
+    } else {
+        ui.ctx().data_mut(|d| d.insert_temp(kept, label.to_owned()));
+        label.to_owned()
+    };
+    let time = if ui.style().animation_time > 0.0 { 0.2 } else { 0.0 };
+    let open = ui.ctx().animate_bool_with_time_and_easing(id.with("open"), !label.is_empty(), time, egui::emath::easing::cubic_out);
     let mut job = egui::text::LayoutJob::single_section(
-        label.to_owned(),
+        painted,
         egui::TextFormat::simple(egui::TextStyle::Button.resolve(ui.style()), ink),
     );
     job.wrap = egui::text::TextWrapping {
@@ -1521,7 +1534,7 @@ pub fn tool_button(ui: &mut egui::Ui, glyph: Glyph, label: &str, set: bool, max_
         overflow_character: Some('…'),
     };
     let words = ui.painter().layout_job(job);
-    let words_width = if label.is_empty() { 0.0 } else { TOOL_ICON_GAP + words.size().x };
+    let words_width = (TOOL_ICON_GAP + words.size().x) * open;
     let width = TOOL_PAD_X * 2.0 + glyphs::SIZE + words_width;
     let (rect, response) = ui.allocate_exact_size(egui::vec2(width, FIELD_HEIGHT), egui::Sense::click());
     let response = if set { response.on_hover_text(format!("{label}\n{tip}")) } else { response.on_hover_text(tip) };
@@ -1537,7 +1550,11 @@ pub fn tool_button(ui: &mut egui::Ui, glyph: Glyph, label: &str, set: bool, max_
         // Cancelar and Guardar across the foot instead of sitting a pixel below them.
         let ppp = ui.ctx().pixels_per_point();
         let top = ((rect.center().y - words.size().y * 0.5) * ppp).floor() / ppp;
-        ui.painter().galley(egui::pos2(icon.right() + TOOL_ICON_GAP, top), words, ink);
+        if open > 0.0 {
+            ui.painter()
+                .with_clip_rect(rect.intersect(ui.clip_rect()))
+                .galley_with_override_text_color(egui::pos2(icon.right() + TOOL_ICON_GAP, top), words, ink.gamma_multiply(open));
+        }
     }
     if response.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);

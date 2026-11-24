@@ -137,6 +137,36 @@ pub fn apply_assignments(settings: &mut Settings, renames: &[Rename]) {
         .collect();
 }
 
+/// The folder a new trigger looks like it belongs in: the one whose expansions start with the most
+/// of its word, at least [`GUESS_MIN`] letters of it, ignoring the prefix and capitals. `None` when
+/// nothing is that close, or when two folders are equally close: a guess that could be either is
+/// not one.
+pub fn guess(trigger: &str, settings: &Settings) -> Option<String> {
+    let word = |t: &str| t[prefix(t).len()..].to_lowercase();
+    let new = word(trigger);
+    let mut best: Option<(usize, &str)> = None;
+    let mut tied = false;
+    for (other, folder) in &settings.folder_by_trigger {
+        let shared = new.chars().zip(word(other).chars()).take_while(|(a, b)| a == b).count();
+        if shared < GUESS_MIN {
+            continue;
+        }
+        match best {
+            Some((n, f)) if shared < n || (shared == n && f == folder.as_str()) => {}
+            Some((n, _)) if shared == n => tied = true,
+            _ => {
+                best = Some((shared, folder.as_str()));
+                tied = false;
+            }
+        }
+    }
+    best.filter(|_| !tied).map(|(_, f)| f.to_owned())
+}
+
+/// How many letters a new trigger must share with a filed one before its folder is guessed.
+/// Three: `cli` says «cliente», `co` could be anything.
+pub const GUESS_MIN: usize = 3;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,5 +266,25 @@ mod tests {
         let advanced = MatchEntry::Advanced(serde_norway::from_str("trigger: ':hola'\nreplace: text\nword: true\n").unwrap());
         assert!(plan(&[advanced], &settings(), "A", ";").unwrap().is_empty());
         assert!(plan(&[entry(":hola")], &settings(), "A", ":").unwrap().is_empty());
+    }
+
+    /// A new trigger goes where the ones most like it are, whatever its prefix or capitals, and
+    /// nowhere when it is not like anything or like two folders equally.
+    #[test]
+    fn a_new_trigger_is_guessed_into_the_folder_of_its_kind() {
+        let mut s = Settings::default();
+        s.set_folder(";cliente", Some("Clientes".into()));
+        s.set_folder(";clivip", Some("Clientes".into()));
+        s.set_folder(";correo", Some("Correos".into()));
+        s.set_folder(";cobro", Some("Facturas".into()));
+        s.set_folder(";clima", Some("Casa".into()));
+        assert_eq!(guess(":Clientenuevo", &s).as_deref(), Some("Clientes"));
+        assert_eq!(guess(";corr", &s).as_deref(), Some("Correos"));
+        // `cli` is as close to «clima» as to «cliente»: no guess. `clie` settles it.
+        assert_eq!(guess(";cli", &s), None);
+        assert_eq!(guess(";clie", &s).as_deref(), Some("Clientes"));
+        // Two letters are not enough, and nothing alike is nothing.
+        assert_eq!(guess(";co", &s), None);
+        assert_eq!(guess(";hola", &s), None);
     }
 }

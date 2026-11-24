@@ -51,6 +51,8 @@ pub fn create_expansion(ctx: &egui::Context, state: &mut AppState) {
         .filter(|info| info.prefixes.len() == 1).and_then(|info| info.prefixes.first())
         .unwrap_or(&state.settings.prefix);
     let mut edit = EditState::new_for_create(prefix);
+    // Opened from a folder, it is that folder's; from all of them, the trigger picks one.
+    edit.guessing = folder.is_none();
     edit.folder = folder;
     state.view = View::Edit(edit);
 }

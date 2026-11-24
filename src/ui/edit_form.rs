@@ -196,6 +196,9 @@ pub struct EditState {
     /// Optional folder this expansion belongs to. Entirely our own bookkeeping, never written
     /// into espanso's YAML.
     pub folder: Option<String>,
+    /// Whether the folder is still Khipu's guess from the trigger (see [`crate::folders::guess`]):
+    /// true for a new expansion until somebody picks a folder, or opened from one.
+    pub guessing: bool,
     pub choosing_new_folder: bool,
     pub new_folder_input: String,
     /// Whether it is a favourite. Ours, like the folder, and saved with Guardar like the rest of
@@ -222,6 +225,7 @@ impl EditState {
             replace: String::new(),
             name: String::new(),
             folder: None,
+            guessing: true,
             choosing_new_folder: false,
             new_folder_input: String::new(),
             favorite: false,
@@ -245,6 +249,7 @@ impl EditState {
             name: m.label.clone().unwrap_or_default(),
             date: date.map(DateChoice::of).unwrap_or_default(),
             folder,
+            guessing: false,
             choosing_new_folder: false,
             new_folder_input: String::new(),
             favorite: false,
@@ -838,6 +843,17 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
             });
         });
     });
+    // A new trigger like the ones in a folder goes there, until somebody chooses otherwise. Done
+    // after the form, which is where the word changes; the foot shows it on the next frame.
+    if let View::Edit(edit) = &mut state.view {
+        if edit.guessing {
+            let guess = crate::folders::guess(&edit.trigger(), &state.settings);
+            if guess != edit.folder {
+                edit.folder = guess;
+                ctx.request_repaint();
+            }
+        }
+    }
     // Drawn after the form, so it already shows this frame's keystroke.
     if let (Some(side), View::Edit(edit)) = (side, &state.view) {
         let column = egui::Rect::from_min_size(
@@ -2668,6 +2684,7 @@ fn folder_menu(ui: &egui::Ui, state: &AppState, edit: &mut EditState, button: &e
             let first = ui.next_auto_id();
             if controls::menu_check_item(ui, t.no_folder, None, edit.folder.is_none()).clicked() {
                 edit.folder = None;
+                edit.guessing = false;
             }
             if by_keyboard {
                 ui.memory_mut(|m| m.request_focus(first));
@@ -2680,6 +2697,7 @@ fn folder_menu(ui: &egui::Ui, state: &AppState, edit: &mut EditState, button: &e
                         let chosen = edit.folder.as_deref() == Some(name.as_str());
                         if controls::menu_check_item(ui, &crate::app::truncate(name, 32), None, chosen).clicked() {
                             edit.folder = Some(name.clone());
+                            edit.guessing = false;
                         }
                     }
                 });
@@ -2697,6 +2715,7 @@ fn folder_menu(ui: &egui::Ui, state: &AppState, edit: &mut EditState, button: &e
                     // An existing name typed again is that folder, chosen.
                     let existing = folder_names.iter().find(|f| f.to_lowercase() == name.to_lowercase());
                     edit.folder = Some(existing.cloned().unwrap_or(name));
+                    edit.guessing = false;
                     edit.choosing_new_folder = false;
                     edit.new_folder_input.clear();
                     ui.close();

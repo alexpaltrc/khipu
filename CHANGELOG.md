@@ -27,6 +27,12 @@ was published.
   under the name (an existing folder, in any capitals, is reused) with the island's Deshacer; Esc
   or a click elsewhere leaves both where they were. The drop is caught from the payload, since
   egui forgets the dragged id on the release frame.
+- **A new expansion guesses its folder.** Opened from «Todas las carpetas», the editor files the
+  new trigger with the folder whose expansions share the most of its word (three letters at
+  least, prefix and capitals aside, none on a tie: `folders::guess`), and follows the word as it
+  is typed until a folder is picked by hand. Opened from a folder, it stays that folder's, as
+  before. The foot's folder button now opens its words out of the icon and folds them back
+  (0.2 s, cubic out) instead of shoving «Nombre» along.
 - Studio: `r:x,y` in `preview-clicks.txt` right-clicks.
 
 ## 0.0.10 — 2026-11-22
