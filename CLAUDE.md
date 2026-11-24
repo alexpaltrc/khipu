@@ -36,9 +36,6 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
     aspecto y el movimiento se eligen por separado.
   - **Al cerrar cada cambio o fase, dos ideas mágicas** para Khipu, una o dos líneas cada una,
     con recomendación. Se proponen, no se construyen, hasta que Alex elija.
-- **Librerías: solo las sólidas.** Las que Khipu ya usa (egui, serde, etc.) se quedan; no se
-  quitan ni se cambian sin que Alex lo pida. Una nueva solo si está viva y muy usada; si lo que
-  hace es poco, se escribe nosotros.
 - **Repositorio público con GPL**: Alex decidió dejarlo así (2026-11-23), aunque el estándar pide
   privado y sin licencia. No proponerlo de nuevo.
 - **Mica: sí** (decisión de Alex, 2026-11-23; antes se había descartado el 2026-11-14 por coste y
