@@ -32,6 +32,12 @@
 //! is seen to change rather than one leaving as another comes. Released anywhere else, it closes
 //! back into the «+».
 //!
+//! «+ Nueva», last, is for a folder that does not exist yet. Dropped on, the pill keeps what it
+//! carries and becomes the box for the new folder's name: the folders go, the pill draws in to the
+//! field, and the keyboard is in it. Enter files what was carried under that name, which is what
+//! makes the folder, and hands over to the island like a drop on a folder; Esc or a click
+//! elsewhere makes nothing, and the pill closes back into the «+».
+//!
 //! It only draws and reports what was dropped where ([`Dropped`]); `list_view` decides what that
 //! does.
 
@@ -55,6 +61,8 @@ const BESIDE_RULE: f32 = 6.0;
 const WIDEN: f32 = 8.0;
 /// The longest folder name shown whole; a longer one ends in «…».
 const NAME_CHARS: usize = 20;
+/// The narrowest the box for a new folder's name draws in to.
+const NAME_MIN: f32 = 140.0;
 
 /// The choreography, in seconds: the folders wait for the pill to be well on its way, then each
 /// follows the one before; leaving, they go together, quickly.
@@ -71,14 +79,24 @@ pub struct Target {
 
 /// What a drop landed on.
 pub enum Dropped {
+    /// A folder, or «Sin carpeta»; a folder named in «+ Nueva» is one that does not exist yet.
     On(Option<String>),
     /// «Más…»: the whole list of folders, to choose from.
     More,
 }
 
+/// What a chip does with what is dropped on it.
+enum Take {
+    Folder(Option<String>),
+    More,
+    New,
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Phase {
     Open,
+    /// Dropped on «+ Nueva»: the pill is the box for the name.
+    Naming,
     Closing,
 }
 
@@ -90,10 +108,16 @@ struct Pill {
     height: Spring,
     /// 0 is the accent and the plus, 1 the surface.
     tone: Spring,
+    /// While naming: what was dropped, and the name so far.
+    naming: Option<(Arc<DragPayload>, String)>,
 }
 
 fn id() -> egui::Id {
     egui::Id::new("drop-island")
+}
+
+fn field_id() -> egui::Id {
+    id().with("name")
 }
 
 /// Whether the pill is on screen, open or on its way back to the «+».
@@ -103,7 +127,7 @@ pub fn alive(ctx: &egui::Context) -> bool {
 
 /// What the pill is holding up, laid out: each chip's place, what it says and what it takes.
 struct Chip {
-    drop: Option<Dropped>,
+    drop: Option<Take>,
     glyph: Option<Glyph>,
     words: Arc<egui::Galley>,
     width: f32,
@@ -139,12 +163,15 @@ pub fn show(
                 width: Spring::new(NEW_BUTTON, 420.0, 30.0),
                 height: Spring::new(NEW_BUTTON, 420.0, 38.0),
                 tone: Spring::new(0.0, 260.0, 32.0),
+                naming: None,
             })
         }
         (None, false) => return (None, None),
-        (Some(p), true) if p.phase == Phase::Closing => {
+        // A new drag while a name was being typed: that name is let go, for this drag's folders.
+        (Some(p), true) if p.phase == Phase::Closing || (p.phase == Phase::Naming && p.since < now) => {
             p.phase = Phase::Open;
             p.since = now;
+            p.naming = None;
         }
         (Some(p), false) if p.phase == Phase::Open => {
             p.phase = Phase::Closing;
@@ -164,7 +191,7 @@ pub fn show(
 
     // The chips, and as many of the folders as fit: «Sin carpeta» always, «Más…» when some are left.
     let t = state.t();
-    let chip = |drop: Dropped, glyph: Option<Glyph>, label: &str, apart: bool| {
+    let chip = |drop: Take, glyph: Option<Glyph>, label: &str, apart: bool| {
         let words = words(label);
         let width = PAD * 2.0 + words.size().x + glyph.map_or(0.0, |_| glyphs::SIZE + ICON_GAP);
         Chip { drop: Some(drop), glyph, words, width, apart }
@@ -172,14 +199,20 @@ pub fn show(
     let none = targets
         .iter()
         .find(|target| target.folder.is_none())
-        .map(|_| chip(Dropped::On(None), None, t.no_folder, true));
-    let more = chip(Dropped::More, None, studio::text(state, "Más…", "More…", "Higit pa…", "और…"), false);
-    let fixed = END * 2.0 + WIDEN + none.as_ref().map_or(0.0, |c| BESIDE_RULE * 2.0 + 1.0 + c.width);
+        .map(|_| chip(Take::Folder(None), None, t.no_folder, true));
+    let new = chip(Take::New, Some(Glyph::Add), studio::text(state, "Nueva", "New", "Bago", "नया"), none.is_none());
+    let more = chip(Take::More, None, studio::text(state, "Más…", "More…", "Higit pa…", "और…"), false);
+    let fixed = END * 2.0
+        + WIDEN
+        + BESIDE_RULE * 2.0
+        + 1.0
+        + new.width
+        + none.as_ref().map_or(0.0, |c| c.width + BETWEEN);
     let folders: Vec<(Chip, bool)> = targets
         .iter()
         .filter_map(|target| {
             let name = target.folder.as_deref()?;
-            let mut c = chip(Dropped::On(Some(name.to_owned())), Some(Glyph::Folder), &crate::app::truncate(name, NAME_CHARS), false);
+            let mut c = chip(Take::Folder(Some(name.to_owned())), Some(Glyph::Folder), &crate::app::truncate(name, NAME_CHARS), false);
             if target.current {
                 c.drop = None;
             }
@@ -202,15 +235,27 @@ pub fn show(
         chips.push((more, false));
     }
     chips.extend(none.map(|c| (c, false)));
+    chips.push((new, false));
 
-    // How far each chip has arrived, and how far below its line it still sits.
+    // How far each chip has arrived, and how far below its line it still sits. Leaving, for the
+    // «+» or for the name, they go together.
     let items = chips.len();
+    let (phase, since) = (pill.phase, pill.since);
     let arrival = |i: usize| {
-        let came = ease_out((now - pill.since - CHIPS_DELAY - i as f64 * STAGGER) / LETTER_IN);
-        let stayed = if pill.phase == Phase::Closing { 1.0 - ease_out((now - pill.since) / OUT) } else { 1.0 };
-        let came = if pill.phase == Phase::Closing { 1.0 } else { came };
-        (came * stayed, (1.0 - came) * LETTER_RISE)
+        if phase == Phase::Open {
+            let came = ease_out((now - since - CHIPS_DELAY - i as f64 * STAGGER) / LETTER_IN);
+            (came, (1.0 - came) * LETTER_RISE)
+        } else {
+            (1.0 - ease_out((now - since) / OUT), 0.0)
+        }
     };
+
+    // While naming: the name, or what it asks for, sets how wide the box is.
+    let hint = studio::text(state, "Nombre de la carpeta", "Folder name", "Pangalan ng folder", "फ़ोल्डर का नाम");
+    let naming_width = pill.naming.as_ref().map(|(_, name)| {
+        let shown = words(if name.is_empty() { hint } else { name }).size().x;
+        END * 2.0 + PAD * 2.0 + glyphs::SIZE + ICON_GAP + shown.max(NAME_MIN) + 2.0
+    });
 
     // The pill under the pointer: its chips find which, and how far each has widened, before the
     // springs are told how wide to be.
@@ -226,9 +271,9 @@ pub fn show(
         width += c.width + WIDEN * w + if c.apart { BESIDE_RULE * 2.0 + 1.0 } else if k > 0 { BETWEEN } else { 0.0 };
     }
 
-    let opened = pill.phase == Phase::Open || now - pill.since < if motion { CLOSE_DELAY } else { 0.0 };
+    let opened = pill.phase != Phase::Closing || now - pill.since < if motion { CLOSE_DELAY } else { 0.0 };
     if opened {
-        pill.width.to = width.min(room);
+        pill.width.to = naming_width.unwrap_or(width).min(room);
         pill.height.to = ISLAND_HEIGHT;
         pill.tone.to = 1.0;
     } else {
@@ -321,9 +366,72 @@ pub fn show(
             if let Some(drop) = c.drop {
                 let response = ui.interact(slot, id().with(("chip", k)), egui::Sense::hover());
                 if let Some(payload) = response.dnd_release_payload::<DragPayload>() {
-                    dropped = Some((drop, payload));
+                    match drop {
+                        Take::Folder(folder) => dropped = Some((Dropped::On(folder), payload)),
+                        Take::More => dropped = Some((Dropped::More, payload)),
+                        Take::New => {
+                            // Kept, not filed: the pill becomes the box for the name.
+                            pill.phase = Phase::Naming;
+                            pill.since = now;
+                            pill.naming = Some((payload, String::new()));
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    // The box for the name, once the folders have gone: a folder, and the keyboard beside it.
+    if let Some((carried, mut name)) = pill.naming.take().filter(|_| pill.phase == Phase::Naming) {
+        let shown = ease_out((now - pill.since - OUT) / LETTER_IN);
+        let rise = (1.0 - shown) * LETTER_RISE;
+        let left = rect.left() + END + PAD;
+        let icon = egui::Rect::from_min_size(egui::pos2(left, middle - glyphs::SIZE * 0.5 + rise), egui::Vec2::splat(glyphs::SIZE));
+        glyphs::paint(ui, icon, Glyph::Folder, glyphs::SIZE, text.gamma_multiply(shown));
+        let at = icon.right() + ICON_GAP;
+        let field = egui::Rect::from_min_max(
+            egui::pos2(at, middle - CHIP_HEIGHT * 0.5 + rise),
+            egui::pos2((rect.right() - END - PAD).max(at), middle + CHIP_HEIGHT * 0.5 + rise),
+        );
+        let response = ui
+            .scope(|ui| {
+                // The pill stands over the foot of the list, outside what the list's own area shows.
+                ui.set_clip_rect(rect.intersect(ctx.content_rect()));
+                ui.multiply_opacity(shown);
+                ui.put(
+                    field,
+                    egui::TextEdit::singleline(&mut name)
+                        .id(field_id())
+                        .frame(egui::Frame::NONE)
+                        .margin(egui::Margin::ZERO)
+                        .vertical_align(egui::Align::Center)
+                        .text_color(text)
+                        .hint_text(hint)
+                        .desired_width(field.width()),
+                )
+            })
+            .inner;
+        // The keyboard is in it from the first frame it is drawn; when it leaves, so does the box.
+        if !response.has_focus() && !response.lost_focus() {
+            response.request_focus();
+        }
+        if response.lost_focus() {
+            let entered = ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let typed = name.trim();
+            if entered && !typed.is_empty() {
+                // A name a folder already has, in other capitals, is that folder.
+                let folder = targets
+                    .iter()
+                    .filter_map(|target| target.folder.as_deref())
+                    .find(|f| f.to_lowercase() == typed.to_lowercase())
+                    .unwrap_or(typed)
+                    .to_owned();
+                dropped = Some((Dropped::On(Some(folder)), carried));
+            }
+            pill.phase = Phase::Closing;
+            pill.since = now;
+        } else {
+            pill.naming = Some((carried, name));
         }
     }
 
@@ -336,7 +444,8 @@ pub fn show(
 
     let springing = [pill.width, pill.height, pill.tone].iter().any(|s| (s.x - s.to).abs() > 0.001 || s.v.abs() > 0.01);
     let arriving = now - pill.since < CHIPS_DELAY + items as f64 * STAGGER + LETTER_IN;
-    if springing || arriving || pill.phase == Phase::Closing {
+    let naming = pill.phase == Phase::Naming && now - pill.since < OUT + LETTER_IN;
+    if springing || arriving || naming || pill.phase == Phase::Closing {
         ctx.request_repaint();
     }
     ctx.data_mut(|d| d.insert_temp(id(), pill));

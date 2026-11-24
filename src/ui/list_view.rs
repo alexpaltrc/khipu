@@ -3657,15 +3657,13 @@ pub fn show_move_modal(ctx: &egui::Context, state: &mut AppState) {
         close = true;
     }
     if let Some(pick) = chosen {
-        match pick {
-            Pick::Folder(folder) => state.assign_folder_to_triggers(&targets, Some(folder)),
-            Pick::Loose => state.assign_folder_to_triggers(&targets, None),
-            Pick::Create(name) => {
-                if state.create_folder(&name) {
-                    state.assign_folder_to_triggers(&targets, Some(name));
-                }
-            }
-        }
+        // Filing them under a new name is what makes the folder, so one Deshacer takes back both
+        // the move and the folder.
+        let folder = match pick {
+            Pick::Folder(name) | Pick::Create(name) => Some(name),
+            Pick::Loose => None,
+        };
+        state.assign_folder_to_triggers(&targets, folder);
         close = true;
     }
     if close {

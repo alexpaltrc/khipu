@@ -15,6 +15,12 @@ was published.
   The arrows move one highlight shared with the pointer, Enter takes it, one click takes any
   line. No Cancel button: Esc or a click outside closes. The list keeps its opening height while
   typing, so the dialog never jumps. The separate «Nueva carpeta» step from this dialog is gone.
+- **A new folder from the drop island.** «+ Nueva» is the last chip. Dropping on it keeps what
+  was carried: the folders fade, the pill draws in to a «Nombre de la carpeta» box with the
+  keyboard in it, and Enter files the expansions under that name (a name an existing folder has,
+  in other capitals, is that folder), handing over to the island's «movida a …» with Deshacer.
+  Esc or a click elsewhere creates nothing and the pill closes into the «+»; a new drag lets the
+  half-typed name go. One undo step, as with any drop.
 - Studio: `r:x,y` in `preview-clicks.txt` right-clicks.
 
 ## 0.0.10 — 2026-11-22
