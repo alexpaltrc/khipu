@@ -359,12 +359,6 @@ fn create_folder_key() -> egui::Id {
     egui::Id::new("library-create-folder")
 }
 
-/// What the folder being made is for, when it was asked for from «Mover a una carpeta»: those
-/// expansions go into it the moment it exists.
-fn create_folder_for_key() -> egui::Id {
-    egui::Id::new("library-create-folder-for")
-}
-
 /// The expansion being given a new trigger, and the trigger as typed so far.
 fn rename_key() -> egui::Id {
     egui::Id::new("library-rename")
@@ -3484,6 +3478,11 @@ fn drag_source(
 
 /// "Where should these go?" — asked for one expansion from its open row, or for a whole selection
 /// from the bulk bar. The same question either way, so the same dialog.
+///
+/// It opens with the keyboard in a field: typing narrows the folders, and a name no folder has
+/// becomes «Crear «…»» at the foot, so a new folder is made and filled in the same gesture. Enter
+/// takes the lit line, the arrows move it, one click takes any. Nothing else to press: Esc or a
+/// click outside leaves.
 pub fn show_move_modal(ctx: &egui::Context, state: &mut AppState) {
     let Some(targets) = ctx.data(|d| d.get_temp::<Vec<String>>(move_targets_key())) else {
         return;
@@ -3493,12 +3492,71 @@ pub fn show_move_modal(ctx: &egui::Context, state: &mut AppState) {
         return;
     }
 
-    let t = state.t();
-    let folders = state.settings.all_folder_names();
-    let mut chosen: Option<Option<String>> = None;
-    let new_folder = t.new_folder;
-    let mut close = false;
+    /// What one line of the list does when taken.
+    #[derive(Clone)]
+    enum Pick {
+        Folder(String),
+        Loose,
+        Create(String),
+    }
 
+    let t = state.t();
+    let field_id = egui::Id::new("library-move-field");
+    let query_key = egui::Id::new("library-move-query");
+    let lit_key = egui::Id::new("library-move-lit");
+    let mut query = ctx.data(|d| d.get_temp::<String>(query_key)).unwrap_or_default();
+    let mut lit = ctx.data(|d| d.get_temp::<usize>(lit_key)).unwrap_or(0);
+
+    let list = state.list();
+
+    // Where they all are already, when they agree: that line is shown but cannot be taken.
+    let here = {
+        let mut places = targets.iter().map(|tr| state.settings.folder_of(tr));
+        let first = places.next().flatten();
+        places.all(|p| p == first).then_some(first)
+    };
+    let foldered = targets.iter().any(|tr| state.settings.folder_of(tr).is_some());
+
+    // The folders used lately first, as the drop island offers them, then the rest A→Z.
+    let recent = ctx.data(|d| d.get_temp::<Vec<String>>(recent_folders_key())).unwrap_or_default();
+    let all = state.settings.all_folder_names();
+    let mut ordered: Vec<&String> = recent.iter().filter(|r| all.contains(r)).collect();
+    ordered.extend(all.iter().filter(|f| !recent.contains(f)));
+
+    let wanted = query.trim().to_lowercase();
+    let mut lines: Vec<(Pick, String, Option<String>, bool)> = ordered
+        .into_iter()
+        .filter(|f| wanted.is_empty() || f.to_lowercase().contains(&wanted))
+        .map(|f| {
+            let current = here == Some(Some(f.as_str()));
+            let count = list.grouped.iter().find(|(name, _)| name == f).map_or(0, |(_, i)| i.len());
+            let tail = if current {
+                studio::text(state, "Aquí está", "It's here", "Nandito na", "यहीं है").to_owned()
+            } else {
+                count.to_string()
+            };
+            (Pick::Folder(f.clone()), truncate(f, 32), Some(tail), !current)
+        })
+        .collect();
+    if foldered && (wanted.is_empty() || t.no_folder.to_lowercase().contains(&wanted)) {
+        lines.push((Pick::Loose, t.no_folder.to_owned(), None, here != Some(None)));
+    }
+    let exact = all.iter().any(|f| f.trim().to_lowercase() == wanted);
+    if !wanted.is_empty() && !exact {
+        let name = query.trim().to_owned();
+        let label = crate::i18n::fill(
+            studio::text(state, "Crear «{name}»", "Create “{name}”", "Gumawa ng “{name}”", "“{name}” बनाएँ"),
+            &[("name", &truncate(&name, 32))],
+        );
+        lines.push((Pick::Create(name), label, None, true));
+    }
+    let takeable: Vec<usize> = (0..lines.len()).filter(|&i| lines[i].3).collect();
+    // The list keeps the height it opened with while the name is typed: the dialog stays where it
+    // is instead of shrinking under the field and jumping to the middle again with every letter.
+    let rows_at_open = all.len() + usize::from(foldered);
+
+    let mut chosen: Option<Pick> = None;
+    let mut close = false;
     let modal = controls::dialog(ctx, "library-move").show(ctx, |ui| {
         let is_light = !ui.visuals().dark_mode;
         ui.set_width(controls::dialog_width(ctx, 400.0));
@@ -3509,29 +3567,15 @@ pub fn show_move_modal(ctx: &egui::Context, state: &mut AppState) {
             "Ilipat sa isang folder",
             "किसी फ़ोल्डर में ले जाएँ",
         )));
-        // One expansion is the one the menu was opened on; only a selection needs counting.
+        // Which expansion, or how many: the menu it came from is gone by now.
+        ui.add_space(controls::GAP);
         let n = targets.len();
-        if n > 1 {
-            ui.add_space(controls::GAP);
+        if n == 1 {
+            ui.label(controls::code(truncate(&targets[0], 48), ui.visuals()));
+        } else {
             ui.label(controls::muted(
                 crate::i18n::fill(
-                    studio::plural(
-                        n,
-                        studio::text(
-                            state,
-                            "Se moverá {n} expansión.",
-                            "{n} expansion will move.",
-                            "{n} expansion ang ililipat.",
-                            "{n} विस्तार ले जाया जाएगा।",
-                        ),
-                        studio::text(
-                            state,
-                            "Se moverán {n} expansiones.",
-                            "{n} expansions will move.",
-                            "{n} expansion ang ililipat.",
-                            "{n} विस्तार ले जाए जाएँगे।",
-                        ),
-                    ),
+                    studio::text(state, "{n} expansiones", "{n} expansions", "{n} expansion", "{n} विस्तार"),
                     &[("n", &n.to_string())],
                 ),
                 is_light,
@@ -3539,58 +3583,102 @@ pub fn show_move_modal(ctx: &egui::Context, state: &mut AppState) {
         }
         ui.add_space(controls::GAP_STACK);
 
-        // The same lines as the folder menu in the header, so a folder is picked the same way
-        // wherever it is picked; the check marks where these already are, when they all agree.
-        let here = {
-            let mut places = targets.iter().map(|tr| state.settings.folder_of(tr));
-            let first = places.next().flatten();
-            places.all(|p| p == first).then_some(first)
-        };
+        let before = query.clone();
+        let hint = studio::text(
+            state,
+            "Busca o crea una carpeta",
+            "Find or make a folder",
+            "Maghanap o gumawa ng folder",
+            "फ़ोल्डर खोजें या बनाएँ",
+        );
+        let field = controls::search_field(ui, field_id, &mut query, hint, ui.available_width());
+        if !field.has_focus() && !field.lost_focus() {
+            field.request_focus();
+        }
+        if query != before {
+            lit = 0;
+        }
+        let (down, up, enter) = ui.input_mut(|i| {
+            (
+                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown),
+                i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
+                i.key_pressed(egui::Key::Enter),
+            )
+        });
+        if !takeable.is_empty() {
+            lit = lit.min(takeable.len() - 1);
+            if down {
+                lit = (lit + 1) % takeable.len();
+            }
+            if up {
+                lit = (lit + takeable.len() - 1) % takeable.len();
+            }
+            if enter && (field.has_focus() || field.lost_focus()) {
+                chosen = Some(lines[takeable[lit]].0.clone());
+            }
+        }
+
+        ui.add_space(controls::GAP);
+        let tall = (rows_at_open.max(1) as f32 * controls::MENU_ROW).min(260.0);
         egui::ScrollArea::vertical()
             .id_salt("library-move-list")
-            .max_height(260.0)
-            .auto_shrink([false, true])
+            .max_height(tall)
+            .min_scrolled_height(tall)
+            .auto_shrink([false, false])
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.spacing_mut().item_spacing.y = 0.0;
-                for folder in &folders {
-                    let checked = here == Some(Some(folder.as_str()));
-                    if controls::menu_check_item(ui, &truncate(folder, 32), None, checked).clicked() {
-                        chosen = Some(Some(folder.clone()));
+                for (i, (pick, label, tail, takes)) in lines.iter().enumerate() {
+                    let glyph = match pick {
+                        Pick::Folder(_) => Some(Glyph::Folder),
+                        Pick::Loose => None,
+                        Pick::Create(_) => Some(Glyph::Add),
+                    };
+                    let picked = takeable.get(lit) == Some(&i);
+                    let line = controls::pick_line(ui, glyph, label, tail.as_deref(), *takes, picked);
+                    if picked && (down || up) {
+                        line.scroll_to_me(None);
+                    }
+                    if *takes && line.hovered() {
+                        // The pointer and the arrows move one highlight: where the pointer last was
+                        // is where Enter goes.
+                        if let Some(at) = takeable.iter().position(|&k| k == i) {
+                            lit = at;
+                        }
+                    }
+                    if line.clicked() {
+                        chosen = Some(pick.clone());
                     }
                 }
-                if controls::menu_check_item(ui, t.no_folder, None, here == Some(None)).clicked() {
-                    chosen = Some(None);
-                }
             });
-        controls::menu_separator(ui);
-        ui.spacing_mut().item_spacing.y = 0.0;
-        if controls::menu_item(ui, Some(Glyph::Add), &new_folder, None, Tone::Normal, true).clicked() {
-            // The new folder is where these were being sent: they go into it as it is made.
-            ui.ctx().data_mut(|d| {
-                d.insert_temp(create_folder_key(), String::new());
-                d.insert_temp(create_folder_for_key(), targets.clone());
-            });
-            close = true;
-        }
-
-        ui.add_space(controls::GAP_STACK);
-        controls::dialog_buttons(ui, |ui| {
-            if controls::button(ui, t.cancel, Tone::Normal, true).clicked() {
-                close = true;
-            }
-        });
     });
 
     if modal.should_close() {
         close = true;
     }
-    if let Some(folder) = chosen {
-        state.assign_folder_to_triggers(&targets, folder);
+    if let Some(pick) = chosen {
+        match pick {
+            Pick::Folder(folder) => state.assign_folder_to_triggers(&targets, Some(folder)),
+            Pick::Loose => state.assign_folder_to_triggers(&targets, None),
+            Pick::Create(name) => {
+                if state.create_folder(&name) {
+                    state.assign_folder_to_triggers(&targets, Some(name));
+                }
+            }
+        }
         close = true;
     }
     if close {
-        ctx.data_mut(|d| d.remove::<Vec<String>>(move_targets_key()));
+        ctx.data_mut(|d| {
+            d.remove::<Vec<String>>(move_targets_key());
+            d.remove::<String>(query_key);
+            d.remove::<usize>(lit_key);
+        });
+    } else {
+        ctx.data_mut(|d| {
+            d.insert_temp(query_key, query);
+            d.insert_temp(lit_key, lit);
+        });
     }
 }
 
@@ -3659,18 +3747,12 @@ pub fn show_create_folder_modal(ctx: &egui::Context, state: &mut AppState) {
     if create {
         let trimmed = name.trim().to_owned();
         if state.create_folder(&trimmed) {
-            if let Some(targets) = ctx.data(|d| d.get_temp::<Vec<String>>(create_folder_for_key())) {
-                state.assign_folder_to_triggers(&targets, Some(trimmed.clone()));
-            }
             studio::set_filter(ctx, state, Some(&trimmed));
             close = true;
         }
     }
     if close {
-        ctx.data_mut(|d| {
-            d.remove::<String>(create_folder_key());
-            d.remove::<Vec<String>>(create_folder_for_key());
-        });
+        ctx.data_mut(|d| d.remove::<String>(create_folder_key()));
     } else {
         ctx.data_mut(|d| d.insert_temp(create_folder_key(), name));
     }

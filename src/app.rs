@@ -3818,12 +3818,17 @@ pub(crate) fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput)
                 }
                 continue;
             }
+            // `r:x,y` is the same click with the right button: a row's menu.
+            let (line, which) = match line.strip_prefix("r:") {
+                Some(rest) => (rest, egui::PointerButton::Secondary),
+                None => (line, egui::PointerButton::Primary),
+            };
             let mut xy = line.split(',').filter_map(|n| n.trim().parse::<f32>().ok());
             let (Some(x), Some(y)) = (xy.next(), xy.next()) else { continue };
             let pos = egui::pos2(x / ppp, y / ppp);
             let button = |pressed| egui::Event::PointerButton {
                 pos,
-                button: egui::PointerButton::Primary,
+                button: which,
                 pressed,
                 modifiers: egui::Modifiers::NONE,
             };

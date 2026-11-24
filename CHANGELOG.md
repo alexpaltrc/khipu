@@ -5,6 +5,18 @@ was published.
 
 ## Unreleased
 
+### Changed
+
+- **«Mover a una carpeta», renewed: type or pick.** The dialog opens with the keyboard in a
+  «Busca o crea una carpeta» field. Typing narrows the folders; a name no folder has becomes
+  «Crear «…»» at the foot, which makes the folder and moves into it in one go. Folders come
+  recent-first, as in the drop island, each with how many expansions it holds; the one they are
+  already in is greyed with «Aquí está»; «Sin carpeta» shows only when it would change something.
+  The arrows move one highlight shared with the pointer, Enter takes it, one click takes any
+  line. No Cancel button: Esc or a click outside closes. The list keeps its opening height while
+  typing, so the dialog never jumps. The separate «Nueva carpeta» step from this dialog is gone.
+- Studio: `r:x,y` in `preview-clicks.txt` right-clicks.
+
 ## 0.0.10 — 2026-11-22
 
 ### Changed

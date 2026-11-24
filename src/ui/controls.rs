@@ -1714,7 +1714,7 @@ pub fn dropdown_choice(ui: &mut egui::Ui, label: &str, chosen: bool) -> bool {
 /// The inner padding of a flyout line, its icon column, and its height.
 const MENU_PAD_X: f32 = 10.0;
 const MENU_ICON_COLUMN: f32 = 28.0;
-const MENU_ROW: f32 = 32.0;
+pub const MENU_ROW: f32 = 32.0;
 /// The least room between a line's words and the keys at its far end.
 const MENU_KEYS_GAP: f32 = 32.0;
 
@@ -1730,7 +1730,7 @@ pub fn menu_item(
     tone: Tone,
     enabled: bool,
 ) -> egui::Response {
-    menu_line(ui, glyph, label, keys, tone, enabled, false, true)
+    menu_line(ui, glyph, label, keys, tone, enabled, false, true, false)
 }
 
 /// One step of a [`menu_pair`]: its icon, the icon's ink when it is not the words' (the filled star
@@ -1789,7 +1789,7 @@ pub fn menu_pair(ui: &mut egui::Ui, items: [PairItem<'_>; 2]) -> [bool; 2] {
 /// A [`menu_item`] that leaves its menu open, for a line that turns into something else in place —
 /// «Nueva carpeta» becoming the box for the name.
 pub fn menu_item_staying(ui: &mut egui::Ui, glyph: Option<Glyph>, label: &str) -> egui::Response {
-    menu_line(ui, glyph, label, None, Tone::Normal, true, false, false)
+    menu_line(ui, glyph, label, None, Tone::Normal, true, false, false, false)
 }
 
 /// A flyout line that marks one of several choices — a folder in the folder menu. The check stands
@@ -1800,7 +1800,7 @@ pub fn menu_check_item(
     trailing: Option<&str>,
     checked: bool,
 ) -> egui::Response {
-    menu_line(ui, None, label, trailing, Tone::Normal, true, checked, true)
+    menu_line(ui, None, label, trailing, Tone::Normal, true, checked, true, false)
 }
 
 /// The same line for a list that stays open while things are ticked on and off — the folders to
@@ -1811,7 +1811,22 @@ pub fn check_line(
     trailing: Option<&str>,
     checked: bool,
 ) -> egui::Response {
-    menu_line(ui, None, label, trailing, Tone::Normal, true, checked, false)
+    menu_line(ui, None, label, trailing, Tone::Normal, true, checked, false, false)
+}
+
+/// A line of a list that is driven from a field above it — the folders of «Mover a una carpeta»,
+/// filtered as the name is typed. `picked` lights it as the one Enter would choose, with the same
+/// wash the pointer gives, so the arrows and the pointer move one highlight; the pointer wins
+/// while it is on a line. A line that is not `enabled` reads as where things already are.
+pub fn pick_line(
+    ui: &mut egui::Ui,
+    glyph: Option<Glyph>,
+    label: &str,
+    trailing: Option<&str>,
+    enabled: bool,
+    picked: bool,
+) -> egui::Response {
+    menu_line(ui, glyph, label, trailing, Tone::Normal, enabled, false, false, picked)
 }
 
 // The one private body behind the public menu-line helpers, each of which passes a fixed handful
@@ -1826,6 +1841,7 @@ fn menu_line(
     enabled: bool,
     checked: bool,
     closes: bool,
+    picked: bool,
 ) -> egui::Response {
     let is_light = !ui.visuals().dark_mode;
     let ink = if !enabled {
@@ -1852,7 +1868,15 @@ fn menu_line(
     let width = natural.max(ui.available_width());
     let sense = if enabled { egui::Sense::click() } else { egui::Sense::hover() };
     let (rect, response) = ui.allocate_exact_size(egui::vec2(width, MENU_ROW), sense);
-    subtle_wash(ui, &response, enabled);
+    if picked && enabled {
+        let mut fill = subtle_fill(ui, &response);
+        if fill == egui::Color32::TRANSPARENT {
+            fill = selection_hover_tint(is_light);
+        }
+        crate::ui::glide::item(ui, &response, RADIUS_CONTROL, true, fill);
+    } else {
+        subtle_wash(ui, &response, enabled);
+    }
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         let icon = egui::Rect::from_min_size(
