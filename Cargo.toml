@@ -5,14 +5,14 @@
 [workspace]
 members = ["."]
 exclude = ["vendor"]
-resolver = "2"
+resolver = "3"
 
 [package]
 name = "khipu"
 # While a version is being built it carries `-dev`: 0.0.2-dev is the work towards 0.0.2. The
 # suffix comes off in the commit that publishes it, and that commit gets the `v0.0.2` tag.
 version = "0.0.11-dev"
-edition = "2021"
+edition = "2024"
 authors = ["Alex Palacios"]
 # `-or-later` and not plain `GPL-3.0`, because that is what the header at the top of every
 # source file actually offers: version 3, "or (at your option) any later version". espanso

@@ -107,68 +107,70 @@ pub fn paste(text: &str, target_pid: u32) -> bool {
 }
 
 unsafe fn paste_with(window: HWND, text: &str, target_pid: u32) -> bool {
-    // Windows wants CRLF on the clipboard; a bare LF arrives as nothing at all in some editors.
-    let normalized = text.replace("\r\n", "\n").replace('\n', "\r\n");
-    PENDING.with(|p| *p.borrow_mut() = normalized.encode_utf16().chain(Some(0)).collect());
-    RENDERED.with(|r| r.set(None));
+    unsafe {
+        // Windows wants CRLF on the clipboard; a bare LF arrives as nothing at all in some editors.
+        let normalized = text.replace("\r\n", "\n").replace('\n', "\r\n");
+        PENDING.with(|p| *p.borrow_mut() = normalized.encode_utf16().chain(Some(0)).collect());
+        RENDERED.with(|r| r.set(None));
 
-    if !open(window) {
-        return false;
-    }
-    let saved = snapshot();
-    // No data: Windows sends `WM_RENDERFORMAT` when somebody actually reads it. Its answer cannot
-    // say whether that worked — success here *is* a null handle, which the binding reports as an
-    // error — so the clipboard is asked instead.
-    let offered = EmptyClipboard().is_ok() && {
-        let _ = SetClipboardData(CF_UNICODETEXT, None);
-        IsClipboardFormatAvailable(CF_UNICODETEXT).is_ok()
-    };
-    if offered {
-        mark_private();
-    }
-    let _ = CloseClipboard();
-    if !offered {
-        restore(window, &saved);
-        return false;
-    }
-
-    if !send_ctrl_v() {
-        // Refused outright — the target runs elevated. Nothing will read the text.
-        restore(window, &saved);
-        return false;
-    }
-
-    let start = Instant::now();
-    let mut deadline = start + READ_TIMEOUT;
-    let mut read = false;
-    loop {
-        pump();
-        match RENDERED.with(Cell::get) {
-            // Read by the target, or by a reader Windows cannot name. The paste is under way, not
-            // done: see [`AFTER_READ`].
-            Some(None) if !read => {
-                read = true;
-                deadline = Instant::now() + AFTER_READ;
-            }
-            Some(Some(pid)) if pid == target_pid && !read => {
-                read = true;
-                deadline = Instant::now() + AFTER_READ;
-            }
-            // Read by somebody else first. The target's own read will now come from memory without
-            // a word to us, so the only thing left is to give it time.
-            Some(Some(_)) if !read => deadline = deadline.min(start + BLIND_WAIT),
-            _ => {}
+        if !open(window) {
+            return false;
         }
-        let now = Instant::now();
-        if now >= deadline {
-            break;
+        let saved = snapshot();
+        // No data: Windows sends `WM_RENDERFORMAT` when somebody actually reads it. Its answer cannot
+        // say whether that worked — success here *is* a null handle, which the binding reports as an
+        // error — so the clipboard is asked instead.
+        let offered = EmptyClipboard().is_ok() && {
+            let _ = SetClipboardData(CF_UNICODETEXT, None);
+            IsClipboardFormatAvailable(CF_UNICODETEXT).is_ok()
+        };
+        if offered {
+            mark_private();
         }
-        let left = (deadline - now).as_millis() as u32;
-        MsgWaitForMultipleObjects(None, false, left.max(1), QS_ALLINPUT);
-    }
+        let _ = CloseClipboard();
+        if !offered {
+            restore(window, &saved);
+            return false;
+        }
 
-    restore(window, &saved);
-    true
+        if !send_ctrl_v() {
+            // Refused outright — the target runs elevated. Nothing will read the text.
+            restore(window, &saved);
+            return false;
+        }
+
+        let start = Instant::now();
+        let mut deadline = start + READ_TIMEOUT;
+        let mut read = false;
+        loop {
+            pump();
+            match RENDERED.with(Cell::get) {
+                // Read by the target, or by a reader Windows cannot name. The paste is under way, not
+                // done: see [`AFTER_READ`].
+                Some(None) if !read => {
+                    read = true;
+                    deadline = Instant::now() + AFTER_READ;
+                }
+                Some(Some(pid)) if pid == target_pid && !read => {
+                    read = true;
+                    deadline = Instant::now() + AFTER_READ;
+                }
+                // Read by somebody else first. The target's own read will now come from memory without
+                // a word to us, so the only thing left is to give it time.
+                Some(Some(_)) if !read => deadline = deadline.min(start + BLIND_WAIT),
+                _ => {}
+            }
+            let now = Instant::now();
+            if now >= deadline {
+                break;
+            }
+            let left = (deadline - now).as_millis() as u32;
+            MsgWaitForMultipleObjects(None, false, left.max(1), QS_ALLINPUT);
+        }
+
+        restore(window, &saved);
+        true
+    }
 }
 
 /// The text on the clipboard now, for a form's marker of what was last copied. Empty when what was
@@ -202,15 +204,17 @@ pub fn copied_text() -> String {
 /// Opens the clipboard as `window`, waiting out whoever has it open right now. The reader that has
 /// just been handed the text is one of them: its `CloseClipboard` is what this waits for.
 unsafe fn open(window: HWND) -> bool {
-    let deadline = Instant::now() + OPEN_TIMEOUT;
-    loop {
-        if OpenClipboard(Some(window)).is_ok() {
-            return true;
+    unsafe {
+        let deadline = Instant::now() + OPEN_TIMEOUT;
+        loop {
+            if OpenClipboard(Some(window)).is_ok() {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(5));
         }
-        if Instant::now() >= deadline {
-            return false;
-        }
-        std::thread::sleep(Duration::from_millis(5));
     }
 }
 
@@ -223,58 +227,64 @@ fn skip(format: u32) -> bool {
 /// Copies every memory format on the open clipboard. Delayed formats are rendered by their owner
 /// as they are asked for, which is the same thing a paste of them would do.
 unsafe fn snapshot() -> Vec<(u32, Vec<u8>)> {
-    let mut saved = Vec::new();
-    let mut format = 0;
-    loop {
-        format = EnumClipboardFormats(format);
-        if format == 0 {
-            return saved;
+    unsafe {
+        let mut saved = Vec::new();
+        let mut format = 0;
+        loop {
+            format = EnumClipboardFormats(format);
+            if format == 0 {
+                return saved;
+            }
+            if skip(format) {
+                continue;
+            }
+            let Ok(handle) = GetClipboardData(format) else { continue };
+            let memory = HGLOBAL(handle.0);
+            let size = GlobalSize(memory);
+            let data = GlobalLock(memory);
+            if data.is_null() {
+                continue;
+            }
+            saved.push((format, std::slice::from_raw_parts(data as *const u8, size).to_vec()));
+            let _ = GlobalUnlock(memory);
         }
-        if skip(format) {
-            continue;
-        }
-        let Ok(handle) = GetClipboardData(format) else { continue };
-        let memory = HGLOBAL(handle.0);
-        let size = GlobalSize(memory);
-        let data = GlobalLock(memory);
-        if data.is_null() {
-            continue;
-        }
-        saved.push((format, std::slice::from_raw_parts(data as *const u8, size).to_vec()));
-        let _ = GlobalUnlock(memory);
     }
 }
 
 /// Puts `bytes` on the open clipboard under `format`. The clipboard owns the memory once this
 /// succeeds; until then it is ours to free.
 unsafe fn put(format: u32, bytes: &[u8]) -> bool {
-    let Ok(memory) = GlobalAlloc(GMEM_MOVEABLE, bytes.len().max(1)) else { return false };
-    let data = GlobalLock(memory);
-    if data.is_null() {
-        let _ = GlobalFree(Some(memory));
-        return false;
+    unsafe {
+        let Ok(memory) = GlobalAlloc(GMEM_MOVEABLE, bytes.len().max(1)) else { return false };
+        let data = GlobalLock(memory);
+        if data.is_null() {
+            let _ = GlobalFree(Some(memory));
+            return false;
+        }
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), data as *mut u8, bytes.len());
+        let _ = GlobalUnlock(memory);
+        if SetClipboardData(format, Some(HANDLE(memory.0))).is_err() {
+            let _ = GlobalFree(Some(memory));
+            return false;
+        }
+        true
     }
-    std::ptr::copy_nonoverlapping(bytes.as_ptr(), data as *mut u8, bytes.len());
-    let _ = GlobalUnlock(memory);
-    if SetClipboardData(format, Some(HANDLE(memory.0))).is_err() {
-        let _ = GlobalFree(Some(memory));
-        return false;
-    }
-    true
 }
 
 /// Asks Windows to keep what is on the open clipboard out of the Win+V history, out of the cloud
 /// clipboard, and away from clipboard monitors. Documented under "Clipboard Formats".
 unsafe fn mark_private() {
-    let zero = 0u32.to_ne_bytes();
-    for (name, bytes) in [
-        (w!("ExcludeClipboardContentFromMonitorProcessing"), &zero[..]),
-        (w!("CanIncludeInClipboardHistory"), &zero[..]),
-        (w!("CanUploadToCloudClipboard"), &zero[..]),
-    ] {
-        let format = RegisterClipboardFormatW(name);
-        if format != 0 {
-            put(format, bytes);
+    unsafe {
+        let zero = 0u32.to_ne_bytes();
+        for (name, bytes) in [
+            (w!("ExcludeClipboardContentFromMonitorProcessing"), &zero[..]),
+            (w!("CanIncludeInClipboardHistory"), &zero[..]),
+            (w!("CanUploadToCloudClipboard"), &zero[..]),
+        ] {
+            let format = RegisterClipboardFormatW(name);
+            if format != 0 {
+                put(format, bytes);
+            }
         }
     }
 }
@@ -282,21 +292,23 @@ unsafe fn mark_private() {
 /// Gives the clipboard back — unless it is no longer ours, in which case whatever is on it now was
 /// put there by somebody after the paste began, and is newer than what was saved.
 unsafe fn restore(window: HWND, saved: &[(u32, Vec<u8>)]) {
-    if GetClipboardOwner().ok() != Some(window) {
-        return;
-    }
-    if !open(window) {
-        return;
-    }
-    if EmptyClipboard().is_ok() {
-        for (format, bytes) in saved {
-            put(*format, bytes);
+    unsafe {
+        if GetClipboardOwner().ok() != Some(window) {
+            return;
         }
-        if !saved.is_empty() {
-            mark_private();
+        if !open(window) {
+            return;
         }
+        if EmptyClipboard().is_ok() {
+            for (format, bytes) in saved {
+                put(*format, bytes);
+            }
+            if !saved.is_empty() {
+                mark_private();
+            }
+        }
+        let _ = CloseClipboard();
     }
-    let _ = CloseClipboard();
 }
 
 /// Ctrl down, V down, V up, Ctrl up, in one call so nothing typed meanwhile lands between them.
@@ -320,57 +332,63 @@ fn send_ctrl_v() -> bool {
 
 /// Delivers whatever is waiting, including the `WM_RENDERFORMAT` that a reader is blocked on.
 unsafe fn pump() {
-    let mut msg = MSG::default();
-    while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
-        DispatchMessageW(&msg);
+    unsafe {
+        let mut msg = MSG::default();
+        while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+            DispatchMessageW(&msg);
+        }
     }
 }
 
 /// A message-only window: it owns the clipboard while the paste is on it, and receives the request
 /// for the text. Created on the thread that pumps it.
 unsafe fn create_window() -> Option<HWND> {
-    let hinstance = GetModuleHandleW(None).ok()?;
-    let class_name = w!("Khipu Paste");
-    let class = WNDCLASSW {
-        lpfnWndProc: Some(wndproc),
-        hInstance: hinstance.into(),
-        lpszClassName: class_name,
-        ..Default::default()
-    };
-    // Registered by the first paste; every later one finds it already there, which is fine.
-    RegisterClassW(&class);
-    CreateWindowExW(
-        WINDOW_EX_STYLE(0),
-        class_name,
-        PCWSTR::null(),
-        WINDOW_STYLE(0),
-        0,
-        0,
-        0,
-        0,
-        Some(HWND_MESSAGE),
-        None,
-        Some(hinstance.into()),
-        None,
-    )
-    .ok()
+    unsafe {
+        let hinstance = GetModuleHandleW(None).ok()?;
+        let class_name = w!("Khipu Paste");
+        let class = WNDCLASSW {
+            lpfnWndProc: Some(wndproc),
+            hInstance: hinstance.into(),
+            lpszClassName: class_name,
+            ..Default::default()
+        };
+        // Registered by the first paste; every later one finds it already there, which is fine.
+        RegisterClassW(&class);
+        CreateWindowExW(
+            WINDOW_EX_STYLE(0),
+            class_name,
+            PCWSTR::null(),
+            WINDOW_STYLE(0),
+            0,
+            0,
+            0,
+            0,
+            Some(HWND_MESSAGE),
+            None,
+            Some(hinstance.into()),
+            None,
+        )
+        .ok()
+    }
 }
 
 unsafe extern "system" fn wndproc(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    if message == WM_RENDERFORMAT && wparam.0 as u32 == CF_UNICODETEXT {
-        let bytes = PENDING.with(|p| {
-            p.borrow().iter().flat_map(|unit| unit.to_ne_bytes()).collect::<Vec<u8>>()
-        });
-        // The clipboard is already open by the reader: `SetClipboardData` without opening it is
-        // exactly what this message expects.
-        put(CF_UNICODETEXT, &bytes);
-        let reader = GetOpenClipboardWindow().ok().map(|window| {
-            let mut pid = 0;
-            GetWindowThreadProcessId(window, Some(&mut pid));
-            pid
-        });
-        RENDERED.with(|r| r.set(Some(reader)));
-        return LRESULT(0);
+    unsafe {
+        if message == WM_RENDERFORMAT && wparam.0 as u32 == CF_UNICODETEXT {
+            let bytes = PENDING.with(|p| {
+                p.borrow().iter().flat_map(|unit| unit.to_ne_bytes()).collect::<Vec<u8>>()
+            });
+            // The clipboard is already open by the reader: `SetClipboardData` without opening it is
+            // exactly what this message expects.
+            put(CF_UNICODETEXT, &bytes);
+            let reader = GetOpenClipboardWindow().ok().map(|window| {
+                let mut pid = 0;
+                GetWindowThreadProcessId(window, Some(&mut pid));
+                pid
+            });
+            RENDERED.with(|r| r.set(Some(reader)));
+            return LRESULT(0);
+        }
+        DefWindowProcW(hwnd, message, wparam, lparam)
     }
-    DefWindowProcW(hwnd, message, wparam, lparam)
 }

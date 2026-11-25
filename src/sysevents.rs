@@ -136,62 +136,68 @@ fn wide(s: &str) -> Vec<u16> {
 }
 
 unsafe fn create_listener_window() -> Option<HWND> {
-    let hinstance = GetModuleHandleW(None).ok()?;
-    let class_name = wide("Khipu Appearance Watch");
+    unsafe {
+        let hinstance = GetModuleHandleW(None).ok()?;
+        let class_name = wide("Khipu Appearance Watch");
 
-    let class = WNDCLASSW {
-        lpfnWndProc: Some(wndproc),
-        hInstance: hinstance.into(),
-        lpszClassName: PCWSTR(class_name.as_ptr()),
-        ..Default::default()
-    };
-    // A zero atom means the class could not be registered.
-    if RegisterClassW(&class) == 0 {
-        return None;
+        let class = WNDCLASSW {
+            lpfnWndProc: Some(wndproc),
+            hInstance: hinstance.into(),
+            lpszClassName: PCWSTR(class_name.as_ptr()),
+            ..Default::default()
+        };
+        // A zero atom means the class could not be registered.
+        if RegisterClassW(&class) == 0 {
+            return None;
+        }
+
+        CreateWindowExW(
+            // A tool window never appears in the taskbar or in Alt-Tab, which is what keeps this
+            // invisible to the user despite being a real top-level window.
+            WS_EX_TOOLWINDOW,
+            PCWSTR(class_name.as_ptr()),
+            PCWSTR::null(),
+            // Created without WS_VISIBLE and never shown, so it is never drawn anywhere.
+            WS_POPUP,
+            0,
+            0,
+            0,
+            0,
+            None,
+            None,
+            Some(hinstance.into()),
+            None,
+        )
+        .ok()
     }
-
-    CreateWindowExW(
-        // A tool window never appears in the taskbar or in Alt-Tab, which is what keeps this
-        // invisible to the user despite being a real top-level window.
-        WS_EX_TOOLWINDOW,
-        PCWSTR(class_name.as_ptr()),
-        PCWSTR::null(),
-        // Created without WS_VISIBLE and never shown, so it is never drawn anywhere.
-        WS_POPUP,
-        0,
-        0,
-        0,
-        0,
-        None,
-        None,
-        Some(hinstance.into()),
-        None,
-    )
-    .ok()
 }
 
 unsafe fn pump_messages() {
-    let mut msg = MSG::default();
-    while GetMessageW(&mut msg, None, 0, 0).as_bool() {
-        let _ = TranslateMessage(&msg);
-        DispatchMessageW(&msg);
+    unsafe {
+        let mut msg = MSG::default();
+        while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+            let _ = TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
     }
 }
 
 /// Reads the NUL-terminated wide string `lParam` points at, and says whether it names the colour
 /// set. A null or unreadable pointer simply means "not the message we want".
 unsafe fn is_immersive_color_set(lparam: LPARAM) -> bool {
-    let ptr = lparam.0 as *const u16;
-    if ptr.is_null() {
-        return false;
+    unsafe {
+        let ptr = lparam.0 as *const u16;
+        if ptr.is_null() {
+            return false;
+        }
+        // Bounded so a malformed broadcast can't walk off into unmapped memory.
+        let mut len = 0usize;
+        while len < 64 && *ptr.add(len) != 0 {
+            len += 1;
+        }
+        let slice = std::slice::from_raw_parts(ptr, len);
+        String::from_utf16_lossy(slice) == IMMERSIVE_COLOR_SET
     }
-    // Bounded so a malformed broadcast can't walk off into unmapped memory.
-    let mut len = 0usize;
-    while len < 64 && *ptr.add(len) != 0 {
-        len += 1;
-    }
-    let slice = std::slice::from_raw_parts(ptr, len);
-    String::from_utf16_lossy(slice) == IMMERSIVE_COLOR_SET
 }
 
 unsafe extern "system" fn wndproc(
@@ -200,24 +206,26 @@ unsafe extern "system" fn wndproc(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    let appearance_changed = match message {
-        WM_DWMCOLORIZATIONCOLORCHANGED | WM_THEMECHANGED | WM_DISPLAYCHANGE => true,
-        // Work-area and contrast changes can alter the tray's size/colours without changing the
-        // app palette. SPI_SETLOGICALDPIOVERRIDE is used by Windows' display-scale setting.
-        // SPI_SETCLIENTAREAANIMATION is the «Efectos de animación» switch.
-        WM_SETTINGCHANGE => is_immersive_color_set(lparam)
-            || matches!(wparam.0, 0x002F | 0x0043 | 0x009F | 0x1043),
-        _ => false,
-    };
+    unsafe {
+        let appearance_changed = match message {
+            WM_DWMCOLORIZATIONCOLORCHANGED | WM_THEMECHANGED | WM_DISPLAYCHANGE => true,
+            // Work-area and contrast changes can alter the tray's size/colours without changing the
+            // app palette. SPI_SETLOGICALDPIOVERRIDE is used by Windows' display-scale setting.
+            // SPI_SETCLIENTAREAANIMATION is the «Efectos de animación» switch.
+            WM_SETTINGCHANGE => is_immersive_color_set(lparam)
+                || matches!(wparam.0, 0x002F | 0x0043 | 0x009F | 0x1043),
+            _ => false,
+        };
 
-    if appearance_changed {
-        if let Some(shared) = SHARED.get() {
-            shared.changed.store(true, Ordering::Relaxed);
-            // Wakes the interface even when it is hidden in the tray, so the palette is already
-            // correct the moment the window is shown again.
-            shared.ctx.request_repaint();
+        if appearance_changed {
+            if let Some(shared) = SHARED.get() {
+                shared.changed.store(true, Ordering::Relaxed);
+                // Wakes the interface even when it is hidden in the tray, so the palette is already
+                // correct the moment the window is shown again.
+                shared.ctx.request_repaint();
+            }
         }
-    }
 
-    DefWindowProcW(hwnd, message, wparam, lparam)
+        DefWindowProcW(hwnd, message, wparam, lparam)
+    }
 }
