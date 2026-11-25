@@ -170,7 +170,10 @@ pub fn show(
             pill = Some(Pill {
                 phase: Phase::Open,
                 since: now,
-                width: Spring::new(NEW_BUTTON, 420.0, 30.0),
+                // Nearly critical: a pill this wide that overshoots, even by 3 %, is seen pulling back in
+                // at both ends, a tremble just as the folders settle. At 0.9 of critical it stops within a
+                // pixel of its width.
+                width: Spring::new(NEW_BUTTON, 420.0, 37.0),
                 height: Spring::new(NEW_BUTTON, 420.0, 38.0),
                 tone: Spring::new(0.0, 260.0, 32.0),
                 naming: None,
@@ -373,7 +376,13 @@ pub fn show(
         let mut at = slot.center().x - inner * 0.5;
         if let Some(glyph) = c.glyph {
             let icon = egui::Rect::from_min_size(egui::pos2(at, middle - glyphs::SIZE * 0.5 + rise), egui::Vec2::splat(glyphs::SIZE));
-            glyphs::paint(ui, icon, glyph, glyphs::SIZE, ink);
+            // Through the pill's own clip: a chip still coming in must not show outside it.
+            match glyphs::shape(ui, icon, glyph, glyphs::SIZE, ink) {
+                Some(shape) => {
+                    inside.add(shape);
+                }
+                None => glyphs::paint(ui, icon, glyph, glyphs::SIZE, ink),
+            }
             at += glyphs::SIZE + ICON_GAP;
         }
         let top = middle - c.words.size().y * 0.5 + rise;
