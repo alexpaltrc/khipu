@@ -2655,6 +2655,11 @@ fn show_row_inner(
         .corner_radius(controls::RADIUS_CONTROL)
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
+            // The row dropped on gives way to the box for the folder's name as that comes in: on
+            // Mica the box is a translucent wash, so the words under it must go, not be covered.
+            if pass.paired == Some(drag_id) {
+                ui.multiply_opacity((1.0 - 2.0 * pair_shown(ui.ctx())).max(0.0));
+            }
             // The horizontal wrapper is what keeps a row as tall as its content: without it the
             // frame is handed the whole remaining height of the list and stretches to fill it.
             let outer = ui.horizontal(|ui| {
@@ -3366,6 +3371,15 @@ fn pair_onto(ui: &egui::Ui, rect: egui::Rect, trigger: &str, behind: egui::layer
     }
 }
 
+/// How far the box for the shared folder's name has come in, 0 to 1: 0 with no [`Pairing`].
+fn pair_shown(ctx: &egui::Context) -> f32 {
+    let Some(since) = ctx.data(|d| d.get_temp::<Pairing>(pairing_key())).map(|p| p.since) else {
+        return 0.0;
+    };
+    let pace = if crate::theme::animations_enabled() { 0.2 } else { 0.0 };
+    if pace > 0.0 { ((ctx.input(|i| i.time) - since) / pace).clamp(0.0, 1.0) as f32 } else { 1.0 }
+}
+
 /// The row dropped on, as the box for the shared folder's name: a folder, the keyboard, and how
 /// many will go in it.
 fn pair_name_box(ui: &mut egui::Ui, state: &mut AppState, rect: egui::Rect, is_light: bool) {
@@ -3373,9 +3387,9 @@ fn pair_name_box(ui: &mut egui::Ui, state: &mut AppState, rect: egui::Rect, is_l
     let Some(mut pairing) = ctx.data(|d| d.get_temp::<Pairing>(pairing_key())) else {
         return;
     };
-    let now = ctx.input(|i| i.time);
-    let pace = if crate::theme::animations_enabled() { 0.12 } else { 0.0 };
-    let shown = if pace > 0.0 { ((now - pairing.since) / pace).clamp(0.0, 1.0) as f32 } else { 1.0 };
+    let shown = pair_shown(&ctx);
+    // The row's own words leave in the first half, and the box's come in the second: never both.
+    let words = (shown * 2.0 - 1.0).max(0.0);
     if shown < 1.0 {
         ctx.request_repaint();
     }
@@ -3390,7 +3404,7 @@ fn pair_name_box(ui: &mut egui::Ui, state: &mut AppState, rect: egui::Rect, is_l
     let middle = rect.center().y;
     let left = rect.left() + controls::ROW_PAD_X;
     let icon = egui::Rect::from_min_size(egui::pos2(left, middle - glyphs::SIZE * 0.5), egui::Vec2::splat(glyphs::SIZE));
-    glyphs::paint(ui, icon, Glyph::Folder, glyphs::SIZE, text.gamma_multiply(shown));
+    glyphs::paint(ui, icon, Glyph::Folder, glyphs::SIZE, text.gamma_multiply(words));
 
     // How many will share it, at the far end.
     let n = pairing.carried.len() + 1;
@@ -3399,7 +3413,7 @@ fn pair_name_box(ui: &mut egui::Ui, state: &mut AppState, rect: egui::Rect, is_l
         &[("n", &n.to_string())],
     );
     let font = egui::TextStyle::Body.resolve(ui.style());
-    let weak = ui.visuals().weak_text_color().gamma_multiply(shown);
+    let weak = ui.visuals().weak_text_color().gamma_multiply(words);
     let galley = ui.painter().layout_no_wrap(count, font, weak);
     let count_at = egui::pos2(rect.right() - controls::ROW_PAD_X - galley.size().x, middle - galley.size().y * 0.5);
     ui.painter().galley(count_at.round(), galley, weak);
@@ -3412,7 +3426,7 @@ fn pair_name_box(ui: &mut egui::Ui, state: &mut AppState, rect: egui::Rect, is_l
     let hint = studio::text(state, "Nombre de la carpeta", "Folder name", "Pangalan ng folder", "फ़ोल्डर का नाम");
     let response = ui
         .scope(|ui| {
-            ui.multiply_opacity(shown);
+            ui.multiply_opacity(words);
             ui.put(
                 field,
                 egui::TextEdit::singleline(&mut pairing.name)
