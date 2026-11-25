@@ -443,6 +443,9 @@ pub fn show(
         }
         if response.lost_focus() {
             let entered = ui.input(|i| i.key_pressed(egui::Key::Enter));
+            // Spent here: the list, which hears the keyboard again now the box is going, must not take
+            // the same Enter as a request to open the row it carried.
+            ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
             let typed = name.trim();
             if entered && !typed.is_empty() {
                 // A name a folder already has, in other capitals, is that folder.

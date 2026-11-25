@@ -3444,8 +3444,10 @@ fn pair_name_box(ui: &mut egui::Ui, state: &mut AppState, rect: egui::Rect, is_l
         response.request_focus();
     }
     if response.lost_focus() {
+        // Spent here, so the list does not also take it as a request to open a row.
+        let entered = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
         let typed = pairing.name.trim();
-        if ui.input(|i| i.key_pressed(egui::Key::Enter)) && !typed.is_empty() {
+        if entered && !typed.is_empty() {
             // A name a folder already has, in other capitals, is that folder.
             let folder = state
                 .settings
