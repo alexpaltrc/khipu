@@ -27,7 +27,7 @@
 //! method here, and that method is what validates, saves, reloads and sets the banner. If a change
 //! has to reach the disk, it belongs on this side of the file, not in a view.
 //!
-//! **2. The palette** — `win_background` through `caution`, plus `tuned_visuals` and
+//! **2. The palette** — `win        MICA_READY.load(std::sync::atomic::Ordering::Relaxed) && !own_colours,background` through `caution`, plus `tuned_visuals` and
 //! `apply_layout_style`. These are Windows 11's own colours and type sizes rather than invented
 //! ones, which is why they are written as literals with the Fluent name beside them. Every one of
 //! them takes `is_light` as an argument instead of reading the theme itself, so a single frame can
@@ -2273,6 +2273,28 @@ fn ultra_dark_palette() -> bool {
     ULTRA_DARK.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+/// Whether the main window stands on Mica: the page is left clear and the backdrop Windows draws
+/// shows through it. Set by [`apply_theme`] once Windows has said yes; a flag for the same reason as
+/// [`KHIPU`].
+static MICA: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether the main window could stand on Mica at all: Windows took the backdrop. Every palette but
+/// the hidden theme, «Ultra oscuro» and a contrast theme then wears it.
+static MICA_READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn mica() -> bool {
+    MICA.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// What the page is painted with: nothing over Mica, the window's grey otherwise.
+pub fn page_fill(is_light: bool) -> egui::Color32 {
+    if mica() {
+        egui::Color32::TRANSPARENT
+    } else {
+        win_background(is_light)
+    }
+}
+
 /// Puts on the palette `mode` asks for, over light or dark. Takes effect at the next
 /// [`apply_theme`].
 pub fn set_palette_for(mode: ThemeMode) {
@@ -2579,7 +2601,7 @@ pub fn tuned_visuals(is_light: bool) -> egui::Visuals {
     // it.
     v.indent_has_left_vline = false;
 
-    v.panel_fill = win_background(is_light);
+    v.panel_fill = page_fill(is_light);
     v.window_fill = win_card(is_light);
     v.window_stroke = egui::Stroke::new(1.0, stroke);
     v.window_corner_radius = egui::CornerRadius::same(crate::ui::controls::RADIUS_DIALOG);
@@ -2673,6 +2695,16 @@ pub fn apply_theme(
     // switch quietly replaced every Fluent colour with egui's defaults, and re-showing the window
     // from the tray brought that stale palette back with it.
     //
+    // Mica first, since the page's colour in the visuals depends on it. The hidden theme and
+    // «Ultra oscuro» are colours of their own, and a contrast theme's window colour is the one
+    // everything is drawn against: those keep a solid page.
+    let lit = contrast_is_light().unwrap_or(is_light);
+    let own_colours = (khipu_palette() && lit) || (ultra_dark_palette() && !lit) || contrast().is_some();
+    MICA.store(
+        window.is_some_and(|_| MICA_READY.load(std::sync::atomic::Ordering::Relaxed)) && !own_colours,
+        std::sync::atomic::Ordering::Relaxed,
+    );
+
     // Both are written on every apply, so whichever one egui reaches for is ours.
     ctx.set_visuals_of(egui::Theme::Light, tuned_visuals(true));
     ctx.set_visuals_of(egui::Theme::Dark, tuned_visuals(false));
@@ -2703,6 +2735,23 @@ pub fn apply_theme(
             window,
             (violet || black).then(|| (win_background(is_light), win_text(is_light))),
         );
+    }
+}
+
+/// Asks Windows to draw Mica behind the window. `false` on a Windows without it.
+fn stand_on_mica(window: &winit::window::Window) -> bool {
+    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMSBT_MAINWINDOW, DWMWA_SYSTEMBACKDROP_TYPE};
+    let Some(hwnd) = hwnd_of(window) else {
+        return false;
+    };
+    unsafe {
+        DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_SYSTEMBACKDROP_TYPE,
+            (&DWMSBT_MAINWINDOW as *const windows::Win32::Graphics::Dwm::DWM_SYSTEMBACKDROP_TYPE).cast(),
+            std::mem::size_of::<windows::Win32::Graphics::Dwm::DWM_SYSTEMBACKDROP_TYPE>() as u32,
+        )
+        .is_ok()
     }
 }
 
@@ -2897,22 +2946,49 @@ pub fn tint_base(is_light: bool) -> egui::Color32 {
     win_background(is_light)
 }
 
+/// `colour`, `amount` of the way over the page: mixed into the window's own grey, or, over Mica,
+/// laid on it as a wash, so the wallpaper the backdrop carries goes on showing under a lit row.
+/// Over a plain window the two are the same colour.
+pub fn wash(is_light: bool, colour: egui::Color32, amount: f32) -> egui::Color32 {
+    if mica() {
+        colour.gamma_multiply(amount.clamp(0.0, 1.0))
+    } else {
+        mix(tint_base(is_light), colour, amount)
+    }
+}
+
+/// A grey drawn on the page, as the same grey seen through: white over a dark page, black over a
+/// light one, just strong enough to land where the opaque grey did. Only over Mica; a plain window
+/// keeps the grey.
+fn on_page(is_light: bool, grey: egui::Color32) -> egui::Color32 {
+    if !mica() {
+        return grey;
+    }
+    let page = win_background(is_light).r() as f32;
+    let g = grey.r() as f32;
+    if is_light {
+        egui::Color32::from_black_alpha(((page - g) / page * 255.0).round().clamp(0.0, 255.0) as u8)
+    } else {
+        egui::Color32::from_white_alpha(((g - page) / (255.0 - page) * 255.0).round().clamp(0.0, 255.0) as u8)
+    }
+}
+
 /// The fill under a chosen row: Fluent's subtle fill, neutral rather than accented. The accent is
 /// carried by the short bar beside it instead, so a trigger written in that same accent keeps its
 /// contrast on the row. The `accent` argument stays for the callers that still pass it.
 pub fn selection_tint(is_light: bool, _accent: egui::Color32) -> egui::Color32 {
-    token(is_light, 0x2D2D2D, 0xEAEAEA, 0xC2B6F0, |c| c.window)
+    on_page(is_light, token(is_light, 0x2D2D2D, 0xEAEAEA, 0xC2B6F0, |c| c.window))
 }
 
 /// The wash under the row the pointer is over. Weaker than the selection, so "where my mouse is"
 /// never competes with "what I have chosen".
 pub fn hover_tint(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x292929, 0xEDEDED, 0xB6A9EC, |c| c.window)
+    on_page(is_light, token(is_light, 0x292929, 0xEDEDED, 0xB6A9EC, |c| c.window))
 }
 
 /// The chosen row while the pointer is over it too.
 pub fn selection_hover_tint(is_light: bool) -> egui::Color32 {
-    token(is_light, 0x323232, 0xE4E4E4, 0xCABFF3, |c| c.window)
+    on_page(is_light, token(is_light, 0x323232, 0xE4E4E4, 0xCABFF3, |c| c.window))
 }
 
 /// Fluent's critical colour: for errors and for what cannot be undone.
@@ -3081,18 +3157,16 @@ impl KhipuApp {
         apply_motion(&cc.egui_ctx);
         keep_focus_in_accessibility_tree(&cc.egui_ctx);
         set_palette_for(ctx.settings.theme_mode);
-        apply_theme(&cc.egui_ctx, window.as_deref(), is_light);
-        // The title bar is the one strip of this window that Windows draws, and on Windows 11 it can
-        // wear Mica — the wallpaper, blurred and tinted to the theme — as Explorer's and Settings'
-        // do. Only the title bar shows it: egui paints the whole client area, opaque, over the rest.
-        // Set once, because DWM keeps it on the window for life, hidden in the tray or not, and
-        // tints it light or dark from the theme `apply_theme` has just given the window. Like every
-        // Mica bar it goes solid while another window is active. A Windows older than build 22523
-        // ignores the request, and the bar stays the solid colour it always was.
+        // The window stands on Mica — the wallpaper, blurred and tinted to the theme — as
+        // Explorer's and Settings' do: the title bar wears it, and the page is left clear so it shows
+        // through there too (`page_fill`). Set once, because DWM keeps it on the window for life,
+        // hidden in the tray or not, and tints it light or dark from the theme `apply_theme` gives
+        // the window. Like every Mica window it goes solid while another window is active. A Windows
+        // older than build 22523 says no, and the window stays the solid colour it always was.
         if let Some(window) = window.as_deref() {
-            use winit::platform::windows::{BackdropType, WindowExtWindows as _};
-            window.set_system_backdrop(BackdropType::MainWindow);
+            MICA_READY.store(stand_on_mica(window), std::sync::atomic::Ordering::Relaxed);
         }
+        apply_theme(&cc.egui_ctx, window.as_deref(), is_light);
         let devanagari_on = ctx.settings.lang == Lang::Hi;
         let font_status = fonts::install(&cc.egui_ctx, devanagari_on);
 
@@ -3847,6 +3921,11 @@ pub(crate) fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput)
 }
 
 impl eframe::App for KhipuApp {
+    /// What is under the page: nothing over Mica, so the backdrop shows; the window's grey otherwise.
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        page_fill(self.is_light).to_normalized_gamma_f32()
+    }
+
     /// eframe's half-minute, except for the frame that puts the window away: see `save_now`.
     fn auto_save_interval(&self) -> std::time::Duration {
         if self.save_now.take() {
@@ -4072,7 +4151,7 @@ impl eframe::App for KhipuApp {
             .show_separator_line(false)
             .frame(
                 egui::Frame::default()
-                    .fill(win_background(self.is_light))
+                    .fill(page_fill(self.is_light))
                     .inner_margin(egui::Margin {
                         left: gutter,
                         right: gutter,
@@ -4105,7 +4184,7 @@ impl eframe::App for KhipuApp {
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::default()
-                    .fill(win_background(self.is_light))
+                    .fill(page_fill(self.is_light))
                     .inner_margin(egui::Margin::symmetric(gutter, gutter.saturating_sub(4))),
             )
             .show(ui, |ui| match &self.state.view {

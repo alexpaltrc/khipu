@@ -2608,14 +2608,9 @@ fn show_row_inner(
         egui::Color32::TRANSPARENT
     };
     // A row saved a moment ago is lit over whatever else it would have been, and fades from there
-    // back to the list's own colour. Mixed into an opaque colour rather than laid over the row as a
-    // translucent wash, so the fade happens behind the words instead of across them.
+    // back to the list's own colour, behind the words rather than across them.
     if let Some(amount) = flash {
-        bg = crate::app::mix(
-            crate::app::tint_base(is_light),
-            accent_color,
-            if is_light { 0.11 } else { 0.20 } * amount,
-        );
+        bg = crate::app::wash(is_light, accent_color, if is_light { 0.11 } else { 0.20 } * amount);
     }
 
     // A card stands on the page in the card's own colour with the one line colour round it, as a
@@ -2627,7 +2622,7 @@ fn show_row_inner(
         let fill = if bg != egui::Color32::TRANSPARENT {
             bg
         } else if hovered_row && pass.dragged_id.is_none() {
-            crate::app::mix(card, crate::app::hover_tint(is_light), 0.6)
+            card.blend(crate::app::hover_tint(is_light).gamma_multiply(0.6))
         } else {
             card
         };
@@ -3330,7 +3325,7 @@ fn pairing_key() -> egui::Id {
 /// How a row looks with something held over it, and as the box for the shared folder's name: the
 /// tint a row saved a moment ago wears, ringed in the accent.
 fn pair_tint(is_light: bool, accent: egui::Color32) -> egui::Color32 {
-    crate::app::mix(crate::app::tint_base(is_light), accent, if is_light { 0.11 } else { 0.20 })
+    crate::app::wash(is_light, accent, if is_light { 0.11 } else { 0.20 })
 }
 
 /// The pass in which a row last lit under something carried: the carried row thins while it does.

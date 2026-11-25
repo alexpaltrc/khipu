@@ -27,6 +27,11 @@ was published.
   under the name (an existing folder, in any capitals, is reused) with the island's Deshacer; Esc
   or a click elsewhere leaves both where they were. The drop is caught from the payload, since
   egui forgets the dragged id on the release frame.
+- **Mica in the main window.** The root viewport is transparent and asks DWM for
+  `DWMSBT_MAINWINDOW` itself (`stand_on_mica`, which reports whether Windows took it); while it
+  stands on Mica the page is clear (`page_fill`, `clear_color`) and the row tints become washes
+  over it (`wash`, `on_page`: the same colour over the old grey). The hidden theme, «Ultra oscuro»
+  and contrast themes keep a solid page. Khipu's own CPU at rest measured the same before and after.
 - **The drop island remembers the last move.** The folder the last move went to comes first and
   arrives washed in the tint a saved row wears (`Target::last`, `Chip::lit`), under the accent
   fill the pointer brings; not when it is the folder the carried rows are already in, nor in a

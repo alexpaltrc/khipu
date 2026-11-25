@@ -355,7 +355,9 @@ fn main() {
         // has none. A start in the tray leaves it off until the window is first shown
         // (`show_and_focus`), so logging in does not flash a button for the moment eframe shows
         // the cloaked window before hiding it.
-        .with_taskbar(!start_hidden);
+        .with_taskbar(!start_hidden)
+        // See-through where nothing is painted, so the Mica behind it shows (`app::page_fill`).
+        .with_transparent(true);
     if let Some(icon) = icon {
         viewport = viewport.with_icon(icon);
     }

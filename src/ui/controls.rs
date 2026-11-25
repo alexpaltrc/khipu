@@ -53,7 +53,7 @@
 use crate::app::{
     accent, accent_fill, danger, disabled_text, hairline, hover_tint, line_strong, mix,
     secondary_text, selection_hover_tint, text_tertiary,
-    selection_tint, tint_base, win_card_for, win_control_for, win_sunken_for,
+    selection_tint, wash, win_card_for, win_control_for, win_sunken_for,
 };
 use crate::i18n::Lang;
 use crate::ui::glyphs::{self, Glyph};
@@ -1017,7 +1017,7 @@ pub fn notice(ui: &mut egui::Ui, text: &str, tone: Tone) {
     };
 
     let fill = if matches!(tone, Tone::Danger) {
-        mix(tint_base(is_light), bar, if is_light { 0.09 } else { 0.16 })
+        wash(is_light, bar, if is_light { 0.09 } else { 0.16 })
     } else {
         selection_tint(is_light, accent_color)
     };
@@ -1110,11 +1110,7 @@ pub fn segment_background(ui: &egui::Ui, rect: egui::Rect, selected: bool) {
             radius,
             egui::Stroke::new(
                 1.0,
-                mix(
-                    tint_base(is_light),
-                    accent_color,
-                    if is_light { 0.28 } else { 0.32 },
-                ),
+                wash(is_light, accent_color, if is_light { 0.28 } else { 0.32 }),
             ),
             egui::StrokeKind::Inside,
         );
