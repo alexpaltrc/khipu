@@ -46,7 +46,26 @@ was published.
   is typed until a folder is picked by hand. Opened from a folder, it stays that folder's, as
   before. The foot's folder button now opens its words out of the icon and folds them back
   (0.2 s, cubic out) instead of shoving «Nombre» along.
-- Studio: `r:x,y` in `preview-clicks.txt` right-clicks.
+- **Paste to create.** Ctrl+V on the list, with no box holding the keyboard, opens a new
+  expansion whose text is what was copied. Its word is guessed (`edit_form::suggest_word`): the
+  first word of four letters or more that is not a greeting or a filler word, accents off, at most
+  ten letters, with a number after it if a trigger already uses it; it arrives selected, so typing
+  replaces it. Nothing to guess leaves the word empty. egui-winit sends Ctrl+V as a `Paste` event
+  with no key, so `list_view::keyboard` now wakes for that event too.
+- Rust edition 2024 and resolver 3. `cargo fix --edition` wrapped the bodies of seven `unsafe fn`
+  in `unsafe { }` (`paste.rs`, `sysevents.rs`); nothing else changed and the exe is the same size.
+- Studio: `r:x,y` in `preview-clicks.txt` right-clicks; `p:text` pastes (`\n` is a line break).
+
+### Fixed
+
+- Dropping an expansion onto another no longer shows the row's words through the folder-name box
+  on Mica, where the tint is see-through: the row's content fades out in the first half of the
+  0.2 s handover and the box's words come in during the second.
+- The drop island no longer trembles as it opens: its width spring overshot by about 16 px and
+  wobbled back (damping 30 → 37, ζ ≈ 0.9). A folder icon that could show outside the growing pill
+  for a frame is clipped to it.
+- Enter that names a new folder (in the drop island or on a dropped-on row) is consumed, so it no
+  longer also opens the chosen row in the editor.
 
 ## 0.0.10 — 2026-11-22
 

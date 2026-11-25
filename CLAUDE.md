@@ -271,7 +271,7 @@ solo el índice para saber cuál abrir.
 ## Entorno local (Windows)
 
 - Git en `C:\Program Files\Git\cmd`; GitHub CLI (`gh`) con la sesión de `alexpaltrc`.
-- Rust estable con `rustup`; fuentes de los crates para verificar en
+- Rust estable con `rustup`, edición 2024 (desde el 2026-11-24); fuentes de los crates para verificar en
   `%USERPROFILE%\.cargo\registry\src\index.crates.io-*\`.
 - Windows en español: Ctrl+A es *Abrir*, no *Seleccionar todo*.
 - Las expansiones se prueban en **Brave**, nunca en el Bloc de notas, y con un disparador que

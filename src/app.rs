@@ -3830,6 +3830,12 @@ pub(crate) fn studio_clicks(ctx: &egui::Context, raw_input: &mut egui::RawInput)
                 queue.push_back(vec![egui::Event::Text(typed.to_owned())]);
                 continue;
             }
+            // `p:` and the rest of the line is pasted, as Ctrl+V arrives: one `Paste`, no key.
+            // `\n` in it stands for a line break.
+            if let Some(pasted) = line.strip_prefix("p:") {
+                queue.push_back(vec![egui::Event::Paste(pasted.replace("\\n", "\n"))]);
+                continue;
+            }
             // `k:Name` presses and releases one key, by egui's name for it: `k:Tab`, `k:Enter`;
             // `k:Ctrl+S` holds Ctrl through it.
             let chord = line.strip_prefix("k:").map(|name| {

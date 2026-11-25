@@ -175,6 +175,42 @@ pub fn split_trigger(trigger: &str) -> (String, String) {
     }
 }
 
+/// A word to type a pasted text with: its first telling word, plain and short. Greetings and the
+/// small words every sentence has say nothing about which text it is, so they are passed over;
+/// accents come off because a trigger is typed fast. If the word is already some trigger, a
+/// number goes after it. Empty when nothing in the text will do, and the person writes one.
+pub fn suggest_word(text: &str, prefix: &str, taken: &[String]) -> String {
+    const PLAIN: &[&str] = &[
+        "hola", "buenos", "buenas", "para", "pero", "como", "este", "esta", "estos", "estas", "esto",
+        "favor", "gracias", "saludos", "estimado", "estimada", "querido", "querida", "sobre", "desde",
+        "hello", "dear", "thanks", "thank", "that", "this", "these", "those", "with", "from", "your",
+        "have", "will", "would", "please", "regards", "there", "here", "what", "when", "where",
+    ];
+    let plain = |c: char| match c {
+        'á' | 'à' | 'ä' | 'â' => 'a',
+        'é' | 'è' | 'ë' | 'ê' => 'e',
+        'í' | 'ì' | 'ï' | 'î' => 'i',
+        'ó' | 'ò' | 'ö' | 'ô' => 'o',
+        'ú' | 'ù' | 'ü' | 'û' => 'u',
+        'ñ' => 'n',
+        'ç' => 'c',
+        c => c,
+    };
+    let Some(word) = text
+        .split(|c: char| !c.is_alphanumeric())
+        .map(|w| w.chars().flat_map(char::to_lowercase).map(plain).collect::<String>())
+        .find(|w| w.len() >= 4 && w.chars().all(|c| c.is_ascii_lowercase()) && !PLAIN.contains(&w.as_str()))
+    else {
+        return String::new();
+    };
+    let word: String = word.chars().take(10).collect();
+    let free = |w: &str| !taken.iter().any(|t| t.eq_ignore_ascii_case(&format!("{prefix}{w}")));
+    if free(&word) {
+        return word;
+    }
+    (2..).map(|n| format!("{word}{n}")).find(|w| free(w)).unwrap_or(word)
+}
+
 /// How a worked example of a date is drawn: monospaced so it reads as literal output rather than as
 /// prose, and muted so it supports the option it sits beside instead of competing with it.
 fn sample_text(sample: &str) -> egui::RichText {
@@ -721,6 +757,15 @@ pub fn show(ui: &mut egui::Ui, state: &mut AppState) {
         // nobody has to be told where to begin.
         if edit.editing_index.is_none() {
             ctx.memory_mut(|m| m.request_focus(word_field_id()));
+            // A word Khipu guessed (Ctrl+V on the list) arrives selected: typing replaces it.
+            if !edit.word.is_empty() {
+                let mut word_box = egui::text_edit::TextEditState::default();
+                word_box.cursor.set_char_range(Some(egui::text::CCursorRange::two(
+                    egui::text::CCursor::new(0),
+                    egui::text::CCursor::new(edit.word.chars().count()),
+                )));
+                word_box.store(&ctx, word_field_id());
+            }
         }
     }
     let dirty = ctx
@@ -2805,6 +2850,20 @@ fn show_form(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A pasted text is typed with its first telling word: the greeting is skipped, the accent
+    /// comes off, and a word some trigger already uses gets a number.
+    #[test]
+    fn a_pasted_text_suggests_its_first_telling_word() {
+        let none: Vec<String> = Vec::new();
+        assert_eq!(suggest_word("Hola Ana, tu pedido ya salió", ":", &none), "pedido");
+        assert_eq!(suggest_word("Dirección: Av. Reforma 222", ":", &none), "direccion");
+        assert_eq!(suggest_word("Thank you for your patience", ":", &none), "patience");
+        assert_eq!(suggest_word("Atentamente, el equipo", ":", &none), "atentament");
+        assert_eq!(suggest_word("123 456", ":", &none), "");
+        let taken = vec![":pedido".to_owned(), ":PEDIDO2".to_owned()];
+        assert_eq!(suggest_word("Tu pedido", ":", &taken), "pedido3");
+    }
 
     /// A window opened at its default size shows the preview beside the form, not under it: that
     /// is what the default is for, and a smaller one would put a newcomer's first expansion in

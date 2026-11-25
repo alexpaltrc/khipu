@@ -57,6 +57,17 @@ pub fn create_expansion(ctx: &egui::Context, state: &mut AppState) {
     state.view = View::Edit(edit);
 }
 
+/// Ctrl+V on the list: a new expansion that already says what was copied, with a word guessed
+/// from it to type it. The word arrives selected, so typing replaces the guess.
+pub fn create_from_paste(ctx: &egui::Context, state: &mut AppState, text: &str) {
+    create_expansion(ctx, state);
+    let taken: Vec<String> = state.list().rows.iter().map(|row| row.trigger.clone()).collect();
+    if let View::Edit(edit) = &mut state.view {
+        edit.replace = text.trim_end().to_owned();
+        edit.word = crate::ui::edit_form::suggest_word(text, &edit.prefix, &taken);
+    }
+}
+
 /// Why a prefix cannot be applied, in the user's language. Lives here rather than in
 /// [`crate::ui::folder_view`] because [`crate::app`] raises the same sentence as a banner when a
 /// prefix typed in the settings collides with an existing trigger.

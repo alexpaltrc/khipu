@@ -1351,8 +1351,9 @@ fn keyboard(
 ) {
     let ctx = ui.ctx().clone();
     // Everything below answers a key pressed this frame, and almost no frame has one; then there
-    // is nothing to look up, least of all whether the focus sits on any of the rows.
-    if !ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { pressed: true, .. }))) {
+    // is nothing to look up, least of all whether the focus sits on any of the rows. Ctrl+V counts
+    // although it comes as a `Paste` event: egui-winit sends no key for it.
+    if !ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::Paste(_)))) {
         return;
     }
     if state.pending_confirm.is_some() || state.pending_transfer.is_some() || state.settings_open {
@@ -1402,6 +1403,17 @@ fn keyboard(
     }
 
     if keys::typing(&ctx) {
+        return;
+    }
+    // Ctrl+V with no box to paste into: what was copied becomes a new expansion's text.
+    let pasted = ctx.input(|i| i.events.iter().find_map(|e| match e {
+        egui::Event::Paste(text) => Some(text.clone()),
+        _ => None,
+    }));
+    if let Some(text) = pasted {
+        if !text.trim().is_empty() {
+            studio::create_from_paste(&ctx, state, &text);
+        }
         return;
     }
     if keys::pressed(&ctx, keys::UNDO) {
