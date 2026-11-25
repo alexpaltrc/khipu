@@ -25,7 +25,8 @@
 //! and the folders arrive one after another. The one under the pointer fills with the accent and
 //! widens; the one the expansion is already in is dimmed and takes nothing; «Sin carpeta» stands
 //! apart, after a hairline, and only when there is a folder to take it out of. When the folders do
-//! not all fit, the most recently used come first and «Más…» opens the whole list.
+//! not all fit, the most recently used come first and «Más…» opens the whole list. The one the last
+//! move went to always comes first, and arrives lit, so the next move is a short reach to it.
 //!
 //! A drop on a folder does not close the pill: it hands its width to the island
 //! ([`crate::ui::island::seed`]), which says «Movida a …» with Deshacer from there, so the same pill
@@ -75,6 +76,8 @@ pub struct Target {
     pub folder: Option<String>,
     /// The folder the dragged expansions are all in already: shown, dimmed, and takes nothing.
     pub current: bool,
+    /// The folder something was last moved to: first, and lit, so the next move is one short reach.
+    pub last: bool,
 }
 
 /// What a drop landed on.
@@ -138,6 +141,8 @@ struct Chip {
     width: f32,
     /// After the hairline.
     apart: bool,
+    /// Where the last move went: washed in the accent before the pointer is anywhere near.
+    lit: bool,
 }
 
 /// The pill, while there is one: where it is this frame (never `open`, so the «+» does not bud
@@ -199,7 +204,7 @@ pub fn show(
     let chip = |drop: Take, glyph: Option<Glyph>, label: &str, apart: bool| {
         let words = words(label);
         let width = PAD * 2.0 + words.size().x + glyph.map_or(0.0, |_| glyphs::SIZE + ICON_GAP);
-        Chip { drop: Some(drop), glyph, words, width, apart }
+        Chip { drop: Some(drop), glyph, words, width, apart, lit: false }
     };
     let none = targets
         .iter()
@@ -221,6 +226,7 @@ pub fn show(
             if target.current {
                 c.drop = None;
             }
+            c.lit = target.last && !target.current;
             Some((c, target.current))
         })
         .collect();
@@ -352,6 +358,12 @@ pub fn show(
             continue;
         }
         let h = widened[k];
+        // The last folder moved to wears the wash a row saved a moment ago wears, under the fill the
+        // pointer brings; in a contrast theme the system's colours carry nothing of the sort.
+        if c.lit && !contrast && h < 0.99 {
+            let wash = crate::app::mix(surface, fill, if is_light { 0.11 } else { 0.20 });
+            inside.rect_filled(slot, CHIP_HEIGHT * 0.5, wash.gamma_multiply(shown * (1.0 - h)));
+        }
         if h > 0.01 {
             inside.rect_filled(slot, CHIP_HEIGHT * 0.5, fill.gamma_multiply(h * shown));
         }

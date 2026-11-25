@@ -27,6 +27,10 @@ was published.
   under the name (an existing folder, in any capitals, is reused) with the island's Deshacer; Esc
   or a click elsewhere leaves both where they were. The drop is caught from the payload, since
   egui forgets the dragged id on the release frame.
+- **The drop island remembers the last move.** The folder the last move went to comes first and
+  arrives washed in the tint a saved row wears (`Target::last`, `Chip::lit`), under the accent
+  fill the pointer brings; not when it is the folder the carried rows are already in, nor in a
+  contrast theme.
 - **A new expansion guesses its folder.** Opened from «Todas las carpetas», the editor files the
   new trigger with the folder whose expansions share the most of its word (three letters at
   least, prefix and capitals aside, none on a tie: `folders::guess`), and follows the word as it

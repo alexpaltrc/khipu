@@ -3474,10 +3474,10 @@ fn drop_targets(ctx: &egui::Context, state: &AppState, list: &ListCache) -> Vec<
     names.extend(list.folder_names.iter().filter(|f| !recent.contains(f)));
     let mut targets: Vec<Target> = names
         .into_iter()
-        .map(|f| Target { folder: Some(f.clone()), current: shared == Some(f.as_str()) })
+        .map(|f| Target { folder: Some(f.clone()), current: shared == Some(f.as_str()), last: recent.first() == Some(f) })
         .collect();
     if foldered {
-        targets.push(Target { folder: None, current: false });
+        targets.push(Target { folder: None, current: false, last: false });
     }
     targets
 }
