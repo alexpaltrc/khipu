@@ -40,6 +40,9 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
   privado y sin licencia. No proponerlo de nuevo.
 - **Mica: sí** (decisión de Alex, 2026-11-23; antes se había descartado el 2026-11-14 por coste y
   por cómo se ve con fondos llamativos). Se añade cuidando esas dos cosas.
+- **Workspace de crates: sí** (decisión de Alex, 2026-11-24), como pide el estándar.
+- **Fusionar carpetas arrastrando una sobre otra: no** (2026-11-24). Hay pocas formas de ver
+  carpetas y se volvería un problema. No proponerlo de nuevo.
 - Expansiones con formato (negritas, listas) se probaron y se descartaron (2026-11-22): mucho
   trabajo y una experiencia que no se puede asegurar. El porqué, en `docs/roadmap.md` («Decidido:
   expansiones sin formato»). No proponerlo de nuevo salvo que Alex lo pida.
