@@ -7,6 +7,10 @@ was published.
 
 ### Changed
 
+- The repository is a Cargo workspace, with the app as its first member at the root. Nothing
+  moved: `target/release/Khipu.exe`, the scripts and CI keep their paths, and the binary is
+  unchanged (Cargo did not rebuild it). `vendor/` is excluded.
+
 - **«Mover a una carpeta», renewed: type or pick.** The dialog opens with the keyboard in a
   «Busca o crea una carpeta» field. Typing narrows the folders; a name no folder has becomes
   «Crear «…»» at the foot, which makes the folder and moves into it in one go. Folders come

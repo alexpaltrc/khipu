@@ -41,7 +41,10 @@ proyecto se revisa para seguirla. La nube no ve ese skill, así que lo esencial 
 - **Mica: sí** (decisión de Alex, 2026-11-23; antes se había descartado el 2026-11-14 por coste y
   por cómo se ve con fondos llamativos). En la ventana principal desde el 2026-11-24
   (`app::page_fill`); el tema oculto, «Ultra oscuro» y contraste alto siguen opacos.
-- **Workspace de crates: sí** (decisión de Alex, 2026-11-24), como pide el estándar.
+- **Workspace de crates: sí** (decisión de Alex, 2026-11-24), como pide el estándar. Desde ese día
+  el `Cargo.toml` de la raíz es el workspace y la app es su primer miembro, en la misma raíz (las
+  rutas de scripts, CI y nube no cambian); `vendor/` queda fuera. Un crate nuevo va en su carpeta
+  y en `members`.
 - **Fusionar carpetas arrastrando una sobre otra: no** (2026-11-24). Hay pocas formas de ver
   carpetas y se volvería un problema. No proponerlo de nuevo.
 - Expansiones con formato (negritas, listas) se probaron y se descartaron (2026-11-22): mucho

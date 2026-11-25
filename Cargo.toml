@@ -1,3 +1,12 @@
+# A workspace of crates, as Alex's standard asks. Its first member is the app itself, here at the
+# root, so every path the scripts, CI and the cloud hook use (`target/release/Khipu.exe`, `src/`,
+# this file's `version`) stays where it was. A new crate goes in its own folder and into `members`.
+# `vendor/` is left out: those are patched copies of published crates, not ours to build or test.
+[workspace]
+members = ["."]
+exclude = ["vendor"]
+resolver = "2"
+
 [package]
 name = "khipu"
 # While a version is being built it carries `-dev`: 0.0.2-dev is the work towards 0.0.2. The
